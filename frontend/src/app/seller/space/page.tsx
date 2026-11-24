@@ -43,7 +43,7 @@ export default function StoreSpace() {
   return (
     <>
       <PageTitle kicker="Your stall, and extra space you can rent by the day" title="Store space" />
-      {msg && <p role="status" className={`mb-4 border-l-2 pl-3 text-[13px] ${msg.ok ? "border-market text-market" : "border-signal text-signal"}`}>{msg.text}</p>}
+      {msg && <p role="status" className={`mb-4 border-l-2 pl-3 text-[13px] ${msg.ok ? "border-element-success text-text-success" : "border-element-error text-text-error"}`}>{msg.text}</p>}
 
       <section className="mb-10">
         <p className="label mb-2">Your stall plan</p>
@@ -51,19 +51,19 @@ export default function StoreSpace() {
           {(plans.data ?? []).map((p) => {
             const on = current?.code === p.code;
             return (
-              <div key={p.id} className={`flex flex-col border p-5 ${on ? "border-2 border-ink bg-card" : "border-rule"}`}>
+              <div key={p.id} className={`rounded-element flex flex-col border p-5 ${on ? "border-2 border-primary-element" : "border-border-dark"}`}>
                 <div className="flex items-center justify-between">
-                  <p className="display text-[30px]">{p.name}</p>
-                  {on && <span className="ticket ticket-ink">CURRENT</span>}
+                  <p className="heading text-[22px]">{p.name}</p>
+                  {on && <span className="chip chip-primary">Current plan</span>}
                 </div>
-                <p className="price mt-1 text-[20px]">{money(p.monthly_price_cents)}<span className="text-[13px] text-ink-3"> / month</span></p>
-                <ul className="mt-3 flex-1 space-y-1 text-[13px] text-ink-2">
+                <p className="price mt-1 text-[20px]">{money(p.monthly_price_cents)}<span className="text-[13px] text-maxcontrast"> / month</span></p>
+                <ul className="mt-3 flex-1 space-y-1 text-[13px] text-maxcontrast">
                   <li>{(p.commission_rate * 100).toFixed(p.commission_rate * 100 % 1 ? 1 : 0)}% commission per sale</li>
                   <li>{p.product_limit ? `Up to ${p.product_limit.toLocaleString("en-US")} live products` : "Unlimited products"}</li>
                   {!!p.featured_slots && <li>{p.featured_slots} free promo days a month</li>}
                 </ul>
                 {!on && (
-                  <button disabled={!!switching || !me.data} onClick={() => switchPlan(p.code, p.name)} className="btn btn-line btn-sm mt-4">
+                  <button disabled={!!switching || !me.data} onClick={() => switchPlan(p.code, p.name)} className="btn btn-secondary btn-sm mt-4">
                     {switching === p.code ? "Switching…" : `Switch to ${p.name}`}
                   </button>
                 )}
@@ -72,7 +72,7 @@ export default function StoreSpace() {
           })}
         </div>
         {me.data?.subscription && (
-          <p className="mt-2 text-[12px] text-ink-3">Current period ends {shortDate(me.data.subscription.current_period_end)}.</p>
+          <p className="mt-2 text-[12px] text-maxcontrast">Current period ends {shortDate(me.data.subscription.current_period_end)}.</p>
         )}
       </section>
 
@@ -83,14 +83,14 @@ export default function StoreSpace() {
           {(slots.data ?? []).map((pl) => {
             const left = pl.booked != null ? pl.capacity - pl.booked : null;
             return (
-              <div key={pl.id} className="flex flex-col border border-ink bg-card p-5">
+              <div key={pl.id} className="rounded-element flex flex-col border border-border-dark bg-main-background p-5">
                 <p className="label">{pl.location}</p>
-                <p className="display mt-1 text-[28px]">{pl.name}</p>
-                <p className="mt-1 flex-1 text-[14px] text-ink-2">{pl.description}</p>
-                <p className="mt-3 font-mono text-[12px] text-ink-3">
+                <p className="heading mt-1 text-[20px]">{pl.name}</p>
+                <p className="mt-1 flex-1 text-[14px] text-maxcontrast">{pl.description}</p>
+                <p className="mt-3 tabular-nums text-[12px] text-maxcontrast">
                   {money(pl.daily_price_cents)} a day · {left !== null ? `${left} of ${pl.capacity} spots free today` : `${pl.capacity} spots a day`}
                 </p>
-                <button onClick={() => setBooking(pl)} className="btn btn-ink mt-3 self-start">Book dates</button>
+                <button onClick={() => setBooking(pl)} className="btn mt-3 self-start">Book dates</button>
               </div>
             );
           })}
@@ -104,13 +104,13 @@ export default function StoreSpace() {
           {(mine.data ?? []).map((b) => (
             <tr key={b.id}>
               <td className="px-3 py-3">{b.slot_name}</td>
-              <td className="px-3 py-3 font-mono text-[12px]">{shortDate(b.starts_on)} to {shortDate(b.ends_on)}</td>
-              <td className="px-3 py-3 text-ink-2">{b.headline ?? ""}</td>
-              <td className="price px-3 py-3">{money(b.amount_cents, b.currency)}{b.credits_used ? <span className="block text-[11px] text-market">{b.credits_used} free days used</span> : null}</td>
+              <td className="px-3 py-3 tabular-nums text-[12px]">{shortDate(b.starts_on)} to {shortDate(b.ends_on)}</td>
+              <td className="px-3 py-3 text-maxcontrast">{b.headline ?? ""}</td>
+              <td className="price px-3 py-3">{money(b.amount_cents, b.currency)}{b.credits_used ? <span className="block text-[12px] text-text-success">{b.credits_used} free days used</span> : null}</td>
               <td className="px-3 py-3"><StatusTag status={b.status} /></td>
             </tr>
           ))}
-          {mine.data?.length === 0 && <tr><td colSpan={5} className="px-3 py-8 text-center text-ink-3">No bookings yet.</td></tr>}
+          {mine.data?.length === 0 && <tr><td colSpan={5} className="px-3 py-8 text-center text-maxcontrast">No bookings yet.</td></tr>}
         </Table>
       </section>
 
@@ -172,11 +172,11 @@ function BookDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center" role="dialog" aria-modal="true" aria-label={`Book ${slot.name}`}>
-      <div className="absolute inset-0 bg-ink/40" onClick={onClose} />
-      <form onSubmit={submit} className="relative w-full max-w-lg border-2 border-ink bg-paper">
-        <div className="border-b border-ink p-4">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <form onSubmit={submit} className="modal relative w-full max-w-lg overflow-hidden">
+        <div className="border-b border-border p-4">
           <p className="label">{slot.location}</p>
-          <p className="display text-[28px]">Book {slot.name}</p>
+          <p className="heading text-[20px]">Book {slot.name}</p>
         </div>
         <div className="space-y-4 p-4">
           <div className="grid grid-cols-2 gap-3">
@@ -196,16 +196,16 @@ function BookDialog({
             </select>
           </label>
           <label className="block"><span className="label">Headline (optional)</span><input maxLength={120} className="field mt-1" value={headline} onChange={(e) => setHeadline(e.target.value)} placeholder="Summer linen, new this week" /></label>
-          <div className="border-t border-rule pt-3 text-[14px]">
+          <div className="border-t border-border pt-3 text-[14px]">
             <p className="flex justify-between"><span>{days} day{days > 1 ? "s" : ""}, ends {shortDate(end)}</span><span className="price">{money(slot.daily_price_cents * days)}</span></p>
-            {freeDays > 0 && <p className="mt-1 text-[12px] text-market">Your plan includes {freeDays} free promo days a month. Any you haven&apos;t used come off this price.</p>}
-            <p className="mt-1 text-[12px] text-ink-3">Charged to your store balance, which is settled from your next sales.</p>
+            {freeDays > 0 && <p className="mt-1 text-[12px] text-text-success">Your plan includes {freeDays} free promo days a month. Any you haven&apos;t used come off this price.</p>}
+            <p className="mt-1 text-[12px] text-maxcontrast">Charged to your store balance, which is settled from your next sales.</p>
           </div>
           <ErrorLine error={err} />
         </div>
-        <div className="flex justify-end gap-2 border-t border-ink p-4">
-          <button type="button" onClick={onClose} className="btn btn-ghost">Cancel</button>
-          <button disabled={busy} className="btn btn-signal">{busy ? "Booking…" : "Book it"}</button>
+        <div className="flex justify-end gap-2 border-t border-border p-4">
+          <button type="button" onClick={onClose} className="btn btn-tertiary">Cancel</button>
+          <button disabled={busy} className="btn btn-primary">{busy ? "Booking…" : "Book it"}</button>
         </div>
       </form>
     </div>

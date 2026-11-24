@@ -87,7 +87,7 @@ export function OrderTracking({ orderId }: { orderId: string }) {
               key={d.delivery_id ?? i}
               role="tab"
               aria-selected={d === current}
-              className={`btn btn-sm ${d === current ? "btn-ink" : "btn-line"}`}
+              className={`btn btn-sm ${d === current ? "" : "btn-tertiary"}`}
               onClick={() => setPick(d.delivery_id)}
             >
               {d.store_name || `Parcel ${i + 1}`}
@@ -99,35 +99,35 @@ export function OrderTracking({ orderId }: { orderId: string }) {
         {pins.length ? (
           <DeliveryMap pins={pins} lines={lines} follow={current.status === "picked_up" ? "rider" : undefined} className="h-[340px] md:h-[400px]" />
         ) : (
-          <div className="flex h-[200px] items-center justify-center border border-dashed border-rule text-[14px] text-ink-3">The map appears once a rider takes the job.</div>
+          <div className="panel flex h-[200px] items-center justify-center p-6 text-center text-[15px] text-maxcontrast">The map appears once a rider takes the job.</div>
         )}
-        <div className="space-y-4 border border-ink bg-card p-5">
+        <div className="card space-y-4 p-5">
           <div>
             <p className="label flex items-center gap-2">
               Live status
-              <span className={`inline-block h-2 w-2 ${live ? "bg-market" : "bg-rule"}`} aria-hidden />
+              <span className={`inline-block h-2 w-2 rounded-full ${live ? "bg-element-success" : "bg-border-dark"}`} aria-hidden />
               <span className="sr-only">{live ? "connected" : "refreshing every few seconds"}</span>
             </p>
-            <p className="display mt-1 text-[30px]">{words[current.status] ?? current.status.replace(/_/g, " ")}</p>
-            {current.store_name && deliveries.length > 1 && <p className="text-[13px] text-ink-3">From {current.store_name}</p>}
+            <p className="heading mt-1 text-[22px]">{words[current.status] ?? current.status.replace(/_/g, " ")}</p>
+            {current.store_name && deliveries.length > 1 && <p className="text-[13px] text-maxcontrast">From {current.store_name}</p>}
             {current.eta_minutes !== null && current.status !== "delivered" && <p className="price mt-1 text-[15px]">About {current.eta_minutes} min away</p>}
           </div>
           {current.handover_code && (
-            <div className="border-2 border-ink bg-paper p-3">
-              <p className="label">Handover code</p>
-              <p className="mt-1 font-mono text-[28px] font-semibold tracking-[0.25em]">{current.handover_code}</p>
-              <p className="mt-1 text-[12px] text-ink-3">Read it to the rider when your parcel is in your hands. Don&apos;t share it before then.</p>
+            <div className="rounded-container bg-primary-element-light p-4 text-primary-element-light-text">
+              <p className="text-[13px] font-medium">Handover code</p>
+              <p className="mono mt-0.5 text-[30px] font-semibold tracking-[0.2em]">{current.handover_code}</p>
+              <p className="mt-1 text-[13px] opacity-85">Read it to the rider when your parcel is in your hands. Don&apos;t share it before then.</p>
             </div>
           )}
           {current.rider && (
-            <div className="border-t border-rule pt-4 text-[14px]">
+            <div className="border-t border-border pt-4 text-[14px]">
               <p className="label mb-1">Your rider</p>
               <p className="font-semibold">{current.rider.name}</p>
-              <p className="text-ink-3 capitalize">{current.rider.vehicle.replace(/_/g, " ")}{current.rider.phone_masked ? ` · ${current.rider.phone_masked}` : ""}</p>
+              <p className="text-maxcontrast capitalize">{current.rider.vehicle.replace(/_/g, " ")}{current.rider.phone_masked ? ` · ${current.rider.phone_masked}` : ""}</p>
             </div>
           )}
           {current.rider_position?.at && (
-            <p className="font-mono text-[11px] text-ink-3" suppressHydrationWarning>
+            <p className="text-[13px] text-maxcontrast" suppressHydrationWarning>
               Position updated {new Date(current.rider_position.at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
             </p>
           )}

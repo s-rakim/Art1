@@ -73,10 +73,10 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
   }
 
   return (
-    <div className="mx-auto max-w-lg px-4 py-14">
-      <h1 className="display text-[56px]">{mode === "login" ? "Sign in" : "Create account"}</h1>
+    <div>
+      <h1 className="heading text-center text-[20px]">{mode === "login" ? "Log in to your account" : "Create an account"}</h1>
 
-      <div role="tablist" aria-label="Account type" className="mt-6 grid border border-ink" style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
+      <div role="tablist" aria-label="Account type" className="mt-5 flex overflow-hidden rounded-element border border-border-maxcontrast">
         {tabs.map((r, i) => (
           <button
             key={r.id}
@@ -84,22 +84,24 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
             type="button"
             aria-selected={role === r.id}
             onClick={() => { setRole(r.id); setMsg(null); }}
-            className={`h-11 text-[13px] font-semibold ${i ? "border-l border-ink" : ""} ${role === r.id ? "bg-ink text-paper" : "hover:bg-paper-2"}`}
+            className={`h-[34px] flex-1 text-[14px] font-medium transition-colors ${i ? "border-l border-border-maxcontrast" : ""} ${role === r.id ? "bg-primary-element-light font-semibold text-primary-element-light-text" : "hover:bg-background-hover"}`}
           >
             {r.label}
           </button>
         ))}
       </div>
-      <p className="mt-3 text-[14px] text-ink-2">{mode === "signup" ? current.signup : current.blurb}</p>
+      <p className="mt-2 text-center text-[14px] text-maxcontrast">{mode === "signup" ? current.signup : current.blurb}</p>
 
       {!AUTH_ENABLED && (
-        <p className="mt-6 border border-tag bg-tag/15 p-3 text-[13px]">
-          This server doesn&apos;t have Supabase keys yet, so sign-in is off. The rest of the store works in demo mode, and you
-          can look around the <Link className="underline" href={current.home}>{current.label.toLowerCase()} area</Link> with sample data.
+        <p className="note note-warning mt-5 text-[14px]">
+          <span>
+            This server doesn&apos;t have Supabase keys yet, so sign-in is off. The rest of the store works in demo mode, and you
+            can look around the <Link className="underline" href={current.home}>{current.label.toLowerCase()} area</Link> with sample data.
+          </span>
         </p>
       )}
 
-      <form onSubmit={submit} className="mt-6 space-y-4">
+      <form onSubmit={submit} className="mt-5 space-y-3">
         <label className="block">
           <span className="label">Email</span>
           <input type="email" required maxLength={254} autoComplete="email" className="field mt-1" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -116,30 +118,30 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
-          {mode === "signup" && <span className="mt-1 block text-[12px] text-ink-3">At least 10 characters. A short sentence works well.</span>}
+          {mode === "signup" && <span className="mt-1 block text-[13px] text-maxcontrast">At least 10 characters. A short sentence works well.</span>}
         </label>
         {msg && (
-          <p role={msg.kind === "error" ? "alert" : "status"} className={`border-l-2 pl-3 text-[13px] ${msg.kind === "error" ? "border-signal text-signal" : "border-market text-market"}`}>
-            {msg.text}
+          <p role={msg.kind === "error" ? "alert" : "status"} className={`note text-[14px] ${msg.kind === "error" ? "note-error" : "note-success"}`}>
+            <span>{msg.text}</span>
           </p>
         )}
-        <button disabled={busy || !AUTH_ENABLED} className="btn btn-ink h-12 w-full">
-          {busy ? "One moment…" : mode === "login" ? `Sign in as ${current.label.toLowerCase()}` : `Create ${current.label.toLowerCase()} account`}
+        <button disabled={busy || !AUTH_ENABLED} className="btn btn-primary btn-lg btn-wide !mt-5">
+          {busy ? "One moment…" : mode === "login" ? `Log in as ${current.label.toLowerCase()}` : `Create ${current.label.toLowerCase()} account`}
         </button>
         {mode === "login" && role !== "admin" && (
-          <button type="button" disabled={busy || !AUTH_ENABLED} onClick={magic} className="btn btn-line h-12 w-full">Email me a sign-in link</button>
+          <button type="button" disabled={busy || !AUTH_ENABLED} onClick={magic} className="btn btn-tertiary btn-wide">Email me a sign-in link</button>
         )}
       </form>
 
-      <p className="mt-8 text-[14px]">
+      <p className="mt-6 text-center text-[14px]">
         {mode === "login" ? (
           role === "admin" ? (
-            <span className="text-ink-3">Need admin access? Ask an existing admin to invite you.</span>
+            <span className="text-maxcontrast">Need admin access? Ask an existing admin to invite you.</span>
           ) : (
-            <>New here? <Link className="link-u font-semibold" href={`/signup?as=${role}`}>Create a {current.label.toLowerCase()} account</Link></>
+            <>New here? <Link className="link" href={`/signup?as=${role}`}>Create a {current.label.toLowerCase()} account</Link></>
           )
         ) : (
-          <>Already have one? <Link className="link-u font-semibold" href={`/login?as=${role}`}>Sign in</Link></>
+          <>Already have one? <Link className="link" href={`/login?as=${role}`}>Log in</Link></>
         )}
       </p>
     </div>

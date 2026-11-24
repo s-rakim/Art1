@@ -139,20 +139,20 @@ export default function RiderHome() {
 
   return (
     <>
-      <div className="mb-5 flex items-center justify-between gap-4 border-b border-ink pb-4">
+      <div className="mb-5 flex items-center justify-between gap-4">
         <div>
           <p className="label">{me.data ? `${me.data.full_name} · ${me.data.vehicle.replace(/_/g, " ")}` : "Rider"}</p>
-          <h1 className="display text-[44px]">{onShift ? "On shift" : "Off shift"}</h1>
+          <h1 className="heading flex items-center gap-2 text-[22px]"><span className={`h-2.5 w-2.5 rounded-full ${onShift ? "bg-element-success" : "bg-border-maxcontrast"}`} aria-hidden />{onShift ? "On shift" : "Off shift"}</h1>
         </div>
-        <button onClick={toggleShift} disabled={switching || !me.data} aria-pressed={onShift} className={`btn h-14 px-6 text-[15px] ${onShift ? "btn-line" : "btn-signal"}`}>
+        <button onClick={toggleShift} disabled={switching || !me.data} aria-pressed={onShift} className={`btn btn-lg ${onShift ? "btn-secondary" : "btn-primary"}`}>
           {switching ? "…" : onShift ? "End shift" : "Start shift"}
         </button>
       </div>
 
       {onShift && (
-        <p className="mb-4 flex items-center gap-2 text-[13px] text-market">
-          <Pin size={16} /> Sharing your location with the market, and with the store and customer on your job, while you&apos;re on shift.
-          {pos && <span className="font-mono text-ink-3">±{Math.round(pos.accuracy)}m</span>}
+        <p className="note note-success mb-4 text-[14px]">
+          <Pin size={18} />
+          <span>Sharing your location with the market, and with the store and customer on your job, while you&apos;re on shift.{pos && <span className="ml-1 text-maxcontrast tabular-nums">±{Math.round(pos.accuracy)}m</span>}</span>
         </p>
       )}
       <ErrorLine error={geoError ?? msg ?? jobs.error} />
@@ -160,9 +160,9 @@ export default function RiderHome() {
       {pins.length > 0 && <DeliveryMap pins={pins} lines={lines} follow={here ? "me" : undefined} className="mb-6 h-[300px]" />}
 
       <div className="mb-3 grid grid-cols-3 gap-2 text-center">
-        <div className="border border-ink bg-card p-3"><p className="label">Active</p><p className="price text-[22px]">{active.length}</p></div>
-        <div className="border border-ink bg-card p-3"><p className="label">Done today</p><p className="price text-[22px]">{doneToday.length}</p></div>
-        <div className="border border-ink bg-card p-3">
+        <div className="card p-3"><p className="label">Active</p><p className="price text-[22px]">{active.length}</p></div>
+        <div className="card p-3"><p className="label">Done today</p><p className="price text-[22px]">{doneToday.length}</p></div>
+        <div className="card p-3">
           <p className="label">Owed to you</p>
           <p className="price text-[22px]">{money(me.data?.unpaid_earnings_cents ?? doneToday.reduce((a, d) => a + (d.fee_cents ?? 0), 0))}</p>
         </div>
@@ -174,23 +174,23 @@ export default function RiderHome() {
           const route = routeUrl(here, d);
           const code = codes[d.id] ?? "";
           return (
-            <li key={d.id} className="border-2 border-ink bg-card">
-              <div className="flex items-center justify-between border-b border-ink px-4 py-2">
-                <span className="font-mono text-[13px]">{d.order_number}{d.items ? ` · ${d.items} item${d.items > 1 ? "s" : ""}` : ""}</span>
-                {d.fee_cents != null && <span className="price text-market">{money(d.fee_cents)}</span>}
+            <li key={d.id} className="card">
+              <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+                <span className="text-[14px] font-semibold tabular-nums">{d.order_number}{d.items ? ` · ${d.items} item${d.items > 1 ? "s" : ""}` : ""}</span>
+                {d.fee_cents != null && <span className="price text-text-success">{money(d.fee_cents)}</span>}
               </div>
               {!!d.cash_to_collect_cents && (
-                <p className="border-b border-ink bg-tag px-4 py-2 text-[14px] font-semibold">Collect {money(d.cash_to_collect_cents)} in cash from the customer</p>
+                <p className="note note-warning mx-3 mt-3 text-[14px] font-semibold"><span>Collect {money(d.cash_to_collect_cents)} in cash from the customer</span></p>
               )}
               <ol className="space-y-2 p-4 text-[14px]">
                 <li className="flex gap-3">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center bg-ink font-mono text-[11px] text-paper">P</span>
+                  <span className="rounded-full flex h-6 w-6 shrink-0 items-center justify-center bg-primary-element tabular-nums text-[12px] text-primary-element-text">P</span>
                   <span><b>{d.store_name}</b>{d.pickup?.label && <><br />{d.pickup.label}</>}</span>
                 </li>
                 <li className="flex gap-3">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center bg-market font-mono text-[11px] text-paper">D</span>
+                  <span className="rounded-full flex h-6 w-6 shrink-0 items-center justify-center bg-success tabular-nums text-[12px] text-success-text">D</span>
                   {d.status === "assigned" ? (
-                    <span className="text-ink-3">Address shown after you accept{d.dropoff?.label ? ` (${d.dropoff.label})` : ""}</span>
+                    <span className="text-maxcontrast">Address shown after you accept{d.dropoff?.label ? ` (${d.dropoff.label})` : ""}</span>
                   ) : (
                     <span>
                       {d.customer_name && <b>{d.customer_name}<br /></b>}
@@ -198,7 +198,7 @@ export default function RiderHome() {
                       {d.customer_phone && (
                         <>
                           <br />
-                          {/^[0-9 +().-]{6,32}$/.test(d.customer_phone) ? <a className="underline" href={`tel:${d.customer_phone.replace(/[^0-9+]/g, "")}`}>{d.customer_phone}</a> : d.customer_phone}
+                          {/^[0-9 +().-]{6,32}$/.test(d.customer_phone) ? <a className="link-u" href={`tel:${d.customer_phone.replace(/[^0-9+]/g, "")}`}>{d.customer_phone}</a> : d.customer_phone}
                         </>
                       )}
                     </span>
@@ -208,7 +208,7 @@ export default function RiderHome() {
 
               {d.status === "picked_up" && (
                 <form
-                  className="flex items-end gap-2 border-t border-rule p-3"
+                  className="flex items-end gap-2 border-t border-border p-3"
                   onSubmit={(e) => {
                     e.preventDefault();
                     if (/^\d{6}$/.test(code)) act(d, "delivered", { code });
@@ -220,18 +220,18 @@ export default function RiderHome() {
                       inputMode="numeric"
                       autoComplete="one-time-code"
                       maxLength={6}
-                      className="field mt-1 font-mono text-[20px] tracking-[0.3em]"
+                      className="field mt-1 tabular-nums text-[20px]"
                       value={code}
                       onChange={(e) => setCodes((c) => ({ ...c, [d.id]: e.target.value.replace(/\D/g, "").slice(0, 6) }))}
                     />
                   </label>
-                  <button disabled={busy === d.id || code.length !== 6 || !onShift} className="btn btn-signal h-12">Delivered</button>
+                  <button disabled={busy === d.id || code.length !== 6 || !onShift} className="btn btn-primary btn-lg">Delivered</button>
                 </form>
               )}
 
               {failing === d.id ? (
                 <form
-                  className="space-y-2 border-t border-rule p-3"
+                  className="space-y-2 border-t border-border p-3"
                   onSubmit={(e) => {
                     e.preventDefault();
                     if (note.trim()) act(d, "failed", { note: note.trim() });
@@ -241,29 +241,29 @@ export default function RiderHome() {
                     <input required maxLength={300} className="field mt-1" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Nobody home, wrong address, refused…" />
                   </label>
                   <div className="flex gap-2">
-                    <button type="button" className="btn btn-ghost flex-1" onClick={() => setFailing(null)}>Back</button>
-                    <button disabled={busy === d.id || !note.trim()} className="btn btn-ink flex-1">Report and return to store</button>
+                    <button type="button" className="btn btn-tertiary flex-1" onClick={() => setFailing(null)}>Back</button>
+                    <button disabled={busy === d.id || !note.trim()} className="btn btn-error flex-1">Report and return to store</button>
                   </div>
                 </form>
               ) : (
-                <div className="flex gap-2 border-t border-rule p-3">
-                  {d.status === "assigned" && <button disabled={busy === d.id} onClick={() => act(d, "decline")} className="btn btn-ghost flex-1">Decline</button>}
+                <div className="flex gap-2 border-t border-border p-3">
+                  {d.status === "assigned" && <button disabled={busy === d.id} onClick={() => act(d, "decline")} className="btn btn-tertiary flex-1">Decline</button>}
                   {next && (
-                    <button disabled={busy === d.id || !onShift} onClick={() => act(d, next.action)} className="btn btn-signal h-12 flex-[2]">
+                    <button disabled={busy === d.id || !onShift} onClick={() => act(d, next.action)} className="btn btn-primary btn-lg flex-[2]">
                       {onShift ? next.label : "Start shift to continue"}
                     </button>
                   )}
                   {(d.status === "accepted" || d.status === "picked_up") && (
-                    <button onClick={() => { setFailing(d.id); setNote(""); }} className="btn btn-ghost h-12">Can&apos;t deliver</button>
+                    <button onClick={() => { setFailing(d.id); setNote(""); }} className="btn btn-tertiary btn-lg">Can&apos;t deliver</button>
                   )}
-                  {route && d.status !== "assigned" && <a className="btn btn-line h-12" target="_blank" rel="noopener noreferrer" href={route}>Route</a>}
+                  {route && d.status !== "assigned" && <a className="btn btn-secondary btn-lg" target="_blank" rel="noopener noreferrer" href={route}>Route</a>}
                 </div>
               )}
             </li>
           );
         })}
         {jobs.data && active.length === 0 && (
-          <li className="border border-dashed border-rule p-8 text-center text-ink-3">
+          <li className="rounded-element border border-dashed border-border p-8 text-center text-maxcontrast">
             {onShift ? "No jobs right now. New ones show up here automatically." : "Start your shift to get jobs from nearby stores."}
           </li>
         )}

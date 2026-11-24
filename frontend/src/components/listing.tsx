@@ -4,7 +4,7 @@ import { api, type ProductQuery } from "@/lib/api";
 import { money } from "@/lib/format";
 import { toParams, type SP } from "@/lib/query";
 import type { Category } from "@/lib/types";
-import { Filter, X } from "./icons";
+import { Filter, Search, X } from "./icons";
 import { ProductGrid } from "./product-card";
 import { SortSelect } from "./sort-select";
 import { Empty } from "./ui";
@@ -36,18 +36,18 @@ export async function Listing({ basePath, sp, query, categories, lockCategory, l
   if (query.on_sale && !lockSale) chips.push(["On sale", { sale: null }]);
 
   const filters = (
-    <form action={basePath} method="get" className="space-y-7 text-[14px]">
+    <form action={basePath} method="get" className="space-y-5 text-[15px]">
       {query.q && <input type="hidden" name="q" value={query.q} />}
       {query.sort && <input type="hidden" name="sort" value={query.sort} />}
       {lockCategory && query.category && <input type="hidden" name="category" value={query.category} />}
       {!lockCategory && (
         <fieldset>
-          <legend className="label mb-2">Department</legend>
-          <ul className="space-y-1.5">
+          <legend className="mb-1 font-semibold">Department</legend>
+          <ul className="grid grid-cols-2 gap-x-3 gap-y-1">
             {categories.filter((c) => !c.parent_id).map((c) => (
               <li key={c.id}>
                 <label className="flex cursor-pointer items-center gap-2">
-                  <input type="radio" name="category" value={c.slug} defaultChecked={query.category === c.slug} className="accent-ink" />
+                  <input type="radio" name="category" value={c.slug} defaultChecked={query.category === c.slug} />
                   {c.name}
                 </label>
               </li>
@@ -56,20 +56,20 @@ export async function Listing({ basePath, sp, query, categories, lockCategory, l
         </fieldset>
       )}
       <fieldset>
-        <legend className="label mb-2">Price</legend>
+        <legend className="mb-1 font-semibold">Price</legend>
         <div className="flex items-center gap-2">
-          <input name="min" inputMode="numeric" pattern="[0-9]*" placeholder="Min" defaultValue={query.min_price ? query.min_price / 100 : ""} className="field !h-9" aria-label="Minimum price" />
-          <span className="text-ink-3">to</span>
-          <input name="max" inputMode="numeric" pattern="[0-9]*" placeholder="Max" defaultValue={query.max_price ? query.max_price / 100 : ""} className="field !h-9" aria-label="Maximum price" />
+          <input name="min" inputMode="numeric" pattern="[0-9]*" placeholder="Min" defaultValue={query.min_price ? query.min_price / 100 : ""} className="field" aria-label="Minimum price" />
+          <span className="text-maxcontrast">to</span>
+          <input name="max" inputMode="numeric" pattern="[0-9]*" placeholder="Max" defaultValue={query.max_price ? query.max_price / 100 : ""} className="field" aria-label="Maximum price" />
         </div>
       </fieldset>
       <fieldset>
-        <legend className="label mb-2">Customer rating</legend>
-        <ul className="space-y-1.5">
+        <legend className="mb-1 font-semibold">Customer rating</legend>
+        <ul className="grid grid-cols-2 gap-x-3 gap-y-1">
           {[4, 3].map((r) => (
             <li key={r}>
               <label className="flex cursor-pointer items-center gap-2">
-                <input type="radio" name="rating" value={r} defaultChecked={query.min_rating === r} className="accent-ink" />
+                <input type="radio" name="rating" value={r} defaultChecked={query.min_rating === r} />
                 {r}★ and up
               </label>
             </li>
@@ -78,50 +78,49 @@ export async function Listing({ basePath, sp, query, categories, lockCategory, l
       </fieldset>
       {!lockSale && (
         <label className="flex cursor-pointer items-center gap-2">
-          <input type="checkbox" name="sale" value="1" defaultChecked={!!query.on_sale} className="accent-signal" />
+          <input type="checkbox" name="sale" value="1" defaultChecked={!!query.on_sale} />
           On sale only
         </label>
       )}
       <fieldset>
-        <legend className="label mb-2">Store</legend>
-        <select name="store" defaultValue={query.store ?? ""} className="field !h-9">
+        <legend className="mb-1 font-semibold">Store</legend>
+        <select name="store" defaultValue={query.store ?? ""} className="field">
           <option value="">Any store</option>
           {stores.items.map((s) => <option key={s.id} value={s.slug}>{s.name}</option>)}
         </select>
       </fieldset>
       <div className="flex gap-2">
-        <button className="btn btn-ink btn-sm flex-1" type="submit">Apply</button>
-        <Link href={href({ min: null, max: null, rating: null, sale: null, store: null, ...(lockCategory ? {} : { category: null }) })} className="btn btn-ghost btn-sm">Clear</Link>
+        <button className="btn btn-primary flex-1" type="submit">Apply filters</button>
+        <Link href={href({ min: null, max: null, rating: null, sale: null, store: null, ...(lockCategory ? {} : { category: null }) })} className="btn btn-tertiary">Clear</Link>
       </div>
     </form>
   );
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[220px_1fr]">
-      <aside className="hidden lg:block">
-        <div className="sticky top-44">{filters}</div>
-      </aside>
-      <div>
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-rule pb-3">
-          <p className="text-[13px] text-ink-2">
-            <span className="price text-ink">{result.total.toLocaleString("en-US")}</span> {result.total === 1 ? "item" : "items"}
-          </p>
-          <div className="flex items-center gap-2">
-            <details className="relative lg:hidden">
-              <summary className="btn btn-line btn-sm list-none"><Filter size={16} /> Filters</summary>
-              <div className="fixed inset-x-0 bottom-0 z-50 max-h-[80vh] overflow-y-auto border-t-2 border-ink bg-paper p-5 shadow-[0_-8px_0_0_rgba(22,19,15,0.08)]">
-                {filters}
-              </div>
-            </details>
-            <Suspense><SortSelect /></Suspense>
-          </div>
+    <div>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <p className="text-[14px] text-maxcontrast">
+          <span className="price text-main-text">{result.total.toLocaleString("en-US")}</span> {result.total === 1 ? "item" : "items"}
+        </p>
+        <div className="flex items-center gap-2">
+          <details className="group relative">
+            <summary className="btn list-none [&::-webkit-details-marker]:hidden">
+              <Filter size={18} /> Filters{chips.length > 0 && <span className="counter counter-highlighted ml-0.5">{chips.length}</span>}
+            </summary>
+            <div className="menu fixed inset-x-2 bottom-2 z-50 max-h-[80vh] overflow-y-auto !p-4 sm:absolute sm:inset-x-auto sm:right-0 sm:bottom-auto sm:mt-1 sm:w-[360px]">
+              {filters}
+            </div>
+          </details>
+          <Suspense><SortSelect /></Suspense>
         </div>
+      </div>
+      <div>
         {chips.length > 0 && (
-          <ul className="mb-5 flex flex-wrap gap-2">
+          <ul className="mb-4 flex flex-wrap gap-1.5">
             {chips.map(([label, patch]) => (
               <li key={label}>
-                <Link href={href(patch)} className="inline-flex items-center gap-1.5 border border-ink bg-card px-2.5 py-1 text-[12px] font-medium hover:bg-ink hover:text-paper">
-                  {label} <X size={12} />
+                <Link href={href(patch)} className="chip chip-secondary h-[28px] rounded-pill pr-2 hover:bg-primary-element-light-hover">
+                  {label} <X size={16} />
                   <span className="sr-only">Remove filter</span>
                 </Link>
               </li>
@@ -129,18 +128,18 @@ export async function Listing({ basePath, sp, query, categories, lockCategory, l
           </ul>
         )}
         {result.items.length === 0 ? (
-          <Empty title="Nothing on the shelf" body="Try a broader search, or clear a filter or two." action={<Link className="btn btn-ink" href={basePath}>Clear everything</Link>} />
+          <Empty icon={<Search />} title="Nothing on the shelf" body="Try a broader search, or clear a filter or two." action={<Link className="btn btn-primary" href={basePath}>Clear everything</Link>} />
         ) : (
           <ProductGrid items={result.items} />
         )}
         {pages > 1 && (
-          <nav aria-label="Pagination" className="mt-12 flex items-center justify-center gap-1">
+          <nav aria-label="Pagination" className="mt-8 flex items-center justify-center gap-1">
             {Array.from({ length: pages }, (_, i) => i + 1).map((n) => (
               <Link
                 key={n}
                 href={href({ page: n === 1 ? null : String(n) })}
                 aria-current={n === result.page ? "page" : undefined}
-                className={`price flex h-9 w-9 items-center justify-center border text-[13px] ${n === result.page ? "border-ink bg-ink text-paper" : "border-rule hover:border-ink"}`}
+                className={`price flex h-[34px] min-w-[34px] items-center justify-center rounded-element px-2 text-[14px] ${n === result.page ? "bg-primary-element text-primary-element-text" : "hover:bg-background-hover"}`}
               >
                 {n}
               </Link>

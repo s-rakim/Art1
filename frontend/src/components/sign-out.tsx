@@ -6,14 +6,14 @@ export function SignOut() {
   const router = useRouter();
   return (
     <button
-      className="btn btn-line"
+      className="btn btn-secondary"
       onClick={async () => {
         await supabase()?.auth.signOut();
         router.replace("/");
         router.refresh();
       }}
     >
-      Sign out
+      Log out
     </button>
   );
 }

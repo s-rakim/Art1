@@ -96,48 +96,48 @@ export function DeliveriesBoard({
   return (
     <>
       <ErrorLine error={error ?? actionError} />
-      <p className="mb-3 flex items-center gap-1.5 font-mono text-[11px] text-ink-3">
-        <span className={`inline-block h-2 w-2 ${live ? "bg-market" : "bg-rule"}`} />
+      <p className="mb-3 flex items-center gap-1.5 tabular-nums text-[12px] text-maxcontrast">
+        <span className={`rounded-full inline-block h-2 w-2 ${live ? "bg-success" : "bg-border-dark"}`} />
         {live ? "Live" : "Refreshing every 15 seconds"}
       </p>
       <div className="grid gap-4 xl:grid-cols-[1fr_380px]">
         <DeliveryMap pins={pins} lines={lines} className="h-[420px] xl:h-[560px]" />
-        <ul className="max-h-[560px] divide-y divide-rule overflow-y-auto border border-ink bg-card">
+        <ul className="rounded-element max-h-[560px] divide-y divide-border overflow-y-auto border border-border-dark bg-main-background">
           {focus && (
             <li><button onClick={() => setFocus(null)} className="w-full px-4 py-2 text-left text-[13px] underline">Show all deliveries</button></li>
           )}
           {active.map((d) => (
-            <li key={d.id} className={focus === d.id ? "bg-paper-2" : ""}>
-              <button onClick={() => setFocus(d.id)} className="w-full px-4 pt-3 pb-2 text-left text-[14px] hover:bg-paper-2">
+            <li key={d.id} className={focus === d.id ? "bg-background-hover" : ""}>
+              <button onClick={() => setFocus(d.id)} className="w-full px-4 pt-3 pb-2 text-left text-[14px] hover:bg-background-hover">
                 <span className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-[13px]">{d.order_number || d.id.slice(0, 8)}</span>
+                  <span className="tabular-nums text-[13px]">{d.order_number || d.id.slice(0, 8)}</span>
                   <StatusTag status={d.status} />
                 </span>
-                {showStore && d.store_name && <span className="mt-1 block text-[12px] text-ink-3">{d.store_name}</span>}
+                {showStore && d.store_name && <span className="mt-1 block text-[12px] text-maxcontrast">{d.store_name}</span>}
                 {(d.pickup?.label || d.dropoff?.label) && (
                   <span className="mt-1 block text-[13px]">{d.pickup?.label ?? "Store"} to {d.dropoff?.label ?? "customer"}</span>
                 )}
-                <span className="mt-1 block text-[12px] text-ink-3">
+                <span className="mt-1 block text-[12px] text-maxcontrast">
                   {d.rider ? `${d.rider.name}${d.rider.vehicle ? ` (${d.rider.vehicle.replace(/_/g, " ")})` : ""}` : "No rider yet"}
                   {d.eta_minutes !== null && ` · ETA ${d.eta_minutes} min`}
                   {d.fee_cents != null && ` · fee ${money(d.fee_cents)}`}
                 </span>
-                {!d.pickup && !d.dropoff && !d.rider_position && <span className="mt-1 block text-[12px] text-ink-3">No map position yet.</span>}
+                {!d.pickup && !d.dropoff && !d.rider_position && <span className="mt-1 block text-[12px] text-maxcontrast">No map position yet.</span>}
               </button>
               {onCancel && (d.status === "assigned" || d.status === "accepted") && (
                 <div className="px-4 pb-3">
-                  <button disabled={busy === d.id} onClick={() => cancel(d.id)} className="text-[12px] text-signal underline disabled:opacity-50">
+                  <button disabled={busy === d.id} onClick={() => cancel(d.id)} className="text-[12px] text-text-error underline disabled:opacity-50">
                     {busy === d.id ? "Calling back…" : "Call back from rider"}
                   </button>
                 </div>
               )}
             </li>
           ))}
-          {active.length === 0 && <li className="px-4 py-8 text-center text-[14px] text-ink-3">No deliveries on the road.</li>}
+          {active.length === 0 && <li className="px-4 py-8 text-center text-[14px] text-maxcontrast">No deliveries on the road.</li>}
         </ul>
       </div>
       {admin && data?.riders && (
-        <p className="mt-3 text-[13px] text-ink-3">
+        <p className="mt-3 text-[13px] text-maxcontrast">
           {data.riders.length} riders on shift, {data.riders.filter((r) => r.busy).length} on a job.
         </p>
       )}

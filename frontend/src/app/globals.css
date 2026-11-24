@@ -1,37 +1,95 @@
 @import "tailwindcss";
 
 /*
-  Visual identity: a market ledger. Warm paper, black ink, hairline rules like a
-  receipt, one loud signal red for prices and the buy action, and a market green
-  for anything that means "trusted seller". Corners stay nearly square. No gradients.
+  Design tokens follow Nextcloud's default theme (apps/theming in nextcloud/server)
+  and the component rules from @nextcloud/vue. The derived colours were computed
+  with the same maths Nextcloud uses, from its default primary #00679e, so they
+  match what a stock Nextcloud server renders in light and dark mode.
+
+  The variable names are Nextcloud's own (with the "--color-" prefix Tailwind
+  needs), so a value can be checked against a live Nextcloud with
+  getComputedStyle(document.body) in its console. One exception: Nextcloud's
+  --color-text-maxcontrast is shortened to --color-maxcontrast here, which gives
+  the utility class text-maxcontrast instead of text-text-maxcontrast.
 */
 
-@theme {
-  --color-paper: #f4f0e6;
-  --color-paper-2: #ebe5d7;
-  --color-card: #fbf9f3;
-  --color-ink: #16130f;
-  --color-ink-2: #4a443a;
-  --color-ink-3: #7c7466;
-  --color-rule: #d6cdbb;
-  --color-signal: #d23a1f;
-  --color-signal-ink: #a92a12;
-  --color-market: #1e4d3b;
-  --color-market-2: #dbe5dc;
-  --color-tag: #e8b931;
+@theme static {
+  --color-*: initial;
+  --color-white: #ffffff;
+  --color-black: #000000;
+  --color-transparent: transparent;
+  --color-current: currentColor;
 
-  --font-sans: "Archivo Variable", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --color-main-background: #ffffff;
+  --color-main-text: #222222;
+  --color-maxcontrast: #6b6b6b;
+  --color-background-hover: #f5f5f5;
+  --color-background-dark: #ededed;
+  --color-background-darker: #dbdbdb;
+  --color-placeholder-light: #e6e6e6;
+  --color-placeholder-dark: #cccccc;
 
-  --radius-xs: 2px;
-  --radius-sm: 3px;
-  --radius-md: 4px;
+  --color-border: #ededed;
+  --color-border-dark: #dbdbdb;
+  --color-border-maxcontrast: #7d7d7d;
 
-  --animate-slide-in: slide-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
-  --animate-fade: fade 180ms ease-out;
+  --color-primary: #00679e;
+  --color-primary-hover: #3385b1;
+  --color-primary-element: #00679e;
+  --color-primary-element-hover: #00507a;
+  --color-primary-element-text: #ffffff;
+  --color-primary-element-light: #e6f0f5;
+  --color-primary-element-light-hover: #dbe4e9;
+  --color-primary-element-light-text: #00293f;
+
+  /* The plain background behind the header and around the body container. */
+  --color-background-plain: #00679e;
+  --color-background-plain-text: #ffffff;
+
+  --color-error: #ffe7e7;
+  --color-error-hover: #ffc3c3;
+  --color-error-text: #8a0000;
+  --color-element-error: #c90000;
+  --color-text-error: #bf0000;
+  --color-warning: #ffeec5;
+  --color-warning-hover: #ffe4a1;
+  --color-warning-text: #664700;
+  --color-element-warning: #bf7900;
+  --color-success: #d8f3da;
+  --color-success-hover: #bdebc0;
+  --color-success-text: #005416;
+  --color-element-success: #099f05;
+  --color-text-success: #066e03;
+  --color-info: #d5f1fa;
+  --color-info-hover: #b5e6f6;
+  --color-info-text: #0066ac;
+  --color-element-info: #0077c7;
+  --color-favorite: #a37200;
+  --color-mark: #fff0c7;
+
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, Oxygen-Sans, Cantarell, Ubuntu, "Helvetica Neue", "Noto Sans", "Liberation Sans", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+
+  /* Nextcloud's radius scale. */
+  --radius-small: 4px;
+  --radius-element: 8px;
+  --radius-container: 12px;
+  --radius-large: 16px;
+  --radius-pill: 100px;
+
+  --shadow-menu: 0 1px 10px rgba(77, 77, 77, 0.5);
+  --shadow-modal: 0 0 40px rgba(0, 0, 0, 0.2);
+
+  --animate-slide-in: slide-in 200ms ease-out;
+  --animate-slide-left: slide-left 200ms ease-out;
+  --animate-fade: fade 100ms ease-out;
 
   @keyframes slide-in {
     from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+  }
+  @keyframes slide-left {
+    from { transform: translateX(-100%); }
     to { transform: translateX(0); }
   }
   @keyframes fade {
@@ -40,134 +98,381 @@
   }
 }
 
+/* Nextcloud's dark theme, picked up from the system setting. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --color-main-background: #171717;
+    --color-main-text: #ebebeb;
+    --color-maxcontrast: #999999;
+    --color-background-hover: #212121;
+    --color-background-dark: #292929;
+    --color-background-darker: #3b3b3b;
+    --color-placeholder-light: #313131;
+    --color-placeholder-dark: #4a4a4a;
+
+    --color-border: #292929;
+    --color-border-dark: #3b3b3b;
+    --color-border-maxcontrast: #7d7d7d;
+
+    --color-primary-hover: #055783;
+    --color-primary-element: #0091f2;
+    --color-primary-element-hover: #17a2ff;
+    --color-primary-element-text: #000000;
+    --color-primary-element-light: #15232d;
+    --color-primary-element-light-hover: #212e38;
+    --color-primary-element-light-text: #99c2d8;
+
+    --color-error: #552121;
+    --color-error-hover: #7a2f2f;
+    --color-error-text: #ffcccc;
+    --color-element-error: #ff5050;
+    --color-text-error: #ff6f6f;
+    --color-warning: #3d3010;
+    --color-warning-hover: #65501b;
+    --color-warning-text: #ffeec5;
+    --color-element-warning: #ffcc00;
+    --color-success: #11321a;
+    --color-success-hover: #1e582e;
+    --color-success-text: #d5f2dc;
+    --color-element-success: #40a330;
+    --color-text-success: #49bb37;
+    --color-info: #003553;
+    --color-info-hover: #005686;
+    --color-info-text: #00aeff;
+    --color-element-info: #0099e0;
+    --color-favorite: #ffde00;
+    --color-mark: #4d3800;
+
+    --shadow-menu: 0 1px 10px rgba(0, 0, 0, 0.7);
+  }
+}
+
 @layer base {
   html {
-    background: var(--color-paper);
-    color: var(--color-ink);
+    background: var(--color-background-plain);
+    color: var(--color-main-text);
     -webkit-font-smoothing: antialiased;
-    text-rendering: optimizeLegibility;
   }
   body {
     font-family: var(--font-sans);
     font-size: 15px;
     line-height: 1.5;
     min-height: 100dvh;
+    background: var(--color-background-plain);
   }
   ::selection {
-    background: var(--color-tag);
-    color: var(--color-ink);
+    background: color-mix(in srgb, var(--color-primary-element) 25%, transparent);
+    color: var(--color-main-text);
   }
   :focus-visible {
-    outline: 2px solid var(--color-ink);
+    outline: 2px solid var(--color-main-text);
     outline-offset: 2px;
+    border-radius: var(--radius-element);
   }
-  button, [role="button"] {
+  h1, h2, h3, h4 {
+    font-weight: 600;
+    line-height: 1.3;
+  }
+  a {
+    color: inherit;
+  }
+  button, [role="button"], summary {
     cursor: pointer;
   }
   button:disabled {
-    cursor: not-allowed;
+    cursor: default;
+  }
+  * {
+    scrollbar-color: var(--color-border-maxcontrast) transparent;
+    scrollbar-width: thin;
+  }
+  input[type="checkbox"], input[type="radio"] {
+    accent-color: var(--color-primary-element);
+    width: 16px;
+    height: 16px;
   }
 }
 
 @layer components {
-  /* Condensed display type, used for headlines and section labels. */
-  .display {
-    font-stretch: 68%;
-    font-weight: 800;
-    letter-spacing: -0.01em;
-    line-height: 0.92;
-    text-transform: uppercase;
+  /* Headings inside the content area. Nextcloud keeps them small and plain. */
+  .heading {
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: 0;
   }
+  /* Field labels, table heads and small captions. */
   .label {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--color-ink-3);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.4;
+    color: var(--color-maxcontrast);
   }
   .price {
-    font-family: var(--font-mono);
     font-weight: 600;
     font-variant-numeric: tabular-nums;
   }
-  .rule-dashed {
-    background-image: linear-gradient(to right, var(--color-rule) 50%, transparent 50%);
-    background-size: 8px 1px;
-    background-repeat: repeat-x;
-    height: 1px;
+  .mono {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
   }
 
+  /* NcButton. Default is the secondary look; primary is the one filled button per view. */
   .btn {
+    --btn-size: 34px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 0.5rem;
-    height: 2.75rem;
-    padding: 0 1.25rem;
-    border-radius: var(--radius-sm);
-    font-weight: 650;
-    font-size: 14px;
-    transition: background-color 120ms, color 120ms, border-color 120ms, transform 80ms;
+    gap: 4px;
+    min-height: var(--btn-size);
+    min-width: var(--btn-size);
+    padding: 1px 12px 0;
+    border: 1px solid var(--color-primary-element-light-hover);
+    border-bottom-width: 2px;
+    border-radius: var(--radius-element);
+    background: var(--color-primary-element-light);
+    color: var(--color-primary-element-light-text);
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 1.2;
     white-space: nowrap;
+    transition: color 0.1s linear, border-color 0.1s linear, background-color 0.1s linear, transform 0.1s linear;
   }
-  .btn:active:not(:disabled) { transform: translateY(1px); }
-  .btn-ink { background: var(--color-ink); color: var(--color-paper); }
-  .btn-ink:hover:not(:disabled) { background: #2d2820; }
-  .btn-signal { background: var(--color-signal); color: #fff; }
-  .btn-signal:hover:not(:disabled) { background: var(--color-signal-ink); }
-  .btn-line { border: 1px solid var(--color-ink); color: var(--color-ink); background: transparent; }
-  .btn-line:hover:not(:disabled) { background: var(--color-ink); color: var(--color-paper); }
-  .btn-ghost { color: var(--color-ink-2); }
-  .btn-ghost:hover:not(:disabled) { background: var(--color-paper-2); color: var(--color-ink); }
-  .btn-sm { height: 2.25rem; padding: 0 0.875rem; font-size: 13px; }
-  .btn:disabled { opacity: 0.45; }
+  .btn:hover:not(:disabled) { background: var(--color-primary-element-light-hover); }
+  .btn:active:not(:disabled) { transform: scale(0.985); }
+  .btn:focus-visible {
+    outline: 2px solid var(--color-main-text);
+    outline-offset: 0;
+    box-shadow: 0 0 0 4px var(--color-main-background);
+  }
+  .btn:disabled { opacity: 0.5; filter: saturate(0.7); }
+  .btn svg { flex-shrink: 0; }
 
+  .btn-primary {
+    background: var(--color-primary-element);
+    border-color: var(--color-primary-element-hover);
+    color: var(--color-primary-element-text);
+  }
+  .btn-primary:hover:not(:disabled) { background: var(--color-primary-element-hover); }
+  .btn-secondary {
+    background: var(--color-primary-element-light);
+    border-color: var(--color-primary-element-light-hover);
+    color: var(--color-primary-element-light-text);
+  }
+  .btn-tertiary {
+    background: transparent;
+    border-color: transparent;
+    color: var(--color-main-text);
+  }
+  .btn-tertiary:hover:not(:disabled) { background: color-mix(in srgb, var(--color-primary-element) 8%, transparent); }
+  .btn-error {
+    background: var(--color-error);
+    border-color: var(--color-error-hover);
+    color: var(--color-error-text);
+  }
+  .btn-error:hover:not(:disabled) { background: var(--color-error-hover); }
+  .btn-success {
+    background: var(--color-success);
+    border-color: var(--color-success-hover);
+    color: var(--color-success-text);
+  }
+  .btn-success:hover:not(:disabled) { background: var(--color-success-hover); }
+  /* Buttons sitting on the blue header. */
+  .btn-plain {
+    background: transparent;
+    border-color: transparent;
+    color: var(--color-background-plain-text);
+  }
+  .btn-plain:hover:not(:disabled) { background: rgba(255, 255, 255, 0.15); }
+  .btn-plain:focus-visible { outline-color: var(--color-background-plain-text); box-shadow: none; }
+
+  .btn-sm { --btn-size: 30px; padding-inline: 10px; font-size: 14px; }
+  .btn-lg { --btn-size: 48px; padding-inline: 20px; }
+  .btn-icon { padding-inline: 0; width: var(--btn-size); }
+  .btn-wide { width: 100%; }
+
+  /* NcInputField / NcSelect. Nextcloud 32 draws the edge with a shadow, not a border. */
   .field {
+    --field-edge: var(--color-border-maxcontrast);
     width: 100%;
-    height: 2.75rem;
-    padding: 0 0.875rem;
-    border: 1px solid var(--color-rule);
-    border-radius: var(--radius-sm);
-    background: var(--color-card);
-    font-size: 14px;
-    transition: border-color 120ms;
+    height: 34px;
+    padding: 0 8px;
+    border: none;
+    border-radius: var(--radius-element);
+    background: var(--color-main-background);
+    color: var(--color-main-text);
+    font-size: 15px;
+    box-shadow: 0 -1px var(--field-edge), 0 0 0 1px color-mix(in srgb, var(--field-edge), 65% transparent);
+    transition: box-shadow 0.1s linear;
   }
-  .field:hover { border-color: var(--color-ink-3); }
-  .field:focus { outline: none; border-color: var(--color-ink); box-shadow: 0 0 0 1px var(--color-ink); }
-  textarea.field { height: auto; padding: 0.75rem 0.875rem; }
-  select.field { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2316130f'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 0.875rem center; padding-right: 2.25rem; }
+  .field::placeholder { color: var(--color-maxcontrast); }
+  .field:hover:not(:disabled) { box-shadow: 0 0 0 1px var(--field-edge); }
+  .field:focus, .field:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--field-edge), 0 0 0 4px var(--color-main-background);
+  }
+  .field:user-invalid { --field-edge: var(--color-element-error); }
+  .field:disabled { opacity: 0.5; }
+  /* A field with a fixed prefix inside it, e.g. a URL path. */
+  .field-group { display: flex; align-items: center; padding: 0; }
+  .field-group:focus-within { box-shadow: 0 0 0 2px var(--field-edge), 0 0 0 4px var(--color-main-background); }
+  .field-group > input { flex: 1; min-width: 0; height: 100%; padding: 0 8px 0 2px; background: transparent; outline: none; }
+  textarea.field { height: auto; padding: 6px 8px; line-height: 1.5; }
+  select.field {
+    appearance: none;
+    padding-right: 30px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='20' height='20'%3E%3Cpath fill='%237d7d7d' d='M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 6px center;
+  }
+  @media (prefers-color-scheme: dark) {
+    .field { box-shadow: 0 1px var(--field-edge), 0 0 0 1px color-mix(in srgb, var(--field-edge), 65% transparent); }
+  }
 
-  /* Price ticket: notched left edge like a swing tag. */
-  .ticket {
-    --notch: 6px;
-    position: relative;
+  /* NcChip: small rounded tags for badges and statuses. */
+  .chip {
     display: inline-flex;
     align-items: center;
-    padding: 0.125rem 0.5rem 0.125rem calc(0.5rem + var(--notch));
-    background: var(--color-signal);
-    color: #fff;
-    font-family: var(--font-mono);
-    font-size: 11px;
-    font-weight: 600;
-    clip-path: polygon(var(--notch) 0, 100% 0, 100% 100%, var(--notch) 100%, 0 50%);
+    gap: 4px;
+    height: 22px;
+    padding: 0 8px;
+    border-radius: 11px;
+    background: var(--color-background-hover);
+    color: var(--color-main-text);
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
   }
-  .ticket-tag { background: var(--color-tag); color: var(--color-ink); }
-  .ticket-market { background: var(--color-market); color: #fff; }
-  .ticket-ink { background: var(--color-ink); color: var(--color-paper); }
-  .ticket-signal { background: var(--color-signal); color: #fff; }
+  .chip-primary { background: var(--color-primary-element); color: var(--color-primary-element-text); }
+  .chip-secondary { background: var(--color-primary-element-light); color: var(--color-primary-element-light-text); }
+  .chip-error { background: var(--color-error); color: var(--color-error-text); }
+  .chip-warning { background: var(--color-warning); color: var(--color-warning-text); }
+  .chip-success { background: var(--color-success); color: var(--color-success-text); }
+  .chip-info { background: var(--color-info); color: var(--color-info-text); }
 
+  /* NcCounterBubble. */
+  .counter {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    border-radius: 11px;
+    background: var(--color-primary-element-light);
+    color: var(--color-primary-element-light-text);
+    font-size: 13px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .counter-highlighted { background: var(--color-primary-element); color: var(--color-primary-element-text); }
+
+  /* NcNoteCard. */
+  .note {
+    --note-bg: var(--color-background-hover);
+    --note-theme: var(--color-border-maxcontrast);
+    display: flex;
+    gap: 8px;
+    padding: 8px;
+    border-inline-start: 4px solid var(--note-theme);
+    border-radius: var(--radius-small);
+    background: var(--note-bg);
+    color: var(--color-main-text);
+  }
+  .note > svg { color: var(--note-theme); flex-shrink: 0; margin-top: 1px; }
+  .note-info { --note-bg: var(--color-info); --note-theme: var(--color-info-text); }
+  .note-success { --note-bg: var(--color-success); --note-theme: var(--color-success-text); }
+  .note-warning { --note-bg: var(--color-warning); --note-theme: var(--color-warning-text); }
+  .note-error { --note-bg: var(--color-error); --note-theme: var(--color-error-text); }
+
+  /* A boxed group of content inside the app area. */
+  .card {
+    background: var(--color-main-background);
+    border: 1px solid var(--color-border-dark);
+    border-radius: var(--radius-container);
+  }
   .panel {
-    background: var(--color-card);
-    border: 1px solid var(--color-rule);
-    border-radius: var(--radius-md);
+    background: var(--color-background-hover);
+    border-radius: var(--radius-container);
   }
 
+  /* NcAppNavigationItem. */
+  .nav-entry {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0;
+    min-height: 34px;
+    padding-inline-end: 8px;
+    border-radius: var(--radius-element);
+    color: var(--color-main-text);
+    font-weight: 500;
+    line-height: 34px;
+    white-space: nowrap;
+    transition: background-color 0.2s ease-in-out;
+  }
+  .nav-entry > svg { flex: 0 0 34px; width: 34px; height: 34px; padding: 7px; box-sizing: border-box; }
+  .nav-entry:hover, .nav-entry:focus-visible { background: color-mix(in srgb, var(--color-primary-element) 8%, transparent); }
+  .nav-entry[aria-current="page"] { background: color-mix(in srgb, var(--color-primary-element) 16%, transparent); }
+  .nav-entry[aria-current="page"]:hover { background: color-mix(in srgb, var(--color-primary-element) 22%, transparent); }
+  .nav-entry[aria-current="page"]::before {
+    content: "";
+    position: absolute;
+    inset-block: 8px;
+    inset-inline-start: 0;
+    width: 3px;
+    border-radius: 999px;
+    background: var(--color-primary-element);
+  }
+  .nav-caption {
+    padding: 0 8px;
+    margin: 17px 0 4px;
+    font-weight: 600;
+    line-height: 34px;
+    color: var(--color-main-text);
+  }
+
+  /* Rows in a list, like the files list or a settings list. */
+  .list-row { border-bottom: 1px solid var(--color-border); }
+  .list-row:hover { background: var(--color-background-hover); }
+
+  .link {
+    color: var(--color-primary-element);
+    font-weight: 500;
+  }
+  .link:hover { text-decoration: underline; text-underline-offset: 3px; }
   .link-u {
     text-decoration: underline;
     text-decoration-thickness: 1px;
     text-underline-offset: 3px;
   }
-  .link-u:hover { text-decoration-thickness: 2px; }
+  .link-u:hover { color: var(--color-primary-element); }
+
+  .menu {
+    background: var(--color-main-background);
+    border-radius: var(--radius-container);
+    box-shadow: var(--shadow-menu);
+    padding: 4px;
+  }
+  .menu-item {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 8px;
+    min-height: 34px;
+    padding: 0 10px 0 8px;
+    border-radius: var(--radius-element);
+    color: var(--color-main-text);
+    text-align: start;
+  }
+  .menu-item:hover, .menu-item:focus-visible, .menu-item[aria-selected="true"] { background: var(--color-background-hover); }
+
+  .modal-backdrop { background: rgba(0, 0, 0, 0.5); }
+  .modal {
+    background: var(--color-main-background);
+    border-radius: var(--radius-large);
+    box-shadow: var(--shadow-modal);
+  }
 
   .no-scrollbar { scrollbar-width: none; }
   .no-scrollbar::-webkit-scrollbar { display: none; }

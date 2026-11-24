@@ -9,10 +9,10 @@ export type MapPin = LatLng & { id: string; kind: "rider" | "idle" | "pickup" | 
 export type MapLine = { id: string; from: LatLng; to: LatLng; done?: boolean };
 
 const kindStyle: Record<MapPin["kind"], { bg: string; fg: string; glyph: string }> = {
-  rider: { bg: "#d23a1f", fg: "#ffffff", glyph: "R" },
-  idle: { bg: "#e8b931", fg: "#16130f", glyph: "R" },
-  pickup: { bg: "#16130f", fg: "#f4f0e6", glyph: "P" },
-  dropoff: { bg: "#1e4d3b", fg: "#ffffff", glyph: "D" },
+  rider: { bg: "#00679e", fg: "#ffffff", glyph: "R" },
+  idle: { bg: "#7d7d7d", fg: "#ffffff", glyph: "R" },
+  pickup: { bg: "#222222", fg: "#ffffff", glyph: "S" },
+  dropoff: { bg: "#2d7b41", fg: "#ffffff", glyph: "D" },
 };
 
 function pinElement(pin: MapPin) {
@@ -27,12 +27,13 @@ function pinElement(pin: MapPin) {
     opacity: pin.kind === "idle" ? "0.85" : "1",
     background: s.bg,
     color: s.fg,
-    border: "2px solid #f4f0e6",
-    boxShadow: "2px 2px 0 #16130f",
+    border: "2px solid #ffffff",
+    borderRadius: "50%",
+    boxShadow: "0 1px 4px rgba(0, 0, 0, 0.45)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    font: "600 12px 'IBM Plex Mono', monospace",
+    font: "600 12px system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
     transition: "transform 900ms linear",
   });
   el.textContent = s.glyph;
@@ -144,7 +145,7 @@ export function DeliveryMap({
           id: "routes",
           type: "line",
           source: "routes",
-          paint: { "line-color": ["case", ["==", ["get", "done"], 1], "#1e4d3b", "#16130f"], "line-width": 2.5, "line-dasharray": [2, 1.5] },
+          paint: { "line-color": ["case", ["==", ["get", "done"], 1], "#2d7b41", "#00679e"], "line-width": 3, "line-dasharray": [2, 1.5] },
         });
       }
 
@@ -164,14 +165,14 @@ export function DeliveryMap({
   }, [pins, lines, ready, follow]);
 
   return (
-    <div className={`relative overflow-hidden border border-ink bg-paper-2 ${onPick ? "[&_canvas]:cursor-crosshair" : ""} ${className}`}>
+    <div className={`relative overflow-hidden rounded-container border border-border-dark bg-background-hover ${onPick ? "[&_canvas]:cursor-crosshair" : ""} ${className}`}>
       {/* Inline size: maplibre-gl.css is unlayered and would override a Tailwind utility here. */}
       <div ref={box} style={{ position: "absolute", inset: 0 }} />
-      {failed && <p className="absolute inset-0 flex items-center justify-center p-6 text-center text-[13px] text-ink-2">The map couldn&apos;t load in this browser. Delivery status is still shown alongside.</p>}
-      <ul className="pointer-events-none absolute bottom-2 left-2 flex gap-1 font-mono text-[10px]">
+      {failed && <p className="absolute inset-0 flex items-center justify-center p-6 text-center text-[13px] text-maxcontrast">The map couldn&apos;t load in this browser. Delivery status is still shown alongside.</p>}
+      <ul className="pointer-events-none absolute bottom-2 left-2 flex flex-wrap gap-1 text-[12px]">
         {(["rider", "idle", "pickup", "dropoff"] as const).filter((k) => k !== "idle" || pins.some((p) => p.kind === "idle")).map((k) => (
-          <li key={k} className="flex items-center gap-1 bg-paper/90 px-1.5 py-0.5">
-            <span className="inline-block h-2.5 w-2.5" style={{ background: kindStyle[k].bg }} />
+          <li key={k} className="flex items-center gap-1.5 rounded-pill bg-main-background/95 px-2 py-0.5 shadow-sm">
+            <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: kindStyle[k].bg }} />
             {k === "rider" ? "Rider" : k === "idle" ? "Free rider" : k === "pickup" ? "Store" : "Drop-off"}
           </li>
         ))}

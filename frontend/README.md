@@ -14,7 +14,7 @@ The name, currency and map centre are all environment variables, so rebranding i
 | Bag and checkout | `/cart`, `/checkout` | Checkout needs a signed-in shopper |
 | Shopper account | `/account`, `/orders`, `/wishlist` | Signed-in users |
 | Rent a stall | `/sell`, then `/sell/apply` | Anyone can read; applying needs a login |
-| Vendor dashboard | `/seller/*` | `seller` role |
+| Vendor dashboard | `/seller/*` | `vendor` role |
 | Rider app | `/rider`, application at `/rider/apply` | `rider` role |
 | Admin console | `/admin/*` | `admin` role, everyone else gets a 404 |
 
@@ -71,12 +71,31 @@ These are the things worth knowing before anyone starts poking at it.
 
 Tracking uses MapLibre GL with raster tiles from `tile.openstreetmap.org`. Positions stream over the API's `/ws/tracking` websocket; if it can't connect, the screens fall back to polling every 10 to 15 seconds. Shoppers see their own parcels, vendors see their own deliveries, and admins get the whole market plus every rider on shift. That's fine for testing, but OpenStreetMap's tile servers aren't meant for production traffic, so point `NEXT_PUBLIC_MAP_TILES` at MapTiler, Stadia or your own tile server before launch. The MapLibre web worker is copied into `public/vendor/` at build time so it loads from our own origin.
 
+## Look and feel
+
+The interface follows Nextcloud's design: the default Nextcloud blue (`#00679e`), the system font stack at 15px, 34px controls with 8px corners, a blue header with the app switcher on the left, and a rounded white body with a 300px navigation column. Below 1024px the navigation turns into a drawer behind the menu button in the header.
+
+All of it comes from one token layer at the top of `src/app/globals.css`. The colour names match Nextcloud's CSS variables (`--color-main-background`, `--color-primary-element`, `--color-primary-element-light`, `--color-border-maxcontrast` and so on) and the values were computed with the same maths Nextcloud's theming app uses, for light and dark. Dark mode follows the operating system. Below the tokens are a handful of component classes copied from Nextcloud's Vue library: `.btn` (primary, secondary, tertiary, error, success), `.field`, `.chip`, `.counter`, `.note`, `.card`, `.nav-entry`, `.menu` and `.modal`. Pages use those and the token utilities rather than raw colours, so a theme change happens in one file.
+
+Icons are Material Design Icons (`@mdi/js` paths, Apache 2.0), the set Nextcloud ships, inlined in `src/components/icons.tsx`.
+
+The four areas share one frame:
+
+- `components/app-frame.tsx` is the header, the navigation column and the content area. The shop, the vendor dashboard, the rider app and the admin console each pass it their own navigation.
+- `components/guest-frame.tsx` is the centred card on the blue background used for log in, sign up, errors and maintenance, like Nextcloud's login page.
+- The header's app menu shows Shop, Vendor, Rider and Admin depending on the signed-in user's roles (all four in demo mode).
+
 ## Layout
 
 ```
 src/
-  app/            routes (shop, account, sell, seller, rider, admin)
-  components/     UI, including the delivery map and dashboard shell
+  app/(shop)/     shopper routes, wrapped in the shop navigation
+  app/seller/     vendor dashboard
+  app/rider/      rider app and rider application
+  app/admin/      admin console
+  app/login, app/signup
+  app/globals.css design tokens and component classes
+  components/     UI, including the app frame and the delivery map
   lib/api.ts      every backend call, with demo fallbacks
   lib/guard.ts    server-side auth and role checks
   lib/safe.ts     validators for colours, URLs, slugs and redirects

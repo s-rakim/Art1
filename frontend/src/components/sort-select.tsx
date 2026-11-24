@@ -15,10 +15,10 @@ export function SortSelect() {
   const path = usePathname();
   const params = useSearchParams();
   return (
-    <label className="flex items-center gap-2 text-[13px]">
-      <span className="text-ink-3">Sort</span>
+    <label className="flex items-center gap-2 text-[14px]">
+      <span className="text-maxcontrast">Sort</span>
       <select
-        className="field !h-9 !w-auto !text-[13px]"
+        className="field !w-auto"
         value={params.get("sort") ?? "relevance"}
         onChange={(e) => {
           const sp = new URLSearchParams(params.toString());

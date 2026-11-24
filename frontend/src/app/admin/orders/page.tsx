@@ -39,9 +39,9 @@ export default function AdminOrders() {
         title="Orders"
         kicker={`${data?.total ?? 0} across all stores`}
         action={
-          <div className="flex flex-wrap border border-ink text-[13px]">
+          <div className="rounded-element flex flex-wrap border border-border-dark text-[13px]">
             {filters.map(([f, l]) => (
-              <button key={f} onClick={() => setFilter(f)} className={`px-3 py-1.5 ${filter === f ? "bg-ink text-paper" : ""}`}>{l}</button>
+              <button key={f} onClick={() => setFilter(f)} className={`h-[32px] px-3 font-medium ${filter === f ? "bg-primary-element-light font-semibold text-primary-element-light-text" : "hover:bg-background-hover"}`}>{l}</button>
             ))}
           </div>
         }
@@ -50,37 +50,37 @@ export default function AdminOrders() {
       <Table head={["Order", "Placed", "Customer", "Stores", "Items", "Total", "Status", ""]}>
         {items.map((o) => (
           <tr key={o.id}>
-            <td className="px-3 py-2.5 font-mono text-[13px]">{o.number}</td>
+            <td className="px-3 py-2.5 tabular-nums text-[13px]">{o.number}</td>
             <td className="px-3 py-2.5">{shortDate(o.created_at)}</td>
             <td className="px-3 py-2.5 text-[13px]">{o.customer_email ?? "Unknown"}</td>
-            <td className="px-3 py-2.5 font-mono text-[13px]">{o.stores}</td>
-            <td className="px-3 py-2.5 font-mono text-[13px]">{o.item_count}</td>
+            <td className="px-3 py-2.5 tabular-nums text-[13px]">{o.stores}</td>
+            <td className="px-3 py-2.5 tabular-nums text-[13px]">{o.item_count}</td>
             <td className="price px-3 py-2.5">{money(o.total_cents, o.currency)}</td>
             <td className="px-3 py-2.5"><StatusTag status={o.status} /></td>
             <td className="space-x-1 whitespace-nowrap px-3 py-2.5 text-right">
-              {o.status === "pending_payment" && <button disabled={busy === o.id} onClick={() => setConfirm({ order: o, action: "paid" })} className="btn btn-ghost btn-sm">Mark paid</button>}
-              {(o.status === "pending_payment" || o.status === "paid") && <button disabled={busy === o.id} onClick={() => setConfirm({ order: o, action: "cancel" })} className="btn btn-ghost btn-sm text-signal">Cancel</button>}
+              {o.status === "pending_payment" && <button disabled={busy === o.id} onClick={() => setConfirm({ order: o, action: "paid" })} className="btn btn-tertiary btn-sm">Mark paid</button>}
+              {(o.status === "pending_payment" || o.status === "paid") && <button disabled={busy === o.id} onClick={() => setConfirm({ order: o, action: "cancel" })} className="btn btn-tertiary btn-sm text-text-error">Cancel</button>}
             </td>
           </tr>
         ))}
-        {data && items.length === 0 && <tr><td colSpan={8} className="px-3 py-8 text-center text-ink-3">No orders here.</td></tr>}
+        {data && items.length === 0 && <tr><td colSpan={8} className="px-3 py-8 text-center text-maxcontrast">No orders here.</td></tr>}
       </Table>
 
       {confirm && (
         <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center" role="dialog" aria-modal="true" aria-label="Confirm">
-          <div className="absolute inset-0 bg-ink/40" onClick={() => setConfirm(null)} />
-          <div className="relative w-full max-w-md border-2 border-ink bg-paper">
-            <div className="border-b border-ink p-4">
-              <p className="display text-[28px]">{confirm.action === "paid" ? "Mark" : "Cancel"} {confirm.order.number}{confirm.action === "paid" ? " as paid" : ""}?</p>
+          <div className="absolute inset-0 bg-black/50" onClick={() => setConfirm(null)} />
+          <div className="modal relative w-full max-w-md overflow-hidden">
+            <div className="border-b border-border p-4">
+              <p className="heading text-[20px]">{confirm.action === "paid" ? "Mark" : "Cancel"} {confirm.order.number}{confirm.action === "paid" ? " as paid" : ""}?</p>
             </div>
             <p className="p-4 text-[14px]">
               {confirm.action === "paid"
                 ? `Only do this once ${money(confirm.order.total_cents, confirm.order.currency)} has actually reached the market. Every store on the order is told it can ship.`
                 : "Stock goes back on the shelf and every store on the order is told. Card payments are refunded automatically; cash and transfers you refund by hand."}
             </p>
-            <div className="flex justify-end gap-2 border-t border-ink p-4">
-              <button onClick={() => setConfirm(null)} className="btn btn-ghost">Back</button>
-              <button disabled={busy === confirm.order.id} onClick={() => run(confirm.order, confirm.action)} className={`btn ${confirm.action === "paid" ? "btn-ink" : "btn-signal"}`}>
+            <div className="flex justify-end gap-2 border-t border-border p-4">
+              <button onClick={() => setConfirm(null)} className="btn btn-tertiary">Back</button>
+              <button disabled={busy === confirm.order.id} onClick={() => run(confirm.order, confirm.action)} className={`btn ${confirm.action === "paid" ? "btn-primary" : "btn-primary"}`}>
                 {confirm.action === "paid" ? "Mark paid" : "Cancel order"}
               </button>
             </div>

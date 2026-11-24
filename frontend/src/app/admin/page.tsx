@@ -32,9 +32,9 @@ export default function AdminHome() {
         kicker={`Market income, last ${label.toLowerCase()}`}
         title="Income"
         action={
-          <div className="flex border border-ink text-[13px]" role="group" aria-label="Period">
+          <div className="flex overflow-hidden rounded-element border border-border-maxcontrast text-[14px]" role="group" aria-label="Period">
             {periods.map(([p, l]) => (
-              <button key={p} onClick={() => setPeriod(p)} aria-pressed={period === p} className={`px-3 py-1.5 ${period === p ? "bg-ink text-paper" : ""}`}>{l}</button>
+              <button key={p} onClick={() => setPeriod(p)} aria-pressed={period === p} className={`h-[32px] px-3 font-medium ${period === p ? "bg-primary-element-light font-semibold text-primary-element-light-text" : "hover:bg-background-hover"}`}>{l}</button>
             ))}
           </div>
         }
@@ -49,7 +49,7 @@ export default function AdminHome() {
         <Stat label="Delivery fees" value={i ? money(i.delivery_fee_cents) : "…"} />
       </div>
       {rows.length > 0 && (
-        <div className="mt-6 border border-ink bg-card p-5">
+        <div className="rounded-element mt-6 border border-border-dark bg-main-background p-5">
           <p className="label mb-4">{daily.length > 90 ? "Weekly" : "Daily"} income by source</p>
           <Bars
             data={rows.map((r) => ({ label: shortDate(r.date).replace(/, \d{4}$/, ""), values: r.v }))}

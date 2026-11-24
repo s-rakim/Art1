@@ -25,10 +25,10 @@ export function WishButton({ id, large = false }: { id: string; large?: boolean 
       aria-pressed={active}
       aria-label={active ? "Remove from wishlist" : "Save to wishlist"}
       className={large
-        ? `btn btn-line ${active ? "!bg-ink !text-paper" : ""}`
-        : "relative z-10 flex h-8 w-8 items-center justify-center bg-card/90 text-ink hover:bg-card"}
+        ? "btn btn-secondary btn-lg"
+        : "relative z-10 flex h-[34px] w-[34px] items-center justify-center rounded-full bg-main-background/90 text-main-text shadow-sm hover:bg-main-background"}
     >
-      <Heart size={large ? 18 : 16} filled={active} className={active ? "text-signal" : ""} />
+      <Heart size={20} filled={active} className={active ? "text-element-error" : ""} />
       {large && (active ? "Saved" : "Save")}
     </button>
   );

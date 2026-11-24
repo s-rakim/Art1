@@ -19,7 +19,7 @@ const autoSku = (title: string, v: VariantDraft, i: number) =>
     .filter(Boolean)
     .join("-");
 
-const blank: VariantDraft = { color: "", color_hex: "#16130f", size: "", sku: "", price: "", compare: "", stock: "", moq: "1" };
+const blank: VariantDraft = { color: "", color_hex: "#222222", size: "", sku: "", price: "", compare: "", stock: "", moq: "1" };
 
 export default function NewProduct() {
   const router = useRouter();
@@ -146,82 +146,82 @@ export default function NewProduct() {
           <legend className="label mb-2">Photos ({images.length}/12)</legend>
           <div className="flex flex-wrap gap-2">
             {images.map((src, i) => (
-              <div key={src} className="relative h-28 w-24 overflow-hidden border border-rule bg-paper-2">
+              <div key={src} className="rounded-element relative h-28 w-24 overflow-hidden border border-border bg-background-hover">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={src} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
-                {i === 0 && <span className="absolute bottom-0 left-0 bg-ink px-1 font-mono text-[10px] text-paper">COVER</span>}
-                <button type="button" onClick={() => setImages((xs) => xs.filter((x) => x !== src))} className="absolute top-1 right-1 bg-paper p-0.5" aria-label="Remove photo"><X size={14} /></button>
+                {i === 0 && <span className="absolute bottom-0 left-0 bg-primary-element px-1 tabular-nums text-[12px] text-primary-element-text">Cover</span>}
+                <button type="button" onClick={() => setImages((xs) => xs.filter((x) => x !== src))} className="absolute top-1 right-1 bg-main-background p-0.5" aria-label="Remove photo"><X size={14} /></button>
               </div>
             ))}
             {images.length < 12 && (
-              <label className={`flex h-28 w-24 cursor-pointer flex-col items-center justify-center gap-1 border border-dashed border-ink text-[12px] ${uploading ? "opacity-50" : ""}`}>
+              <label className={`rounded-element flex h-28 w-24 cursor-pointer flex-col items-center justify-center gap-1 border border-dashed border-border-dark text-[12px] ${uploading ? "opacity-50" : ""}`}>
                 <Plus size={18} />
                 {uploading ? "Uploading…" : "Add photos"}
                 <input ref={file} type="file" accept="image/jpeg,image/png,image/webp,image/avif" multiple className="sr-only" disabled={uploading} onChange={(e) => addPhotos(e.target.files)} />
               </label>
             )}
           </div>
-          <p className="mt-1 text-[12px] text-ink-3">JPEG, PNG, WebP or AVIF, up to 5 MB each. The first photo is the cover.</p>
+          <p className="mt-1 text-[12px] text-maxcontrast">JPEG, PNG, WebP or AVIF, up to 5 MB each. The first photo is the cover.</p>
         </fieldset>
 
         <fieldset>
           <legend className="label mb-2">Variants</legend>
           <div className="overflow-x-auto">
             <div className="min-w-[760px] space-y-2">
-              <div className="grid grid-cols-[1fr_44px_80px_130px_90px_90px_70px_60px_36px] gap-2 font-mono text-[10px] uppercase text-ink-3">
+              <div className="grid grid-cols-[1fr_44px_80px_130px_90px_90px_70px_60px_36px] gap-2 tabular-nums text-[12px] text-maxcontrast">
                 <span>Colour</span><span /><span>Size</span><span>SKU</span><span>Price</span><span>Was</span><span>Stock</span><span>Min</span><span />
               </div>
               {variants.map((v, i) => (
                 <div key={i} className="grid grid-cols-[1fr_44px_80px_130px_90px_90px_70px_60px_36px] items-center gap-2">
-                  <input className="field !h-9" placeholder="Colour" maxLength={40} value={v.color} onChange={(e) => setV(i, "color", e.target.value)} aria-label="Colour name" />
-                  <input type="color" className="h-9 w-11 border border-rule bg-card" value={v.color_hex} onChange={(e) => setV(i, "color_hex", e.target.value)} aria-label="Colour swatch" />
-                  <input className="field !h-9" placeholder="Size" maxLength={12} value={v.size} onChange={(e) => setV(i, "size", e.target.value)} aria-label="Size" />
-                  <input className="field !h-9 font-mono text-[12px]" placeholder={autoSku(title, v, i)} maxLength={64} value={v.sku} onChange={(e) => setV(i, "sku", e.target.value.replace(/[^A-Za-z0-9._-]/g, ""))} aria-label="SKU" />
-                  <input required className="field !h-9 font-mono" placeholder="0.00" inputMode="decimal" value={v.price} onChange={(e) => setV(i, "price", e.target.value.replace(/[^\d.]/g, ""))} aria-label="Price" />
-                  <input className="field !h-9 font-mono" placeholder="optional" inputMode="decimal" value={v.compare} onChange={(e) => setV(i, "compare", e.target.value.replace(/[^\d.]/g, ""))} aria-label="Original price, shown struck through" />
-                  <input required className="field !h-9 font-mono" placeholder="0" inputMode="numeric" value={v.stock} onChange={(e) => setV(i, "stock", e.target.value.replace(/\D/g, "").slice(0, 7))} aria-label="Stock" />
-                  <input className="field !h-9 font-mono" inputMode="numeric" value={v.moq} onChange={(e) => setV(i, "moq", e.target.value.replace(/\D/g, "").slice(0, 3))} aria-label="Minimum order quantity" />
-                  <button type="button" disabled={variants.length === 1} onClick={() => setVariants((vs) => vs.filter((_, j) => j !== i))} className="btn btn-ghost btn-sm px-2" aria-label="Remove variant"><X size={16} /></button>
+                  <input className="field" placeholder="Colour" maxLength={40} value={v.color} onChange={(e) => setV(i, "color", e.target.value)} aria-label="Colour name" />
+                  <input type="color" className="rounded-element h-9 w-11 border border-border bg-main-background" value={v.color_hex} onChange={(e) => setV(i, "color_hex", e.target.value)} aria-label="Colour swatch" />
+                  <input className="field" placeholder="Size" maxLength={12} value={v.size} onChange={(e) => setV(i, "size", e.target.value)} aria-label="Size" />
+                  <input className="field tabular-nums text-[12px]" placeholder={autoSku(title, v, i)} maxLength={64} value={v.sku} onChange={(e) => setV(i, "sku", e.target.value.replace(/[^A-Za-z0-9._-]/g, ""))} aria-label="SKU" />
+                  <input required className="field tabular-nums" placeholder="0.00" inputMode="decimal" value={v.price} onChange={(e) => setV(i, "price", e.target.value.replace(/[^\d.]/g, ""))} aria-label="Price" />
+                  <input className="field tabular-nums" placeholder="optional" inputMode="decimal" value={v.compare} onChange={(e) => setV(i, "compare", e.target.value.replace(/[^\d.]/g, ""))} aria-label="Original price, shown struck through" />
+                  <input required className="field tabular-nums" placeholder="0" inputMode="numeric" value={v.stock} onChange={(e) => setV(i, "stock", e.target.value.replace(/\D/g, "").slice(0, 7))} aria-label="Stock" />
+                  <input className="field tabular-nums" inputMode="numeric" value={v.moq} onChange={(e) => setV(i, "moq", e.target.value.replace(/\D/g, "").slice(0, 3))} aria-label="Minimum order quantity" />
+                  <button type="button" disabled={variants.length === 1} onClick={() => setVariants((vs) => vs.filter((_, j) => j !== i))} className="btn btn-tertiary btn-sm px-2" aria-label="Remove variant"><X size={16} /></button>
                 </div>
               ))}
             </div>
           </div>
-          <button type="button" disabled={variants.length >= 100} onClick={() => setVariants((vs) => [...vs, { ...vs[vs.length - 1], sku: "", size: "" }])} className="btn btn-ghost btn-sm mt-2"><Plus size={16} /> Add variant</button>
-          <p className="mt-1 text-[12px] text-ink-3">Leave SKU empty and we&apos;ll fill one in. &ldquo;Was&rdquo; shows a struck-through price and only counts if it&apos;s higher. &ldquo;Min&rdquo; is the smallest quantity a buyer can order.</p>
+          <button type="button" disabled={variants.length >= 100} onClick={() => setVariants((vs) => [...vs, { ...vs[vs.length - 1], sku: "", size: "" }])} className="btn btn-tertiary btn-sm mt-2"><Plus size={16} /> Add variant</button>
+          <p className="mt-1 text-[12px] text-maxcontrast">Leave SKU empty and we&apos;ll fill one in. &ldquo;Was&rdquo; shows a struck-through price and only counts if it&apos;s higher. &ldquo;Min&rdquo; is the smallest quantity a buyer can order.</p>
         </fieldset>
 
         <fieldset>
           <legend className="label mb-2">Bulk pricing (optional, applies to every variant)</legend>
           {tiers.map((t, i) => (
             <div key={i} className="mb-2 flex items-center gap-2 text-[14px]">
-              <input className="field !h-9 w-24 font-mono" placeholder="Qty" inputMode="numeric" value={t.min_qty} onChange={(e) => setTiers((ts) => ts.map((x, j) => (j === i ? { ...x, min_qty: e.target.value.replace(/\D/g, "").slice(0, 3) } : x)))} aria-label="Minimum quantity" />
+              <input className="field w-24 tabular-nums" placeholder="Qty" inputMode="numeric" value={t.min_qty} onChange={(e) => setTiers((ts) => ts.map((x, j) => (j === i ? { ...x, min_qty: e.target.value.replace(/\D/g, "").slice(0, 3) } : x)))} aria-label="Minimum quantity" />
               <span>+ units at</span>
-              <input className="field !h-9 w-28 font-mono" placeholder="Unit price" inputMode="decimal" value={t.price} onChange={(e) => setTiers((ts) => ts.map((x, j) => (j === i ? { ...x, price: e.target.value.replace(/[^\d.]/g, "") } : x)))} aria-label="Unit price" />
-              <button type="button" onClick={() => setTiers((ts) => ts.filter((_, j) => j !== i))} className="btn btn-ghost btn-sm px-2" aria-label="Remove tier"><X size={16} /></button>
+              <input className="field w-28 tabular-nums" placeholder="Unit price" inputMode="decimal" value={t.price} onChange={(e) => setTiers((ts) => ts.map((x, j) => (j === i ? { ...x, price: e.target.value.replace(/[^\d.]/g, "") } : x)))} aria-label="Unit price" />
+              <button type="button" onClick={() => setTiers((ts) => ts.filter((_, j) => j !== i))} className="btn btn-tertiary btn-sm px-2" aria-label="Remove tier"><X size={16} /></button>
             </div>
           ))}
-          {tiers.length < 10 && <button type="button" onClick={() => setTiers((ts) => [...ts, { min_qty: "", price: "" }])} className="btn btn-ghost btn-sm"><Plus size={16} /> Add a quantity break</button>}
+          {tiers.length < 10 && <button type="button" onClick={() => setTiers((ts) => [...ts, { min_qty: "", price: "" }])} className="btn btn-tertiary btn-sm"><Plus size={16} /> Add a quantity break</button>}
         </fieldset>
 
         <fieldset>
           <legend className="label mb-2">Specs (optional)</legend>
           {specs.map((s, i) => (
             <div key={i} className="mb-2 flex items-center gap-2">
-              <input className="field !h-9 w-44" placeholder="Material" maxLength={60} value={s.k} onChange={(e) => setSpecs((xs) => xs.map((x, j) => (j === i ? { ...x, k: e.target.value } : x)))} aria-label="Spec name" />
-              <input className="field !h-9 flex-1" placeholder="100% linen" maxLength={120} value={s.v} onChange={(e) => setSpecs((xs) => xs.map((x, j) => (j === i ? { ...x, v: e.target.value } : x)))} aria-label="Spec value" />
-              <button type="button" onClick={() => setSpecs((xs) => xs.filter((_, j) => j !== i))} className="btn btn-ghost btn-sm px-2" aria-label="Remove spec"><X size={16} /></button>
+              <input className="field w-44" placeholder="Material" maxLength={60} value={s.k} onChange={(e) => setSpecs((xs) => xs.map((x, j) => (j === i ? { ...x, k: e.target.value } : x)))} aria-label="Spec name" />
+              <input className="field flex-1" placeholder="100% linen" maxLength={120} value={s.v} onChange={(e) => setSpecs((xs) => xs.map((x, j) => (j === i ? { ...x, v: e.target.value } : x)))} aria-label="Spec value" />
+              <button type="button" onClick={() => setSpecs((xs) => xs.filter((_, j) => j !== i))} className="btn btn-tertiary btn-sm px-2" aria-label="Remove spec"><X size={16} /></button>
             </div>
           ))}
-          {specs.length < 40 && <button type="button" onClick={() => setSpecs((xs) => [...xs, { k: "", v: "" }])} className="btn btn-ghost btn-sm"><Plus size={16} /> Add a spec</button>}
+          {specs.length < 40 && <button type="button" onClick={() => setSpecs((xs) => [...xs, { k: "", v: "" }])} className="btn btn-tertiary btn-sm"><Plus size={16} /> Add a spec</button>}
         </fieldset>
 
         <label className="block max-w-xl"><span className="label">Search tags (comma separated)</span><input maxLength={600} className="field mt-1" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="linen, summer, wrap dress" /></label>
 
         <ErrorLine error={error} />
-        <div className="flex flex-wrap gap-2 border-t border-ink pt-5">
-          <button disabled={!!busy || uploading} className="btn btn-signal">{busy === "active" ? "Publishing…" : "Publish"}</button>
-          <button type="button" disabled={!!busy || uploading} onClick={() => submit("draft")} className="btn btn-line">{busy === "draft" ? "Saving…" : "Save as draft"}</button>
-          <button type="button" onClick={() => router.back()} className="btn btn-ghost">Cancel</button>
+        <div className="flex flex-wrap gap-2 border-t border-border pt-5">
+          <button disabled={!!busy || uploading} className="btn btn-primary">{busy === "active" ? "Publishing…" : "Publish"}</button>
+          <button type="button" disabled={!!busy || uploading} onClick={() => submit("draft")} className="btn btn-secondary">{busy === "draft" ? "Saving…" : "Save as draft"}</button>
+          <button type="button" onClick={() => router.back()} className="btn btn-tertiary">Cancel</button>
         </div>
       </div>
     </form>

@@ -3,7 +3,7 @@
 const HEX = /^#[0-9a-fA-F]{6}$/;
 
 /** Only #rrggbb gets into inline styles; anything else falls back. Blocks CSS injection via store colours. */
-export function safeColor(value: unknown, fallback = "#16130f"): string {
+export function safeColor(value: unknown, fallback = "#222222"): string {
   return typeof value === "string" && HEX.test(value) ? value : fallback;
 }
 

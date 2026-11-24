@@ -71,23 +71,23 @@ export default function AdminSpace() {
   return (
     <>
       <PageTitle title="Store space" kicker="Stall rent, commission and the spots vendors can rent by the day" />
-      {msg && <p role="status" className={`mb-4 border-l-2 pl-3 text-[13px] ${msg.ok ? "border-market text-market" : "border-signal text-signal"}`}>{msg.text}</p>}
+      {msg && <p role="status" className={`mb-4 border-l-2 pl-3 text-[13px] ${msg.ok ? "border-element-success text-text-success" : "border-element-error text-text-error"}`}>{msg.text}</p>}
       <ErrorLine error={plans.error ?? slots.error} />
 
       <p className="label mb-2">Stall plans</p>
       <div className="mb-10 grid gap-3 lg:grid-cols-3">
         {(plans.data ?? []).map((p) => (
-          <div key={p.id} className="border border-ink bg-card p-4">
-            <p className="display text-[28px]">{p.name}</p>
-            <p className="font-mono text-[11px] text-ink-3">{p.code}</p>
+          <div key={p.id} className="card p-4">
+            <p className="heading text-[20px]">{p.name}</p>
+            <p className="tabular-nums text-[12px] text-maxcontrast">{p.code}</p>
             <div className="mt-3 grid grid-cols-2 gap-2">
-              <label className="text-[12px]"><span className="label">Rent / month ($)</span><input className="field mt-1 !h-9 font-mono" inputMode="decimal" value={field(p.id, "price", (p.monthly_price_cents / 100).toFixed(2))} onChange={(e) => set(p.id, "price", e.target.value.replace(/[^\d.]/g, ""))} /></label>
-              <label className="text-[12px]"><span className="label">Commission %</span><input className="field mt-1 !h-9 font-mono" inputMode="decimal" value={field(p.id, "rate", (p.commission_rate * 100).toFixed(1))} onChange={(e) => set(p.id, "rate", e.target.value.replace(/[^\d.]/g, ""))} /></label>
-              <label className="text-[12px]"><span className="label">Fee per unit ($)</span><input className="field mt-1 !h-9 font-mono" inputMode="decimal" value={field(p.id, "fee", ((p.per_item_fee_cents ?? 0) / 100).toFixed(2))} onChange={(e) => set(p.id, "fee", e.target.value.replace(/[^\d.]/g, ""))} /></label>
-              <label className="text-[12px]"><span className="label">Product limit</span><input className="field mt-1 !h-9 font-mono" inputMode="numeric" placeholder="No limit" value={field(p.id, "limit", p.product_limit ? String(p.product_limit) : "")} onChange={(e) => set(p.id, "limit", e.target.value.replace(/\D/g, ""))} /></label>
-              <label className="col-span-2 text-[12px]"><span className="label">Free promo days a month</span><input className="field mt-1 !h-9 font-mono" inputMode="numeric" value={field(p.id, "days", String(p.featured_slots ?? 0))} onChange={(e) => set(p.id, "days", e.target.value.replace(/\D/g, "").slice(0, 2))} /></label>
+              <label className="text-[12px]"><span className="label">Rent / month ($)</span><input className="field mt-1 tabular-nums" inputMode="decimal" value={field(p.id, "price", (p.monthly_price_cents / 100).toFixed(2))} onChange={(e) => set(p.id, "price", e.target.value.replace(/[^\d.]/g, ""))} /></label>
+              <label className="text-[12px]"><span className="label">Commission %</span><input className="field mt-1 tabular-nums" inputMode="decimal" value={field(p.id, "rate", (p.commission_rate * 100).toFixed(1))} onChange={(e) => set(p.id, "rate", e.target.value.replace(/[^\d.]/g, ""))} /></label>
+              <label className="text-[12px]"><span className="label">Fee per unit ($)</span><input className="field mt-1 tabular-nums" inputMode="decimal" value={field(p.id, "fee", ((p.per_item_fee_cents ?? 0) / 100).toFixed(2))} onChange={(e) => set(p.id, "fee", e.target.value.replace(/[^\d.]/g, ""))} /></label>
+              <label className="text-[12px]"><span className="label">Product limit</span><input className="field mt-1 tabular-nums" inputMode="numeric" placeholder="No limit" value={field(p.id, "limit", p.product_limit ? String(p.product_limit) : "")} onChange={(e) => set(p.id, "limit", e.target.value.replace(/\D/g, ""))} /></label>
+              <label className="col-span-2 text-[12px]"><span className="label">Free promo days a month</span><input className="field mt-1 tabular-nums" inputMode="numeric" value={field(p.id, "days", String(p.featured_slots ?? 0))} onChange={(e) => set(p.id, "days", e.target.value.replace(/\D/g, "").slice(0, 2))} /></label>
             </div>
-            <button disabled={busy === p.id || !draft[p.id]} onClick={() => savePlan(p.id)} className="btn btn-ink btn-sm mt-3">Save</button>
+            <button disabled={busy === p.id || !draft[p.id]} onClick={() => savePlan(p.id)} className="btn btn-sm mt-3">Save</button>
           </div>
         ))}
       </div>
@@ -97,19 +97,19 @@ export default function AdminSpace() {
         {(slots.data ?? []).map((s) => {
           const off = s.is_active === false;
           return (
-            <div key={s.id} className={`border border-ink p-4 ${off ? "bg-paper-2" : "bg-card"}`}>
+            <div key={s.id} className={`card p-4 ${off ? "bg-background-hover" : "bg-main-background"}`}>
               <div className="flex items-start justify-between gap-3">
-                <div><p className="display text-[26px]">{s.name}</p><p className="text-[12px] text-ink-3">{s.location}</p></div>
-                {off && <span className="ticket">PAUSED</span>}
+                <div><p className="heading text-[20px]">{s.name}</p><p className="text-[12px] text-maxcontrast">{s.location}</p></div>
+                {off && <span className="chip chip-error">Paused</span>}
               </div>
-              {s.description && <p className="mt-1 text-[13px] text-ink-2">{s.description}</p>}
+              {s.description && <p className="mt-1 text-[13px] text-maxcontrast">{s.description}</p>}
               <div className="mt-3 grid grid-cols-2 gap-2">
-                <label className="text-[12px]"><span className="label">Price / day ($)</span><input className="field mt-1 !h-9 font-mono" inputMode="decimal" value={field(s.id, "price", (s.daily_price_cents / 100).toFixed(2))} onChange={(e) => set(s.id, "price", e.target.value.replace(/[^\d.]/g, ""))} /></label>
-                <label className="text-[12px]"><span className="label">Shops at once</span><input className="field mt-1 !h-9 font-mono" inputMode="numeric" value={field(s.id, "cap", String(s.capacity))} onChange={(e) => set(s.id, "cap", e.target.value.replace(/\D/g, "").slice(0, 3))} /></label>
+                <label className="text-[12px]"><span className="label">Price / day ($)</span><input className="field mt-1 tabular-nums" inputMode="decimal" value={field(s.id, "price", (s.daily_price_cents / 100).toFixed(2))} onChange={(e) => set(s.id, "price", e.target.value.replace(/[^\d.]/g, ""))} /></label>
+                <label className="text-[12px]"><span className="label">Shops at once</span><input className="field mt-1 tabular-nums" inputMode="numeric" value={field(s.id, "cap", String(s.capacity))} onChange={(e) => set(s.id, "cap", e.target.value.replace(/\D/g, "").slice(0, 3))} /></label>
               </div>
               <div className="mt-3 flex gap-2">
-                <button disabled={busy === s.id || !draft[s.id]} onClick={() => saveSlot(s.id)} className="btn btn-ink btn-sm">Save</button>
-                <button disabled={busy === s.id} onClick={() => saveSlot(s.id, { is_active: off })} className="btn btn-ghost btn-sm">{off ? "Open for booking" : "Pause new bookings"}</button>
+                <button disabled={busy === s.id || !draft[s.id]} onClick={() => saveSlot(s.id)} className="btn btn-sm">Save</button>
+                <button disabled={busy === s.id} onClick={() => saveSlot(s.id, { is_active: off })} className="btn btn-tertiary btn-sm">{off ? "Open for booking" : "Pause new bookings"}</button>
               </div>
             </div>
           );

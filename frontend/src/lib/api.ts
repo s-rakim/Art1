@@ -162,8 +162,8 @@ function toStore(s: S["Store"]): Store {
     name: s.name,
     tagline: s.tagline ?? "",
     description: s.description ?? "",
-    banner_color: s.banner_color ?? "#16130f",
-    accent_color: s.accent_color ?? "#f4f0e6",
+    banner_color: s.banner_color ?? "#00679e",
+    accent_color: s.accent_color ?? "#ffffff",
     logo_url: s.logo_url,
     country: s.country ?? "",
     joined_at: s.created_at,
@@ -305,7 +305,7 @@ function toSellerProfile(m: S["SellerMe"], plans?: Plan[]): SellerProfile {
   return {
     store: {
       id: st.id, slug: st.slug, name: st.name, tagline: st.tagline ?? "", description: st.description ?? "",
-      banner_color: st.banner_color ?? "#16130f", accent_color: st.accent_color ?? "#f4f0e6", logo_url: st.logo_url,
+      banner_color: st.banner_color ?? "#00679e", accent_color: st.accent_color ?? "#ffffff", logo_url: st.logo_url,
       country: st.country ?? "", joined_at: st.created_at, rating: st.rating, review_count: st.review_count,
       product_count: st.product_count ?? 0, status: st.status, plan: m.plan.code,
       support_email: st.support_email, review_note: st.review_note,

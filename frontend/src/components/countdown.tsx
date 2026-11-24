@@ -17,10 +17,10 @@ export function Countdown() {
   const parts = left === null ? ["--", "--", "--"] : [3600000, 60000, 1000].map((d, i) =>
     String(Math.floor((left % (i === 0 ? 86400000 : i === 1 ? 3600000 : 60000)) / d)).padStart(2, "0"));
   return (
-    <span className="inline-flex items-center gap-1 font-mono text-[14px] font-semibold" aria-label="Time left on today's deals" suppressHydrationWarning>
+    <span className="inline-flex items-center gap-1 text-[14px] font-semibold tabular-nums" aria-label="Time left on today's deals" suppressHydrationWarning>
       {parts.map((p, i) => (
         <span key={i} className="flex items-center gap-1">
-          <span className="bg-ink px-1.5 py-0.5 text-paper tabular-nums">{p}</span>
+          <span className="rounded-small bg-error px-1.5 py-0.5 text-error-text tabular-nums">{p}</span>
           {i < 2 && <span>:</span>}
         </span>
       ))}

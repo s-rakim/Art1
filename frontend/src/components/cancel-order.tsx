@@ -12,17 +12,17 @@ export function CancelOrder({ orderId }: { orderId: string }) {
   const [error, setError] = useState<string | null>(null);
 
   if (!asking) {
-    return <button type="button" className="btn btn-line w-full" onClick={() => setAsking(true)}>Cancel order</button>;
+    return <button type="button" className="btn btn-secondary w-full" onClick={() => setAsking(true)}>Cancel order</button>;
   }
   return (
-    <div className="border border-ink p-3 text-[14px]">
+    <div className="card p-3 text-[14px]">
       <p className="mb-3">Cancel the whole order? Stores that already shipped can&apos;t take it back, so this only works before dispatch.</p>
-      {error && <p role="alert" className="mb-2 text-signal">{error}</p>}
+      {error && <p role="alert" className="note note-error mb-2"><span>{error}</span></p>}
       <div className="flex gap-2">
         <button
           type="button"
           disabled={busy}
-          className="btn btn-signal btn-sm flex-1"
+          className="btn btn-error btn-sm flex-1"
           onClick={async () => {
             setBusy(true);
             setError(null);
@@ -39,7 +39,7 @@ export function CancelOrder({ orderId }: { orderId: string }) {
         >
           {busy ? "Cancelling…" : "Yes, cancel"}
         </button>
-        <button type="button" className="btn btn-line btn-sm flex-1" onClick={() => setAsking(false)}>Keep it</button>
+        <button type="button" className="btn btn-secondary btn-sm flex-1" onClick={() => setAsking(false)}>Keep it</button>
       </div>
     </div>
   );
