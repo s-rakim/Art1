@@ -1,0 +1,177 @@
+@import "tailwindcss";
+
+/*
+  Visual identity: a market ledger. Warm paper, black ink, hairline rules like a
+  receipt, one loud signal red for prices and the buy action, and a market green
+  for anything that means "trusted seller". Corners stay nearly square. No gradients.
+*/
+
+@theme {
+  --color-paper: #f4f0e6;
+  --color-paper-2: #ebe5d7;
+  --color-card: #fbf9f3;
+  --color-ink: #16130f;
+  --color-ink-2: #4a443a;
+  --color-ink-3: #7c7466;
+  --color-rule: #d6cdbb;
+  --color-signal: #d23a1f;
+  --color-signal-ink: #a92a12;
+  --color-market: #1e4d3b;
+  --color-market-2: #dbe5dc;
+  --color-tag: #e8b931;
+
+  --font-sans: "Archivo Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --radius-xs: 2px;
+  --radius-sm: 3px;
+  --radius-md: 4px;
+
+  --animate-slide-in: slide-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-fade: fade 180ms ease-out;
+
+  @keyframes slide-in {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+  }
+  @keyframes fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+}
+
+@layer base {
+  html {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.5;
+    min-height: 100dvh;
+  }
+  ::selection {
+    background: var(--color-tag);
+    color: var(--color-ink);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 2px;
+  }
+  button, [role="button"] {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+}
+
+@layer components {
+  /* Condensed display type, used for headlines and section labels. */
+  .display {
+    font-stretch: 68%;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    line-height: 0.92;
+    text-transform: uppercase;
+  }
+  .label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-ink-3);
+  }
+  .price {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .rule-dashed {
+    background-image: linear-gradient(to right, var(--color-rule) 50%, transparent 50%);
+    background-size: 8px 1px;
+    background-repeat: repeat-x;
+    height: 1px;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    height: 2.75rem;
+    padding: 0 1.25rem;
+    border-radius: var(--radius-sm);
+    font-weight: 650;
+    font-size: 14px;
+    transition: background-color 120ms, color 120ms, border-color 120ms, transform 80ms;
+    white-space: nowrap;
+  }
+  .btn:active:not(:disabled) { transform: translateY(1px); }
+  .btn-ink { background: var(--color-ink); color: var(--color-paper); }
+  .btn-ink:hover:not(:disabled) { background: #2d2820; }
+  .btn-signal { background: var(--color-signal); color: #fff; }
+  .btn-signal:hover:not(:disabled) { background: var(--color-signal-ink); }
+  .btn-line { border: 1px solid var(--color-ink); color: var(--color-ink); background: transparent; }
+  .btn-line:hover:not(:disabled) { background: var(--color-ink); color: var(--color-paper); }
+  .btn-ghost { color: var(--color-ink-2); }
+  .btn-ghost:hover:not(:disabled) { background: var(--color-paper-2); color: var(--color-ink); }
+  .btn-sm { height: 2.25rem; padding: 0 0.875rem; font-size: 13px; }
+  .btn:disabled { opacity: 0.45; }
+
+  .field {
+    width: 100%;
+    height: 2.75rem;
+    padding: 0 0.875rem;
+    border: 1px solid var(--color-rule);
+    border-radius: var(--radius-sm);
+    background: var(--color-card);
+    font-size: 14px;
+    transition: border-color 120ms;
+  }
+  .field:hover { border-color: var(--color-ink-3); }
+  .field:focus { outline: none; border-color: var(--color-ink); box-shadow: 0 0 0 1px var(--color-ink); }
+  textarea.field { height: auto; padding: 0.75rem 0.875rem; }
+  select.field { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2316130f'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 0.875rem center; padding-right: 2.25rem; }
+
+  /* Price ticket: notched left edge like a swing tag. */
+  .ticket {
+    --notch: 6px;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    padding: 0.125rem 0.5rem 0.125rem calc(0.5rem + var(--notch));
+    background: var(--color-signal);
+    color: #fff;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    clip-path: polygon(var(--notch) 0, 100% 0, 100% 100%, var(--notch) 100%, 0 50%);
+  }
+  .ticket-tag { background: var(--color-tag); color: var(--color-ink); }
+  .ticket-market { background: var(--color-market); color: #fff; }
+  .ticket-ink { background: var(--color-ink); color: var(--color-paper); }
+
+  .panel {
+    background: var(--color-card);
+    border: 1px solid var(--color-rule);
+    border-radius: var(--radius-md);
+  }
+
+  .link-u {
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+  }
+  .link-u:hover { text-decoration-thickness: 2px; }
+
+  .no-scrollbar { scrollbar-width: none; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0ms !important; transition-duration: 0ms !important; }
+}
