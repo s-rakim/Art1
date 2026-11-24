@@ -664,12 +664,16 @@ class StoreOrder(BaseModel):
 class StoreDelivery(BaseModel):
     id: uuid.UUID
     status: str
+    order_number: str
     rider_name: str
     rider_vehicle: str
     assigned_at: datetime
     picked_up_at: datetime | None
     delivered_at: datetime | None
     note: str | None
+    pickup: "MapPoint | None" = None
+    dropoff: "MapPoint | None" = None
+    rider_position: "RiderPosition | None" = None
 
 
 class InventoryRow(BaseModel):
@@ -1005,4 +1009,5 @@ class Tracking(BaseModel):
     deliveries: list[DeliveryTrack]
 
 
+StoreDelivery.model_rebuild()
 StoreOrder.model_rebuild()

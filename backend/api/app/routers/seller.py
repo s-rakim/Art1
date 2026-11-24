@@ -519,6 +519,40 @@ _NEXT_STATUS = {
 }
 
 
+# What a store sees of a delivery, shaped like the admin's LiveDelivery so
+# the same map component can draw it. The drop-off point and the rider's
+# position follow the rider view's rule: hidden until the rider accepts, and
+# the position stops updating once the job is over.
+STORE_DELIVERY_SELECT = """
+    select d.id, d.status, split_part(r.full_name, ' ', 1) as rider_name, r.vehicle as rider_vehicle,
+           d.assigned_at, d.picked_up_at, d.delivered_at, d.note, d.pickup, d.dropoff,
+           o.number as order_number, r.last_lat, r.last_lng, r.last_seen_at
+      from deliveries d
+      join riders r on r.id = d.rider_id
+      join store_orders so on so.id = d.store_order_id
+      join orders o on o.id = so.order_id
+"""
+
+
+def _map_point(p: dict | None) -> dict | None:
+    if isinstance(p, dict) and isinstance(p.get("lat"), (int, float)) and isinstance(p.get("lng"), (int, float)):
+        return {"lat": p["lat"], "lng": p["lng"], "label": p.get("label")}
+    return None
+
+
+def _store_delivery(r: asyncpg.Record) -> dict:
+    accepted = r["status"] in ("accepted", "picked_up", "delivered")
+    live = r["status"] in ("accepted", "picked_up")
+    return {
+        **{k: r[k] for k in ("id", "status", "rider_name", "rider_vehicle", "assigned_at", "picked_up_at",
+                             "delivered_at", "note", "order_number")},
+        "pickup": _map_point(r["pickup"]),
+        "dropoff": _map_point(r["dropoff"]) if accepted else None,
+        "rider_position": {"lat": r["last_lat"], "lng": r["last_lng"], "at": r["last_seen_at"]}
+        if live and r["last_lat"] is not None else None,
+    }
+
+
 async def _store_order(conn: asyncpg.Connection, store_id: uuid.UUID, so_id: uuid.UUID) -> dict:
     so = await conn.fetchrow(
         """select so.*, o.number as order_number, o.currency, so.payment_status = 'paid' as paid,
@@ -538,17 +572,13 @@ async def _store_order(conn: asyncpg.Connection, store_id: uuid.UUID, so_id: uui
         so_id,
     )
     delivery = await conn.fetchrow(
-        """select d.id, d.status, split_part(r.full_name, ' ', 1) as rider_name, r.vehicle as rider_vehicle,
-                  d.assigned_at, d.picked_up_at, d.delivered_at, d.note
-             from deliveries d join riders r on r.id = d.rider_id
-            where d.store_order_id = $1 order by d.assigned_at desc limit 1""",
-        so_id,
+        STORE_DELIVERY_SELECT + " where d.store_order_id = $1 order by d.assigned_at desc limit 1", so_id
     )
     d = dict(so)
     if not d["paid"] and d["payment_method"] != "cod":
         # The buyer's address is only shown once there is something to ship.
         d["ship_to"] = {"country": (d["ship_to"] or {}).get("country")}
-    return {**d, "items": [dict(i) for i in items], "delivery": dict(delivery) if delivery else None}
+    return {**d, "items": [dict(i) for i in items], "delivery": _store_delivery(delivery) if delivery else None}
 
 
 @router.get("/orders", response_model=s.Page[s.StoreOrder])
@@ -991,13 +1021,10 @@ async def store_deliveries(
     cond = "d.store_id = $1" + (" and d.status in ('assigned', 'accepted', 'picked_up')" if active else "")
     total = await conn.fetchval(f"select count(*) from deliveries d where {cond}", ctx.store_id)
     recs = await conn.fetch(
-        f"""select d.id, d.status, split_part(r.full_name, ' ', 1) as rider_name, r.vehicle as rider_vehicle,
-                   d.assigned_at, d.picked_up_at, d.delivered_at, d.note
-              from deliveries d join riders r on r.id = d.rider_id
-             where {cond} order by d.assigned_at desc limit $2 offset $3""",
+        STORE_DELIVERY_SELECT + f" where {cond} order by d.assigned_at desc limit $2 offset $3",
         ctx.store_id, pg.page_size, pg.offset,
     )
-    return pg.wrap([dict(r) for r in recs], total)
+    return pg.wrap([_store_delivery(r) for r in recs], total)
 
 
 @router.post("/deliveries/{delivery_id}/cancel", response_model=s.Message)

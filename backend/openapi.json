@@ -11531,6 +11531,10 @@
             "type": "string",
             "title": "Status"
           },
+          "order_number": {
+            "type": "string",
+            "title": "Order Number"
+          },
           "rider_name": {
             "type": "string",
             "title": "Rider Name"
@@ -11578,12 +11582,43 @@
               }
             ],
             "title": "Note"
+          },
+          "pickup": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MapPoint"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "dropoff": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MapPoint"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rider_position": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RiderPosition"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
         "required": [
           "id",
           "status",
+          "order_number",
           "rider_name",
           "rider_vehicle",
           "assigned_at",

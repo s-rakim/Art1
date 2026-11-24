@@ -217,3 +217,29 @@ async def test_card_payments_are_off_until_configured(actor, admin):
     )
     assert r.status_code == 422
     assert r.json()["error"]["code"] == "card_unavailable"
+
+
+async def test_vendor_delivery_map(actor, admin):
+    seller = await open_store(actor, admin)
+    product = await add_product(seller)
+    buyer = actor()
+    r = await buyer.post(f"{API}/checkout", json={
+        "items": [{"variant_id": product["variants"][0]["id"], "quantity": 1}], "shipping_address": ADDRESS})
+    assert r.status_code == 201
+    so = (await seller.get(f"{API}/seller/orders")).json()["items"][0]
+    rider = await hire_rider(actor, admin)
+    r = await seller.post(f"{API}/seller/orders/{so['id']}/dispatch", json={"rider_id": str(rider.id)})
+    did = r.json()["delivery"]["id"]
+
+    job = (await seller.get(f"{API}/seller/deliveries")).json()["items"][0]
+    assert job["order_number"].startswith("MK-")
+    assert job["pickup"]["lat"] == 5.6037
+    assert job["dropoff"] is None and job["rider_position"] is None  # not accepted yet
+
+    await rider.patch(f"{API}/rider/deliveries/{did}", json={"action": "accept"})
+    await rider.post(f"{API}/rider/location", json={"lat": 5.59, "lng": -0.19})
+    job = (await seller.get(f"{API}/seller/deliveries")).json()["items"][0]
+    assert job["dropoff"]["lat"] == 5.56
+    assert job["rider_position"]["lat"] == 5.59
+    detail = (await seller.get(f"{API}/seller/orders/{so['id']}")).json()
+    assert detail["delivery"]["rider_position"]["lng"] == -0.19
