@@ -31,7 +31,7 @@ export default async function ProductPage({ params }: { params: Params }) {
   const [reviews, store, more, similar, categories] = await Promise.all([
     api.reviews(product.slug),
     api.store(product.store.slug),
-    api.products({ store: product.store.slug, page_size: 5, sort: "bestselling" }),
+    api.products({ store: product.store.slug, page_size: 5, sort: "popular" }),
     api.products({ category: product.category_slug, page_size: 6, sort: "rating" }),
     api.categories(),
   ]);
@@ -91,10 +91,15 @@ export default async function ProductPage({ params }: { params: Params }) {
               <div className="flex items-center gap-3 p-4" style={{ background: safeColor(store.banner_color), color: safeColor(store.accent_color, "#f4f0e6") }}>
                 <span className="display text-[24px]">{store.name}</span>
               </div>
-              <dl className="grid grid-cols-3 divide-x divide-rule bg-card text-center">
-                <div className="p-3"><dt className="label">Rating</dt><dd className="price">{store.rating.toFixed(1)}</dd></div>
-                <div className="p-3"><dt className="label">Replies</dt><dd className="price">{pct(store.response_rate)}</dd></div>
-                <div className="p-3"><dt className="label">On time</dt><dd className="price">{pct(store.on_time_rate)}</dd></div>
+              <dl className="flex divide-x divide-rule bg-card text-center">
+                {([
+                  ["Rating", store.review_count === 0 ? "New" : store.rating.toFixed(1)],
+                  ["Items", String(store.product_count)],
+                  ["Replies", store.response_rate != null ? pct(store.response_rate) : null],
+                  ["On time", store.on_time_rate != null ? pct(store.on_time_rate) : null],
+                ] as Array<[string, string | null]>).filter(([, v]) => v !== null).slice(0, 3).map(([k, v]) => (
+                  <div key={k} className="flex-1 p-3"><dt className="label">{k}</dt><dd className="price">{v}</dd></div>
+                ))}
               </dl>
               <div className="grid grid-cols-2 border-t border-rule">
                 <Link href={`/s/${store.slug}`} className="btn btn-ghost rounded-none">Visit store</Link>

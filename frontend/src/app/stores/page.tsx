@@ -22,7 +22,7 @@ export default async function StoresPage() {
               <div className="flex items-center justify-between gap-3 bg-card p-4">
                 <div className="min-w-0">
                   <p className="truncate text-[14px]">{s.tagline}</p>
-                  <p className="mt-1 font-mono text-[11px] text-ink-3">★ {s.rating.toFixed(1)} · {s.product_count} items · {compact(s.follower_count)} followers</p>
+                  <p className="mt-1 font-mono text-[11px] text-ink-3">★ {s.rating.toFixed(1)} · {s.product_count} items{s.follower_count != null ? ` · ${compact(s.follower_count)} followers` : ""}</p>
                 </div>
                 {s.verified && <span className="ticket ticket-market shrink-0">VERIFIED</span>}
               </div>

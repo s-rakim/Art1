@@ -1,7 +1,7 @@
 // Demo catalogue. Used only when the API can't be reached and NEXT_PUBLIC_DEMO_DATA isn't "off",
 // so the storefront is browsable before the backend is up. Deterministic, so server and client agree.
 import type {
-  AdminStats, ArtShape, Category, Order, Placement, Plan, Product, Review, SellerStats, Store,
+  AdminStats, ArtShape, Category, Order, PlacementSlot, Plan, Product, Review, SellerStats, Store,
 } from "../types";
 
 function rng(seed: number) {
@@ -30,7 +30,8 @@ export const categories: Category[] = [
 
 export const plans: Plan[] = [
   {
-    id: "stall",
+    id: "plan-stall",
+    code: "stall",
     name: "Stall",
     monthly_price_cents: 1900,
     commission_rate: 0.12,
@@ -43,7 +44,8 @@ export const plans: Plan[] = [
     ],
   },
   {
-    id: "shopfront",
+    id: "plan-shopfront",
+    code: "shopfront",
     name: "Shopfront",
     monthly_price_cents: 7900,
     commission_rate: 0.08,
@@ -59,7 +61,8 @@ export const plans: Plan[] = [
     ],
   },
   {
-    id: "flagship",
+    id: "plan-flagship",
+    code: "flagship",
     name: "Flagship",
     monthly_price_cents: 29900,
     commission_rate: 0.05,
@@ -75,11 +78,11 @@ export const plans: Plan[] = [
   },
 ];
 
-export const placements: Placement[] = [
-  { id: "pl1", name: "Homepage shelf", location: "Home, below the fold", weekly_price_cents: 14900, slots_total: 6, slots_taken: 4, description: "A row of up to eight of your products under your store name, seen by every visitor to the homepage." },
-  { id: "pl2", name: "Category banner", location: "Top of a category page", weekly_price_cents: 8900, slots_total: 16, slots_taken: 9, description: "Full-width banner on one category of your choice, linking to your storefront or a collection." },
-  { id: "pl3", name: "Flash deal spot", location: "Daily deals strip", weekly_price_cents: 4900, slots_total: 24, slots_taken: 20, description: "Put one product into the countdown deals strip. Requires at least 20% off your usual price." },
-  { id: "pl4", name: "Search boost", location: "Search results, top three", weekly_price_cents: 2900, slots_total: 40, slots_taken: 12, description: "Your listing marked as sponsored in the top three for up to five keywords you pick." },
+export const placements: PlacementSlot[] = [
+  { id: "pl1", code: "home_shelf", name: "Homepage shelf", location: "Home, below the fold", daily_price_cents: 2100, capacity: 6, booked: 4, description: "A row of your products under your store name, seen by every visitor to the homepage." },
+  { id: "pl2", code: "category_banner", name: "Category banner", location: "Top of a category page", daily_price_cents: 1300, capacity: 16, booked: 9, description: "Full-width banner on one category of your choice, linking to your storefront or a collection." },
+  { id: "pl3", code: "deal_spot", name: "Flash deal spot", location: "Daily deals strip", daily_price_cents: 700, capacity: 24, booked: 20, description: "Put one product into the countdown deals strip. Requires at least 20% off your usual price." },
+  { id: "pl4", code: "search_boost", name: "Search boost", location: "Search results, top three", daily_price_cents: 400, capacity: 40, booked: 12, description: "Your listing marked as sponsored in the top three for the keywords you pick." },
 ];
 
 const storeSeeds: Array<Omit<Store, "rating" | "product_count" | "id">> = [
@@ -270,29 +273,43 @@ export const sellerStats: SellerStats = (() => {
   const rs = rng(7);
   const daily = Array.from({ length: 30 }, (_, i) => {
     const orders = Math.floor(8 + rs() * 22 + i * 0.4);
-    return { date: new Date(now - (29 - i) * 86400000).toISOString().slice(0, 10), orders, revenue_cents: orders * Math.floor(4200 + rs() * 2600) };
+    return { date: new Date(now - (29 - i) * 86400000).toISOString().slice(0, 10), orders, sales_cents: orders * Math.floor(4200 + rs() * 2600) };
   });
+  const sales = daily.reduce((a, d) => a + d.sales_cents, 0);
+  const orders = daily.reduce((a, d) => a + d.orders, 0);
+  const own = products.filter((p) => p.store.slug === "northline-studio");
   return {
     daily,
-    revenue_30d_cents: daily.reduce((a, d) => a + d.revenue_cents, 0),
-    orders_30d: daily.reduce((a, d) => a + d.orders, 0),
-    visitors_30d: 18432,
-    conversion_rate: 0.031,
-    pending_payout_cents: 284310,
+    sales_cents_30d: sales,
+    orders_30d: orders,
+    units_30d: Math.round(orders * 1.4),
+    average_order_cents: Math.round(sales / Math.max(orders, 1)),
+    to_ship: 7,
+    active_products: own.length,
+    rating: 4.6,
+    review_count: 1840,
+    balance: { balance_cents: 412_960, available_cents: 284_310, pending_cents: 128_650 },
+    top_products: own.slice(0, 5).map((p, i) => ({ id: p.id, slug: p.slug, title: p.title, units: 120 - i * 17, sales_cents: (120 - i * 17) * p.price_cents })),
   };
 })();
 
 export const adminStats: AdminStats = {
-  gmv_30d_cents: 48_210_400,
+  gmv_cents_30d: 48_210_400,
+  orders_30d: 6_204,
+  commission_cents_30d: 3_904_000,
+  fees_cents_30d: 412_300,
+  rent_cents_30d: 1_286_400,
+  placement_cents_30d: 1_769_023,
   rent_mrr_cents: 1_286_400,
-  commission_30d_cents: 3_904_000,
   active_stores: stores.filter((s) => s.status === "active").length,
-  pending_applications: stores.filter((s) => s.status === "pending").length,
-  open_disputes: 3,
+  pending_stores: stores.filter((s) => s.status === "pending").length,
+  customers: 21_480,
+  active_products: products.length,
+  payouts_requested_cents: 612_000,
 };
 
 export function demoOrders(): Order[] {
-  const statuses: Order["status"][] = ["shipped", "delivered", "packed", "delivered", "cancelled"];
+  const statuses = ["paid", "fulfilled", "paid", "fulfilled", "canceled"];
   return statuses.map((status, i) => {
     const picks = [products[i * 3], products[i * 5 + 1]].filter(Boolean);
     const lines = picks.map((p, j) => ({
@@ -310,8 +327,8 @@ export function demoOrders(): Order[] {
     }));
     const subtotal = lines.reduce((a, l) => a + l.unit_price_cents * l.quantity, 0);
     const created = now - (i * 6 + 2) * 86400000;
-    const flow: Order["status"][] = status === "cancelled" ? ["pending", "cancelled"] : ["pending", "paid", "packed", "shipped", "delivered"];
-    const upto = flow.indexOf(status);
+    const flow = status === "canceled" ? ["pending_payment", "canceled"] : ["pending_payment", "paid", "shipped", "fulfilled"];
+    const upto = status === "paid" ? 2 : flow.indexOf(status);
     return {
       id: `o${1040 + i}`,
       number: `SR-${(20481 + i * 37).toString()}`,
@@ -322,7 +339,9 @@ export function demoOrders(): Order[] {
       tax_cents: Math.round(subtotal * 0.07),
       total_cents: subtotal + (subtotal > 5000 ? 0 : 499) + Math.round(subtotal * 0.07),
       currency: "USD",
+      item_count: lines.reduce((a, l) => a + l.quantity, 0),
       lines,
+      payment_provider: i % 2 ? "bank_transfer" : "cod",
       customer_email: ["ada@example.com", "ben@example.com", "cleo@example.com", "dev@example.com", "eli@example.com"][i],
       shipping_address: { full_name: "Demo Shopper", line1: "12 Market Row", city: "Austin", region: "TX", postal_code: "78701", country: "US" },
       events: flow.slice(0, upto + 1).map((s, k) => ({ status: s, at: new Date(created + k * 36 * 3600000).toISOString() })),

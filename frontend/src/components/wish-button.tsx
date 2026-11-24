@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
+import { api } from "@/lib/api";
+import { supabase } from "@/lib/supabase/client";
 import { useWishlist } from "@/store/cart";
 import { Heart } from "./icons";
 
@@ -12,7 +14,14 @@ export function WishButton({ id, large = false }: { id: string; large?: boolean 
   return (
     <button
       type="button"
-      onClick={(e) => { e.preventDefault(); toggle(id); }}
+      onClick={async (e) => {
+        e.preventDefault();
+        const was = on;
+        toggle(id);
+        // Signed in: keep the account's wishlist in step so it follows them to other devices.
+        const token = (await supabase()?.auth.getSession())?.data.session?.access_token;
+        if (token) (was ? api.wishRemove(token, id) : api.wishAdd(token, id)).catch(() => {});
+      }}
       aria-pressed={active}
       aria-label={active ? "Remove from wishlist" : "Save to wishlist"}
       className={large

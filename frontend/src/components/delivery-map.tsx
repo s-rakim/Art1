@@ -5,11 +5,12 @@ import type { Map as MLMap, Marker } from "maplibre-gl";
 import { MAP_ATTRIBUTION, MAP_CENTER, MAP_TILES } from "@/lib/config";
 import type { LatLng } from "@/lib/types";
 
-export type MapPin = LatLng & { id: string; kind: "rider" | "pickup" | "dropoff"; label: string };
+export type MapPin = LatLng & { id: string; kind: "rider" | "idle" | "pickup" | "dropoff"; label: string };
 export type MapLine = { id: string; from: LatLng; to: LatLng; done?: boolean };
 
 const kindStyle: Record<MapPin["kind"], { bg: string; fg: string; glyph: string }> = {
   rider: { bg: "#d23a1f", fg: "#ffffff", glyph: "R" },
+  idle: { bg: "#e8b931", fg: "#16130f", glyph: "R" },
   pickup: { bg: "#16130f", fg: "#f4f0e6", glyph: "P" },
   dropoff: { bg: "#1e4d3b", fg: "#ffffff", glyph: "D" },
 };
@@ -23,6 +24,7 @@ function pinElement(pin: MapPin) {
   Object.assign(el.style, {
     width: pin.kind === "rider" ? "30px" : "24px",
     height: pin.kind === "rider" ? "30px" : "24px",
+    opacity: pin.kind === "idle" ? "0.85" : "1",
     background: s.bg,
     color: s.fg,
     border: "2px solid #f4f0e6",
@@ -41,7 +43,24 @@ function pinElement(pin: MapPin) {
  * Delivery map on OpenStreetMap raster tiles (no API key). Pins and route lines are
  * replaced whenever props change, so callers can poll and pass fresh positions.
  */
-export function DeliveryMap({ pins, lines = [], className = "h-[360px]", follow }: { pins: MapPin[]; lines?: MapLine[]; className?: string; follow?: string }) {
+export function DeliveryMap({
+  pins,
+  lines = [],
+  className = "h-[360px]",
+  follow,
+  onPick,
+}: {
+  pins: MapPin[];
+  lines?: MapLine[];
+  className?: string;
+  follow?: string;
+  /** When set, clicking the map reports the spot (used to place a store's pickup point). */
+  onPick?: (p: LatLng) => void;
+}) {
+  const pickRef = useRef(onPick);
+  useEffect(() => {
+    pickRef.current = onPick;
+  });
   const box = useRef<HTMLDivElement>(null);
   const map = useRef<MLMap | null>(null);
   const markers = useRef<Map<string, Marker>>(new Map());
@@ -73,6 +92,7 @@ export function DeliveryMap({ pins, lines = [], className = "h-[360px]", follow 
         });
         map.current.addControl(new ml.NavigationControl({ showCompass: false }), "top-right");
         map.current.on("load", () => !cancelled && setReady(true));
+        map.current.on("click", (e) => pickRef.current?.({ lat: Math.round(e.lngLat.lat * 1e6) / 1e6, lng: Math.round(e.lngLat.lng * 1e6) / 1e6 }));
       } catch {
         if (!cancelled) setFailed(true);
       }
@@ -144,15 +164,15 @@ export function DeliveryMap({ pins, lines = [], className = "h-[360px]", follow 
   }, [pins, lines, ready, follow]);
 
   return (
-    <div className={`relative overflow-hidden border border-ink bg-paper-2 ${className}`}>
+    <div className={`relative overflow-hidden border border-ink bg-paper-2 ${onPick ? "[&_canvas]:cursor-crosshair" : ""} ${className}`}>
       {/* Inline size: maplibre-gl.css is unlayered and would override a Tailwind utility here. */}
       <div ref={box} style={{ position: "absolute", inset: 0 }} />
       {failed && <p className="absolute inset-0 flex items-center justify-center p-6 text-center text-[13px] text-ink-2">The map couldn&apos;t load in this browser. Delivery status is still shown alongside.</p>}
       <ul className="pointer-events-none absolute bottom-2 left-2 flex gap-1 font-mono text-[10px]">
-        {(["rider", "pickup", "dropoff"] as const).map((k) => (
+        {(["rider", "idle", "pickup", "dropoff"] as const).filter((k) => k !== "idle" || pins.some((p) => p.kind === "idle")).map((k) => (
           <li key={k} className="flex items-center gap-1 bg-paper/90 px-1.5 py-0.5">
             <span className="inline-block h-2.5 w-2.5" style={{ background: kindStyle[k].bg }} />
-            {k === "rider" ? "Rider" : k === "pickup" ? "Store" : "Drop-off"}
+            {k === "rider" ? "Rider" : k === "idle" ? "Free rider" : k === "pickup" ? "Store" : "Drop-off"}
           </li>
         ))}
       </ul>

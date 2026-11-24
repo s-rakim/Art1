@@ -22,7 +22,9 @@ function buildCsp(nonce: string) {
   const dev = process.env.NODE_ENV === "development";
   const sb = origin(supabaseUrl);
   const tileOrigin = origin(tiles.replace(/\{[a-z]\}/g, "a"));
-  const connect = ["'self'", origin(apiUrl), sb, sb && sb.replace(/^http/, "ws"), tileOrigin].filter(Boolean).join(" ");
+  const api = origin(apiUrl);
+  // The API's tracking websocket lives on the same host, over ws:// or wss://.
+  const connect = ["'self'", api, api && api.replace(/^http/, "ws"), sb, sb && sb.replace(/^http/, "ws"), tileOrigin].filter(Boolean).join(" ");
   const img = ["'self'", "data:", "blob:", sb, tileOrigin, process.env.NEXT_PUBLIC_IMAGE_HOST ? `https://${process.env.NEXT_PUBLIC_IMAGE_HOST}` : ""]
     .filter(Boolean)
     .join(" ");

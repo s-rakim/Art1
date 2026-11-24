@@ -6,8 +6,8 @@ import { api } from "@/lib/api";
 export default function AdminDeliveries() {
   return (
     <>
-      <PageTitle kicker="Every store, refreshes every 15 seconds" title="Live deliveries" />
-      <DeliveriesBoard load={(t) => api.adminDeliveries(t)} showStore />
+      <PageTitle kicker="Every store and every rider on shift" title="Live deliveries" />
+      <DeliveriesBoard load={(t) => api.adminLive(t)} admin showStore />
     </>
   );
 }

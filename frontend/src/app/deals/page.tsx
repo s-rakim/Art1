@@ -9,7 +9,7 @@ export const metadata: Metadata = { title: "Today's deals" };
 export default async function DealsPage({ searchParams }: { searchParams: Promise<SP> }) {
   const sp = await searchParams;
   const query = parseQuery(sp, { on_sale: true });
-  if (!query.sort) query.sort = "bestselling";
+  if (!query.sort) query.sort = "popular";
   const categories = await api.categories();
   return (
     <>

@@ -54,12 +54,13 @@ export const useCart = create<CartState>()(
 export const cartCount = (lines: CartLine[]) => lines.reduce((a, l) => a + l.quantity, 0);
 export const cartSubtotal = (lines: CartLine[]) => lines.reduce((a, l) => a + l.unit_price_cents * l.quantity, 0);
 
-type WishState = { ids: string[]; toggle: (id: string) => void };
+type WishState = { ids: string[]; toggle: (id: string) => void; merge: (ids: string[]) => void };
 export const useWishlist = create<WishState>()(
   persist(
     (set) => ({
       ids: [],
       toggle: (id) => set((s) => ({ ids: s.ids.includes(id) ? s.ids.filter((x) => x !== id) : [...s.ids, id] })),
+      merge: (more) => set((s) => ({ ids: Array.from(new Set([...s.ids, ...more])).slice(-500) })),
     }),
     { name: "stallrow-wishlist" },
   ),

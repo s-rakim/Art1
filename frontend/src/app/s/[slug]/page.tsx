@@ -17,7 +17,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   return { title: s ? s.name : "Store", description: s?.tagline };
 }
 
-const tabs: Array<[string, string]> = [["bestselling", "Bestsellers"], ["newest", "New"], ["price_asc", "Price ↑"], ["rating", "Top rated"]];
+const tabs: Array<[string, string]> = [["popular", "Bestsellers"], ["newest", "New"], ["price_asc", "Price ↑"], ["rating", "Top rated"]];
 
 export default async function StorePage({ params, searchParams }: { params: Params; searchParams: Promise<SP> }) {
   const slug = safeSlug((await params).slug);
@@ -25,7 +25,7 @@ export default async function StorePage({ params, searchParams }: { params: Para
   if (!store || store.status !== "active") notFound();
   const sp = await searchParams;
   const query = parseQuery(sp, { store: store.slug, page_size: 48 });
-  const sort = query.sort ?? "bestselling";
+  const sort = query.sort ?? "popular";
   const products = await api.products({ ...query, sort });
   const bg = safeColor(store.banner_color);
   const fg = safeColor(store.accent_color, "#f4f0e6");
@@ -52,13 +52,14 @@ export default async function StorePage({ params, searchParams }: { params: Para
 
       <div className="border-b border-rule bg-card">
         <dl className="mx-auto grid max-w-[1400px] grid-cols-2 divide-x divide-rule px-4 sm:grid-cols-5">
-          {[
-            ["Rating", `★ ${store.rating.toFixed(1)}`],
-            ["Followers", compact(store.follower_count)],
+          {([
+            ["Rating", store.review_count === 0 ? "New" : `★ ${store.rating.toFixed(1)}`],
+            ["Followers", store.follower_count != null ? compact(store.follower_count) : null],
             ["Items", String(store.product_count)],
-            ["Reply rate", pct(store.response_rate)],
-            ["Ships on time", pct(store.on_time_rate)],
-          ].map(([k, v]) => (
+            ["Reply rate", store.response_rate != null ? pct(store.response_rate) : null],
+            ["Ships on time", store.on_time_rate != null ? pct(store.on_time_rate) : null],
+            ["Open since", String(new Date(store.joined_at).getUTCFullYear())],
+          ] as Array<[string, string | null]>).filter(([, v]) => v !== null).slice(0, 5).map(([k, v]) => (
             <div key={k} className="px-4 py-4 first:pl-0">
               <dt className="label">{k}</dt>
               <dd className="price mt-0.5 text-[18px]">{v}</dd>
@@ -72,7 +73,7 @@ export default async function StorePage({ params, searchParams }: { params: Para
           {tabs.map(([v, l]) => (
             <Link
               key={v}
-              href={`/s/${store.slug}${v === "bestselling" ? "" : `?sort=${v}`}`}
+              href={`/s/${store.slug}${v === "popular" ? "" : `?sort=${v}`}`}
               aria-current={sort === v ? "page" : undefined}
               className={`-mb-px border-b-2 px-3 py-2 text-[14px] font-semibold ${sort === v ? "border-signal" : "border-transparent text-ink-3 hover:text-ink"}`}
             >
@@ -90,8 +91,8 @@ export default async function StorePage({ params, searchParams }: { params: Para
           <div className="panel p-6">
             <h3 className="font-semibold">Questions about an order or a custom run?</h3>
             <p className="mt-1 text-[14px] text-ink-2">
-              {store.name} replies to {pct(store.response_rate)} of messages, usually within a day. Messages go through {""}
-              the marketplace so we can help if anything goes wrong.
+              {store.response_rate != null ? `${store.name} replies to ${pct(store.response_rate)} of messages, usually within a day. ` : ""}
+              Messages go through the marketplace so we can help if anything goes wrong.
             </p>
             <Link href={`/login?next=${encodeURIComponent(`/s/${store.slug}#contact`)}`} className="btn btn-ink mt-4">Sign in to message the seller</Link>
           </div>

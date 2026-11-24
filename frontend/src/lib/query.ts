@@ -2,7 +2,7 @@ import type { ProductQuery } from "./api";
 import { clampInt, safeSlug } from "./safe";
 
 export type SP = Record<string, string | string[] | undefined>;
-const SORTS = ["relevance", "price_asc", "price_desc", "newest", "rating", "bestselling"] as const;
+const SORTS = ["relevance", "price_asc", "price_desc", "newest", "rating", "popular"] as const;
 
 function one(v: string | string[] | undefined) {
   return Array.isArray(v) ? v[0] : v;

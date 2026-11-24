@@ -7,8 +7,8 @@ import { api } from "@/lib/api";
 export default function SellerDeliveries() {
   return (
     <>
-      <PageTitle kicker="Live, refreshes every 15 seconds" title="Dispatch & map" action={<Link href="/seller/orders" className="btn btn-signal btn-sm">Dispatch an order</Link>} />
-      <DeliveriesBoard load={(t) => api.sellerDeliveries(t)} />
+      <PageTitle kicker="Your parcels on the road" title="Dispatch & map" action={<Link href="/seller/orders" className="btn btn-signal btn-sm">Dispatch an order</Link>} />
+      <DeliveriesBoard load={(t) => api.sellerDeliveries(t).then((p) => ({ deliveries: p.items }))} onCancel={(t, id) => api.cancelDelivery(t, id)} />
     </>
   );
 }

@@ -6,7 +6,7 @@ import { api } from "@/lib/api";
 export const metadata: Metadata = { title: "Wholesale" };
 
 export default async function WholesalePage() {
-  const all = await api.products({ sort: "bestselling", page_size: 100 });
+  const all = await api.products({ sort: "popular", page_size: 100 });
   const bulk = all.items.filter((p) => p.badges?.includes("Bulk pricing"));
   return (
     <>

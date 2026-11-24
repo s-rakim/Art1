@@ -13,7 +13,7 @@ export default async function AccountPage() {
     ["Wishlist", "/wishlist", "Everything you've saved for later."],
     ["Bag", "/cart", "Pick up where you left off."],
   ];
-  if (user.roles.includes("seller") || user.demo) cards.push(["Vendor dashboard", "/seller", "Sales, stock, payments and dispatch."]);
+  if (user.roles.includes("vendor") || user.demo) cards.push(["Vendor dashboard", "/seller", "Sales, stock, payments and dispatch."]);
   else cards.push(["Rent a stall", "/sell", "Open your own shop in the market."]);
   if (user.roles.includes("rider") || user.demo) cards.push(["Rider app", "/rider", "Your deliveries and shift."]);
   if (user.roles.includes("admin") || user.demo) cards.push(["Admin", "/admin", "Market operations."]);

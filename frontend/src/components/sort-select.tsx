@@ -3,7 +3,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 const options: Array<[string, string]> = [
   ["relevance", "Best match"],
-  ["bestselling", "Bestselling"],
+  ["popular", "Most popular"],
   ["newest", "Newest"],
   ["price_asc", "Price, low to high"],
   ["price_desc", "Price, high to low"],

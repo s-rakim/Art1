@@ -54,7 +54,7 @@ export function Stat({ label, value, note, tone }: { label: string; value: strin
 
 /** Plain bar chart, no library. Values in whatever unit; format controls the tooltip/label. */
 export function Bars({ data, format, stacked }: { data: Array<{ label: string; values: number[] }>; format: (n: number) => string; stacked?: string[] }) {
-  const colors = ["#16130f", "#d23a1f", "#1e4d3b"];
+  const colors = ["#16130f", "#d23a1f", "#1e4d3b", "#e8b931", "#8a7f6c"];
   const max = Math.max(1, ...data.map((d) => d.values.reduce((a, b) => a + b, 0)));
   return (
     <div>
@@ -64,7 +64,7 @@ export function Bars({ data, format, stacked }: { data: Array<{ label: string; v
           return (
             <div key={d.label} className="group relative flex h-full flex-1 flex-col-reverse" title={`${d.label}: ${format(total)}`}>
               {d.values.map((v, i) => (
-                <div key={i} style={{ height: `${(v / max) * 100}%`, background: colors[i % 3] }} className="w-full opacity-90 group-hover:opacity-100" />
+                <div key={i} style={{ height: `${(v / max) * 100}%`, background: colors[i % colors.length] }} className="w-full opacity-90 group-hover:opacity-100" />
               ))}
             </div>
           );
@@ -77,7 +77,7 @@ export function Bars({ data, format, stacked }: { data: Array<{ label: string; v
       {stacked && (
         <ul className="mt-3 flex flex-wrap gap-4 text-[12px]">
           {stacked.map((s, i) => (
-            <li key={s} className="flex items-center gap-1.5"><span className="h-2.5 w-2.5" style={{ background: colors[i % 3] }} />{s}</li>
+            <li key={s} className="flex items-center gap-1.5"><span className="h-2.5 w-2.5" style={{ background: colors[i % colors.length] }} />{s}</li>
           ))}
         </ul>
       )}

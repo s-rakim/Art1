@@ -1,37 +1,33 @@
-// Shapes agreed with the backend. Money is always integer cents plus a currency code.
-
-export type Money = { amount_cents: number; currency: string };
+// View models the UI renders. Backend responses (see openapi.ts, generated from
+// backend/openapi.json) are mapped into these in api.ts, and the demo data in
+// lib/mock is written in these shapes directly. Money is integer cents.
 
 export type Paged<T> = { items: T[]; total: number; page: number; page_size: number };
 
-export type Category = {
-  id: string;
-  slug: string;
-  name: string;
-  parent_id: string | null;
-  product_count?: number;
-};
+export type Category = { id: string; slug: string; name: string; parent_id: string | null; image_url?: string | null };
 
 export type PriceTier = { min_qty: number; price_cents: number };
 
 export type Variant = {
   id: string;
   sku: string;
+  title?: string;
   color?: string;
   color_hex?: string;
   size?: string;
   price_cents: number;
   compare_at_cents?: number | null;
   stock: number;
+  min_order_qty?: number;
 };
 
 export type StoreSummary = {
   id: string;
   slug: string;
   name: string;
-  verified: boolean;
-  rating: number;
-  plan: PlanTier;
+  verified?: boolean;
+  rating?: number;
+  plan?: string;
 };
 
 export type ProductCard = {
@@ -50,7 +46,8 @@ export type ProductCard = {
   category_slug: string;
   badges?: string[];
   colors?: string[];
-  created_at: string;
+  created_at?: string;
+  sponsored?: boolean;
 };
 
 export type Product = ProductCard & {
@@ -71,44 +68,74 @@ export type Review = {
   title: string;
   body: string;
   created_at: string;
-  variant_label?: string;
   verified_purchase: boolean;
 };
-
-export type PlanTier = "stall" | "shopfront" | "flagship";
 
 export type Store = StoreSummary & {
   tagline: string;
   description: string;
   banner_color: string;
   accent_color: string;
+  logo_url?: string | null;
   country: string;
   joined_at: string;
-  response_rate: number;
-  on_time_rate: number;
-  follower_count: number;
+  rating: number;
+  review_count?: number;
   product_count: number;
-  status: "pending" | "active" | "suspended";
+  response_rate?: number;
+  on_time_rate?: number;
+  follower_count?: number;
+  status?: string;
 };
 
 export type Plan = {
-  id: PlanTier;
+  id: string; // backend row id, used for admin edits
+  code: string; // stable code, used in URLs and applications
   name: string;
   monthly_price_cents: number;
   commission_rate: number; // 0.08 = 8%
+  per_item_fee_cents?: number;
   product_limit: number | null;
+  featured_slots?: number;
   features: string[];
   highlighted?: boolean;
 };
 
-export type Placement = {
+/** A kind of rentable space (homepage shelf, category banner…), sold by the day. */
+export type PlacementSlot = {
   id: string;
+  code: string;
   name: string;
   location: string;
-  weekly_price_cents: number;
-  slots_total: number;
-  slots_taken: number;
   description: string;
+  daily_price_cents: number;
+  capacity: number;
+  booked?: number;
+  is_active?: boolean;
+};
+
+/** A live booking shown on the storefront. */
+export type BookedPlacement = {
+  id: string;
+  slot_code: string;
+  location: string;
+  headline: string | null;
+  store: { slug: string; name: string };
+  product: ProductCard | null;
+};
+
+export type PlacementBooking = {
+  id: string;
+  slot_code: string;
+  slot_name: string;
+  starts_on: string;
+  ends_on: string;
+  amount_cents: number;
+  credits_used?: number;
+  currency?: string;
+  status: string;
+  product_id?: string | null;
+  headline: string | null;
 };
 
 export type CartLine = {
@@ -126,22 +153,41 @@ export type CartLine = {
   art?: ProductArt;
 };
 
-export type OrderStatus = "pending" | "paid" | "packed" | "shipped" | "delivered" | "cancelled" | "refunded";
+export type OrderLine = {
+  id: string;
+  product_id?: string | null;
+  slug?: string | null;
+  title: string;
+  variant_label: string;
+  unit_price_cents: number;
+  quantity: number;
+  store_slug: string;
+  store_name: string;
+  image_url?: string | null;
+  art?: ProductArt;
+};
 
-export type Order = {
+export type OrderSummary = {
   id: string;
   number: string;
-  status: OrderStatus;
+  status: string;
   created_at: string;
   total_cents: number;
+  currency: string;
+  item_count: number;
+  lines?: OrderLine[];
+};
+
+export type Order = OrderSummary & {
   subtotal_cents: number;
+  discount_cents?: number;
   shipping_cents: number;
   tax_cents: number;
-  currency: string;
-  lines: Array<Omit<CartLine, "id"> & { id: string }>;
-  shipping_address: Address;
-  events: Array<{ status: OrderStatus; at: string; note?: string }>;
-  customer_email?: string;
+  lines: OrderLine[];
+  shipping_address: Partial<Address>;
+  events: Array<{ status: string; at: string }>;
+  payment_provider?: string | null;
+  customer_email?: string | null;
 };
 
 export type Address = {
@@ -153,75 +199,69 @@ export type Address = {
   postal_code: string;
   country: string;
   phone?: string;
+  lat?: number | null;
+  lng?: number | null;
+};
+
+export type Balance = { balance_cents: number; available_cents: number; pending_cents: number };
+
+export type SellerProfile = {
+  store: Store & {
+    pickup: (LatLng & { label?: string | null; city?: string | null }) | null;
+    support_email?: string | null;
+    review_note?: string | null;
+  };
+  plan: Plan | null;
+  subscription?: { status: string; current_period_end: string; cancel_at_period_end: boolean } | null;
+  balance: Balance;
+  product_limit: number | null;
+  active_products: number;
 };
 
 export type SellerStats = {
-  revenue_30d_cents: number;
+  sales_cents_30d: number;
   orders_30d: number;
-  conversion_rate: number;
-  visitors_30d: number;
-  pending_payout_cents: number;
-  daily: Array<{ date: string; revenue_cents: number; orders: number }>;
-};
-
-export type AdminStats = {
-  gmv_30d_cents: number;
-  rent_mrr_cents: number;
-  commission_30d_cents: number;
-  active_stores: number;
-  pending_applications: number;
-  open_disputes: number;
-};
-
-// Visual stand-in for a product photo when the seller hasn't uploaded one.
-export type ProductArt = { shape: ArtShape; bg: string; fg: string };
-export type ArtShape =
-  | "dress" | "tee" | "sneaker" | "bag" | "lamp" | "mug" | "headphones"
-  | "chair" | "plant" | "watch" | "jacket" | "glasses" | "bottle" | "phone";
-
-export type Role = "customer" | "vendor" | "rider" | "admin";
-
-export type LatLng = { lat: number; lng: number };
-
-export type Rider = {
-  id: string;
-  full_name: string;
-  phone_masked: string;
-  vehicle: "bicycle" | "motorbike" | "car" | "van";
-  city: string;
-  status: "applied" | "active" | "suspended" | "rejected";
-  on_shift: boolean;
+  units_30d: number;
+  average_order_cents: number;
+  to_ship: number;
+  active_products: number;
   rating: number;
-  deliveries_completed: number;
-  position?: (LatLng & { at: string }) | null;
-  applied_at: string;
+  review_count: number;
+  balance: Balance;
+  daily: Array<{ date: string; sales_cents: number; orders: number }>;
+  top_products: Array<{ id: string; slug: string; title: string; units: number; sales_cents: number }>;
 };
 
-export type DeliveryStatus = "awaiting_rider" | "assigned" | "accepted" | "picked_up" | "delivered" | "failed";
-
-export type Delivery = {
+/** One store's share of a customer order. Payment confirmation and dispatch act on this id. */
+export type SellerOrder = {
   id: string;
   order_id: string;
-  order_number: string;
-  store_name: string;
-  status: DeliveryStatus;
-  pickup: LatLng & { label: string };
-  dropoff: LatLng & { label: string };
-  rider: Pick<Rider, "id" | "full_name" | "phone_masked" | "vehicle"> | null;
-  rider_position: (LatLng & { at: string }) | null;
-  eta_minutes: number | null;
-  fee_cents: number;
-  items: number;
+  number: string;
+  status: string;
+  paid: boolean;
+  payment_method: string;
+  payment_status: string;
+  total_cents: number;
+  payout_cents: number;
+  currency: string;
+  ship_to: Partial<Address>;
+  items: Array<{ id: string; title: string; variant_label: string; quantity: number; unit_price_cents: number }>;
+  delivery: { id: string; status: string; rider_name: string; rider_vehicle: string } | null;
+  tracking_carrier?: string | null;
+  tracking_number?: string | null;
   created_at: string;
 };
 
-export type Tracking = {
-  status: DeliveryStatus;
-  eta_minutes: number | null;
-  rider: Delivery["rider"];
-  rider_position: Delivery["rider_position"];
-  pickup: Delivery["pickup"];
-  dropoff: Delivery["dropoff"];
+export type SellerProductRow = {
+  id: string;
+  slug: string;
+  title: string;
+  status: string;
+  image_url: string | null;
+  art?: ProductArt;
+  price_cents: number | null;
+  stock: number;
+  sold_count: number;
 };
 
 export type InventoryRow = {
@@ -233,14 +273,134 @@ export type InventoryRow = {
   stock: number;
   low_stock: boolean;
   price_cents: number;
+  reserved?: number;
+  sold_30d?: number;
+};
+
+export type AvailableRider = {
+  id: string;
+  name: string;
+  vehicle: string;
+  distance_km: number | null;
+  eta_to_store_minutes: number | null;
+  active_deliveries: number;
+};
+
+export type Role = "customer" | "vendor" | "rider" | "admin";
+
+export type LatLng = { lat: number; lng: number };
+export type MapPoint = LatLng & { label?: string | null };
+
+export type Rider = {
+  id: string;
+  full_name: string;
+  phone: string;
+  email?: string | null;
+  vehicle: string;
+  city: string;
+  status: "applicant" | "active" | "suspended" | "rejected" | string;
+  on_shift: boolean;
+  deliveries_completed: number;
+  active_deliveries: number;
+  earnings_cents?: number;
+  unpaid_earnings_cents?: number;
+  position: (LatLng & { at: string | null }) | null;
+  applied_at: string;
+  review_note?: string | null;
+  licence_number?: string | null;
+};
+
+export type DeliveryStatus = "awaiting_rider" | "assigned" | "accepted" | "declined" | "picked_up" | "delivered" | "failed" | "canceled";
+
+export type Delivery = {
+  id: string;
+  order_id?: string;
+  order_number: string;
+  store_name: string;
+  status: DeliveryStatus | string;
+  pickup: MapPoint | null;
+  dropoff: MapPoint | null;
+  dropoff_address?: string | null;
+  rider: { id: string; name: string; vehicle: string } | null;
+  rider_position: (LatLng & { at: string | null }) | null;
+  eta_minutes: number | null;
+  fee_cents?: number;
+  cash_to_collect_cents?: number;
+  customer_name?: string | null;
+  customer_phone?: string | null;
+  items?: number;
+  created_at: string;
+};
+
+export type LiveRider = { id: string; name: string; vehicle: string; lat: number | null; lng: number | null; busy: boolean };
+
+export type DeliveryTrack = {
+  delivery_id: string | null;
+  store_name: string;
+  status: string;
+  eta_minutes: number | null;
+  rider: { name: string; phone_masked: string | null; vehicle: string } | null;
+  rider_position: (LatLng & { at: string | null }) | null;
+  pickup: MapPoint | null;
+  dropoff: MapPoint | null;
+  handover_code: string | null;
+};
+
+export type Tracking = DeliveryTrack & { order_status: string; deliveries: DeliveryTrack[] };
+
+export type AdminStats = {
+  gmv_cents_30d: number;
+  orders_30d: number;
+  commission_cents_30d: number;
+  fees_cents_30d: number;
+  rent_cents_30d: number;
+  placement_cents_30d: number;
+  rent_mrr_cents: number;
+  active_stores: number;
+  pending_stores: number;
+  customers: number;
+  active_products: number;
+  payouts_requested_cents: number;
 };
 
 export type Income = {
+  period_days: number;
   rent_cents: number;
   commission_cents: number;
+  fee_cents: number;
   placement_cents: number;
   delivery_fee_cents: number;
-  daily: Array<{ date: string; rent_cents: number; commission_cents: number; placement_cents: number }>;
+  rider_cost_cents: number;
+  total_cents: number;
+  daily: Array<{ date: string; rent_cents: number; commission_cents: number; fee_cents: number; placement_cents: number; delivery_fee_cents: number }>;
+};
+
+export type AdminStore = {
+  id: string;
+  slug: string;
+  name: string;
+  status: string;
+  plan_code: string;
+  owner_email: string | null;
+  country: string | null;
+  support_email?: string | null;
+  application: Record<string, unknown>;
+  review_note: string | null;
+  product_count: number;
+  created_at: string;
+  approved_at?: string | null;
+};
+
+export type AdminOrder = {
+  id: string;
+  number: string;
+  status: string;
+  total_cents: number;
+  currency: string;
+  item_count: number;
+  created_at: string;
+  customer_email: string | null;
+  stores: number;
 };
 
 export type Settings = {
@@ -249,3 +409,9 @@ export type Settings = {
   vendor_signups_open: boolean;
   rider_signups_open: boolean;
 };
+
+// Visual stand-in for a product photo when the seller hasn't uploaded one.
+export type ProductArt = { shape: ArtShape; bg: string; fg: string };
+export type ArtShape =
+  | "dress" | "tee" | "sneaker" | "bag" | "lamp" | "mug" | "headphones"
+  | "chair" | "plant" | "watch" | "jacket" | "glasses" | "bottle" | "phone";

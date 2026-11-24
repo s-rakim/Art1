@@ -29,14 +29,20 @@ export default async function OrdersPage() {
                 <div className="ml-auto"><StatusTag status={o.status} /></div>
               </div>
               <div className="flex flex-wrap items-center gap-4 p-4">
-                <div className="flex -space-x-3">
-                  {o.lines.slice(0, 4).map((l) => (
-                    <div key={l.id} className="h-16 w-14 overflow-hidden border-2 border-paper bg-paper-2">
-                      <ProductImage src={l.image_url} art={l.art} alt={l.title} />
+                {o.lines?.length ? (
+                  <>
+                    <div className="flex -space-x-3">
+                      {o.lines.slice(0, 4).map((l) => (
+                        <div key={l.id} className="h-16 w-14 overflow-hidden border-2 border-paper bg-paper-2">
+                          <ProductImage src={l.image_url} art={l.art} alt={l.title} />
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-                <p className="min-w-0 flex-1 truncate text-[14px]">{o.lines.map((l) => l.title).join(", ")}</p>
+                    <p className="min-w-0 flex-1 truncate text-[14px]">{o.lines.map((l) => l.title).join(", ")}</p>
+                  </>
+                ) : (
+                  <p className="min-w-0 flex-1 text-[14px]">{o.item_count} {o.item_count === 1 ? "item" : "items"}</p>
+                )}
                 <Link href={`/orders/${encodeURIComponent(o.id)}`} className="btn btn-line btn-sm">Track and manage</Link>
               </div>
             </li>

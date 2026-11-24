@@ -19,8 +19,8 @@ export default function Inventory() {
     setSaving(id);
     setMsg(null);
     try {
-      const row = await api.setStock(token, id, n);
-      setData((d) => (d ? { ...d, items: d.items.map((r) => (r.variant_id === id ? { ...r, stock: row.stock, low_stock: row.stock < 5 } : r)) } : d));
+      const stock = await api.setStock(token, id, n);
+      setData((d) => (d ? { ...d, items: d.items.map((r) => (r.variant_id === id ? { ...r, stock, low_stock: stock < 5 } : r)) } : d));
       setDraft(({ [id]: _, ...rest }) => rest);
     } catch (e) {
       setMsg(e instanceof ApiError ? e.message : "Couldn't save that stock level.");
@@ -40,7 +40,7 @@ export default function Inventory() {
         <label className="flex items-center gap-2 text-[14px]"><input type="checkbox" className="accent-signal" checked={lowOnly} onChange={(e) => setLowOnly(e.target.checked)} />Low stock only</label>
       </div>
       <ErrorLine error={error ?? msg} />
-      <Table head={["Product", "Variant", "SKU", "Price", "In stock", ""]}>
+      <Table head={["Product", "Variant", "SKU", "Price", "Held in carts", "Sold, 30 days", "In stock", ""]}>
         {rows.map((r) => {
           const editing = draft[r.variant_id] !== undefined;
           return (
@@ -49,6 +49,8 @@ export default function Inventory() {
               <td className="px-3 py-2.5 text-ink-2">{r.label}</td>
               <td className="px-3 py-2.5 font-mono text-[12px]">{r.sku}</td>
               <td className="price px-3 py-2.5">{money(r.price_cents)}</td>
+              <td className="px-3 py-2.5 font-mono text-[13px] text-ink-3">{r.reserved ?? 0}</td>
+              <td className="px-3 py-2.5 font-mono text-[13px]">{r.sold_30d ?? 0}</td>
               <td className="px-3 py-2.5">
                 <input
                   aria-label={`Stock for ${r.product_title} ${r.label}`}

@@ -8,7 +8,7 @@ import { Check } from "@/components/icons";
 export const metadata: Metadata = { title: "Rent a stall" };
 
 export default async function SellPage() {
-  const [plans, placements] = await Promise.all([api.plans(), api.placements()]);
+  const [plans, placements] = await Promise.all([api.plans(), api.placementSlots()]);
   return (
     <>
       <section className="border-b border-ink">
@@ -73,18 +73,23 @@ export default async function SellPage() {
       <section id="placements" className="scroll-mt-40 border-y border-ink bg-tag/30">
         <div className="mx-auto max-w-[1400px] px-4 py-16">
           <h2 className="display text-[48px] md:text-[64px]">Rent extra space</h2>
-          <p className="mt-2 max-w-2xl text-ink-2">On top of your stall you can rent prime spots around the market by the week. Spots are limited, so they sell out.</p>
+          <p className="mt-2 max-w-2xl text-ink-2">On top of your stall you can rent prime spots around the market by the day, for up to 60 days at a time. Each spot only fits so many shops, so popular dates fill up.</p>
           <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             {placements.map((pl) => {
-              const left = pl.slots_total - pl.slots_taken;
+              const left = pl.booked != null ? pl.capacity - pl.booked : null;
               return (
                 <div key={pl.id} className="flex flex-col border border-ink bg-paper p-5">
                   <p className="label">{pl.location}</p>
                   <p className="display mt-1 text-[28px]">{pl.name}</p>
                   <p className="mt-2 flex-1 text-[14px] text-ink-2">{pl.description}</p>
-                  <p className="mt-4"><span className="price text-[22px]">{money(pl.weekly_price_cents)}</span><span className="text-ink-3"> / week</span></p>
-                  <div className="mt-2 h-1.5 bg-paper-2"><div className="h-full bg-ink" style={{ width: `${(pl.slots_taken / pl.slots_total) * 100}%` }} /></div>
-                  <p className={`mt-1 font-mono text-[11px] ${left <= 4 ? "text-signal" : "text-ink-3"}`}>{left} of {pl.slots_total} spots left this week</p>
+                  <p className="mt-4"><span className="price text-[22px]">{money(pl.daily_price_cents)}</span><span className="text-ink-3"> / day</span></p>
+                  {left !== null && pl.booked != null && (
+                    <>
+                      <div className="mt-2 h-1.5 bg-paper-2"><div className="h-full bg-ink" style={{ width: `${Math.min(100, (pl.booked / Math.max(1, pl.capacity)) * 100)}%` }} /></div>
+                      <p className={`mt-1 font-mono text-[11px] ${left <= 4 ? "text-signal" : "text-ink-3"}`}>{left} of {pl.capacity} spots free today</p>
+                    </>
+                  )}
+                  {left === null && <p className="mt-1 font-mono text-[11px] text-ink-3">{pl.capacity} spots a day</p>}
                 </div>
               );
             })}

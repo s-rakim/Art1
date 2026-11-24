@@ -154,6 +154,7 @@
   .ticket-tag { background: var(--color-tag); color: var(--color-ink); }
   .ticket-market { background: var(--color-market); color: #fff; }
   .ticket-ink { background: var(--color-ink); color: var(--color-paper); }
+  .ticket-signal { background: var(--color-signal); color: #fff; }
 
   .panel {
     background: var(--color-card);

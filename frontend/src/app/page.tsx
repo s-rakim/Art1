@@ -8,7 +8,7 @@ import { api } from "@/lib/api";
 import { STORE_NAME } from "@/lib/config";
 import { compact, money } from "@/lib/format";
 import { safeColor } from "@/lib/safe";
-import type { ArtShape } from "@/lib/types";
+import type { ArtShape, ProductCard as Card, Store } from "@/lib/types";
 
 const catArt: Record<string, { shape: ArtShape; bg: string; fg: string }> = {
   women: { shape: "dress", bg: "#e5ddd0", fg: "#b4532a" },
@@ -23,17 +23,15 @@ const catArt: Record<string, { shape: ArtShape; bg: string; fg: string }> = {
 
 export default async function Home() {
   const [deals, fresh, stores, categories, best] = await Promise.all([
-    api.products({ on_sale: true, sort: "bestselling", page_size: 12 }),
+    api.products({ on_sale: true, sort: "popular", page_size: 12 }),
     api.products({ sort: "newest", page_size: 10 }),
     api.stores(),
     api.categories(),
-    api.products({ sort: "bestselling", page_size: 60 }),
+    api.products({ sort: "popular", page_size: 60 }),
   ]);
   const roots = categories.filter((c) => !c.parent_id);
   const active = stores.items.slice(0, 8);
-  // Two rented homepage shelves. With the backend live these come from GET /placements bookings.
-  const shelves = active.filter((s) => s.plan !== "stall").slice(0, 2);
-  const shelfProducts = await Promise.all(shelves.map((s) => api.products({ store: s.slug, page_size: 4, sort: "bestselling" })));
+  const shelves = await rentedShelves(active);
   const titles = Object.fromEntries(best.items.map((p) => [p.slug, p.title]));
 
   return (
@@ -114,7 +112,7 @@ export default async function Home() {
       </section>
 
       {/* Rented shelves */}
-      {shelves.map((s, i) => (
+      {shelves.map(({ store: s, headline, items }) => (
         <section key={s.id} className="mx-auto mt-14 max-w-[1400px] px-4">
           <div className="grid overflow-hidden border border-ink md:grid-cols-[280px_1fr]">
             <Link
@@ -125,15 +123,15 @@ export default async function Home() {
               <span className="font-mono text-[11px] uppercase tracking-wider opacity-80">Shelf rented by</span>
               <div>
                 <p className="display text-[40px]">{s.name}</p>
-                <p className="mt-2 text-[14px] opacity-90">{s.tagline}</p>
+                <p className="mt-2 text-[14px] opacity-90">{headline ?? s.tagline}</p>
                 <p className="mt-4 font-mono text-[12px] opacity-80">
-                  ★ {s.rating.toFixed(1)} · {compact(s.follower_count)} followers · {s.country}
+                  ★ {s.rating.toFixed(1)} · {s.follower_count != null ? `${compact(s.follower_count)} followers` : `${s.product_count} items`} · {s.country}
                 </p>
               </div>
               <span className="text-[13px] font-semibold underline underline-offset-4">Visit the store →</span>
             </Link>
             <div className="grid grid-cols-2 gap-4 bg-card p-4 lg:grid-cols-4">
-              {shelfProducts[i].items.map((p) => <ProductCard key={p.id} p={p} sponsored />)}
+              {items.map((p) => <ProductCard key={p.id} p={p} sponsored />)}
             </div>
           </div>
         </section>
@@ -216,4 +214,38 @@ export default async function Home() {
       <RecentlyViewed titles={titles} />
     </>
   );
+}
+
+/**
+ * Homepage shelves are space that vendors rent by the day (slot "home_shelf").
+ * Live bookings come from the API. With no bookings yet (or in demo mode) we fall back to
+ * the first two stores on a paid plan so the layout still shows what a shelf looks like.
+ */
+async function rentedShelves(active: Store[]): Promise<Array<{ store: Store; headline: string | null; items: Card[] }>> {
+  const booked = (await api.placements().catch(() => [])).filter((b) => b.slot_code === "home_shelf");
+  if (booked.length) {
+    const bySlug = new Map<string, { headline: string | null; items: Card[] }>();
+    for (const b of booked) {
+      const entry = bySlug.get(b.store.slug) ?? { headline: b.headline, items: [] };
+      if (b.product && !entry.items.some((x) => x.id === b.product!.id)) entry.items.push(b.product);
+      bySlug.set(b.store.slug, entry);
+    }
+    const picked = [...bySlug.entries()].slice(0, 2);
+    const out = await Promise.all(
+      picked.map(async ([slug, entry]) => {
+        const store = active.find((s) => s.slug === slug) ?? (await api.store(slug).catch(() => null));
+        if (!store) return null;
+        // A booking can feature one product; fill the rest of the shelf with the store's best sellers.
+        if (entry.items.length < 4) {
+          const more = await api.products({ store: slug, page_size: 4, sort: "popular" }).catch(() => ({ items: [] as Card[] }));
+          for (const p of more.items) if (entry.items.length < 4 && !entry.items.some((x) => x.id === p.id)) entry.items.push(p);
+        }
+        return { store, headline: entry.headline, items: entry.items.slice(0, 4) };
+      }),
+    );
+    return out.filter((x): x is NonNullable<typeof x> => x !== null);
+  }
+  const fallback = active.filter((s) => s.plan && s.plan !== "stall").slice(0, 2);
+  const products = await Promise.all(fallback.map((s) => api.products({ store: s.slug, page_size: 4, sort: "popular" })));
+  return fallback.map((store, i) => ({ store, headline: null, items: products[i].items }));
 }

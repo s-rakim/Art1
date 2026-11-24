@@ -25,7 +25,7 @@ export function useAuth(): AuthState {
         session,
         token: session?.access_token ?? null,
         email: session?.user.email ?? null,
-        roles: (session?.user.app_metadata?.roles as string[] | undefined) ?? [],
+        roles: ((session?.user.app_metadata?.roles as string[] | undefined) ?? []).map((r) => (r === "seller" ? "vendor" : r)),
       });
     sb.auth.getSession().then(({ data }) => apply(data.session));
     const { data } = sb.auth.onAuthStateChange((_e, session) => apply(session));
