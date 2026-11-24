@@ -1,0 +1,123 @@
+# Self hosting the marketplace backend.
+#
+#   cp .env.example .env        # fill it in
+#   docker compose up -d --build
+#
+# With Supabase (recommended) set DATABASE_URL to your Supabase database.
+# Without it, add --profile localdb to run Postgres on this box too.
+#
+# Only Caddy publishes ports. Everything else talks over the private
+# compose network.
+
+x-hardening: &hardening
+  restart: unless-stopped
+  read_only: true
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: ["ALL"]
+  tmpfs: ["/tmp:size=64m"]
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "5" }
+
+services:
+  migrate:
+    image: ${IMAGE_PREFIX:-ghcr.io/s-rakim/art1}-api:${IMAGE_TAG:-latest}
+    build: { context: ., dockerfile: api/Dockerfile }
+    command: ["scripts/migrate.sh"]
+    env_file: .env
+    restart: "no"
+    read_only: true
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    depends_on:
+      db: { condition: service_healthy, required: false }
+
+  api:
+    <<: *hardening
+    image: ${IMAGE_PREFIX:-ghcr.io/s-rakim/art1}-api:${IMAGE_TAG:-latest}
+    build: { context: ., dockerfile: api/Dockerfile }
+    env_file: .env
+    environment:
+      SEARCH_URL: http://search:8080
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_started }
+    # Uncomment to reach the API directly on the server without Caddy.
+    # ports: ["127.0.0.1:8000:8000"]
+    deploy:
+      resources:
+        limits: { memory: 768m }
+
+  worker:
+    <<: *hardening
+    image: ${IMAGE_PREFIX:-ghcr.io/s-rakim/art1}-api:${IMAGE_TAG:-latest}
+    command: ["python", "-m", "app.worker"]
+    env_file: .env
+    healthcheck: { disable: true }
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    deploy:
+      resources:
+        limits: { memory: 256m }
+
+  search:
+    <<: *hardening
+    image: ${IMAGE_PREFIX:-ghcr.io/s-rakim/art1}-search:${IMAGE_TAG:-latest}
+    build: { context: ., dockerfile: search/Dockerfile }
+    environment:
+      DATABASE_URL: ${SEARCH_DATABASE_URL:-${DATABASE_URL}}
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    deploy:
+      resources:
+        limits: { memory: 512m }
+
+  redis:
+    <<: *hardening
+    image: redis:7.4-alpine
+    # Rate limit counters only: nothing worth persisting.
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "64mb",
+              "--maxmemory-policy", "allkeys-lru", "--protected-mode", "no"]
+    # protected-mode is off because redis is only on the private compose
+    # network; it has no published port.
+    user: "999:999"
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      API_DOMAIN: ${API_DOMAIN:-localhost}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    cap_add: ["NET_BIND_SERVICE"]
+    depends_on: [api]
+
+  # Only with --profile localdb, for running without Supabase.
+  db:
+    profiles: ["localdb"]
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: market
+      POSTGRES_USER: market
+      POSTGRES_PASSWORD: ${LOCAL_DB_PASSWORD:-}  # empty refuses to start, on purpose
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U market -d market"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    security_opt: ["no-new-privileges:true"]
+    shm_size: 256m
+
+volumes:
+  caddy_data:
+  caddy_config:
+  pgdata:

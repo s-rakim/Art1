@@ -851,6 +851,7 @@ class AdminStats(BaseModel):
     fees_cents_30d: int
     rent_cents_30d: int
     placement_cents_30d: int
+    rent_mrr_cents: int
     active_stores: int
     pending_stores: int
     customers: int

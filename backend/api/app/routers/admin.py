@@ -95,6 +95,9 @@ async def stats(_: AdminUser, conn: Conn, settings: Cfg):
                 and created_at > now() - interval '30 days')::bigint as rent,
              (select coalesce(-sum(amount_cents), 0) from ledger_entries where kind = 'placement'
                 and created_at > now() - interval '30 days')::bigint as placement,
+             (select coalesce(sum(pl.monthly_price_cents), 0) from store_subscriptions ss
+                join store_plans pl on pl.id = ss.plan_id
+               where ss.status in ('active', 'trialing') and not ss.cancel_at_period_end)::bigint as mrr,
              (select count(*) from stores where status = 'active')::int as active_stores,
              (select count(*) from stores where status = 'pending')::int as pending_stores,
              (select count(*) from profiles where role = 'customer')::int as customers,
@@ -110,6 +113,7 @@ async def stats(_: AdminUser, conn: Conn, settings: Cfg):
         "fees_cents_30d": int(r["fees"]),
         "rent_cents_30d": int(r["rent"]),
         "placement_cents_30d": int(r["placement"]),
+        "rent_mrr_cents": int(r["mrr"]),
         "active_stores": r["active_stores"],
         "pending_stores": r["pending_stores"],
         "customers": r["customers"],
