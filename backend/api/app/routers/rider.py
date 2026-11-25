@@ -16,7 +16,7 @@ from ..common import Paging, paging
 from ..config import Settings, get_settings
 from ..db import get_conn
 from ..errors import ApiError, forbidden, not_found
-from ..geo import coarse, haversine_km
+from ..geo import coarse, haversine_km, point
 from .. import dispatch
 from .. import payments_bank as bank
 from ..realtime import publish
@@ -373,6 +373,16 @@ async def _due(conn: asyncpg.Connection, order_id: uuid.UUID, store_order_id: uu
     return state["due_cents"], state["payment_confirmed"]
 
 
+def _pin(d: dict | None) -> dict | None:
+    """A stored pickup or drop-off as a map pin, or None when it has no
+    coordinates (a buyer who typed an address without dropping a pin). The
+    address is still in dropoff_address for the rider to go by."""
+    p = point(d)
+    if p is None:
+        return None
+    return {"lat": p[0], "lng": p[1], "label": (d or {}).get("label")}
+
+
 async def _view(conn: asyncpg.Connection, d: asyncpg.Record) -> dict:
     accepted = d["status"] in ("accepted", "picked_up", "delivered")
     live = d["status"] in ("accepted", "picked_up")
@@ -387,9 +397,9 @@ async def _view(conn: asyncpg.Connection, d: asyncpg.Record) -> dict:
         "order_number": d["order_number"],
         "placed_at": d["placed_at"],
         "store": {"id": d["store_id"], "slug": d["store_slug"], "name": d["store_name"]},
-        "pickup": d["pickup"],
+        "pickup": _pin(d["pickup"]),
         # Until the rider accepts, they only see roughly where the job goes.
-        "dropoff": d["dropoff"] if accepted else coarse(d["dropoff"]),
+        "dropoff": _pin(d["dropoff"]) if accepted else coarse(d["dropoff"]),
         "dropoff_address": {k: addr.get(k) for k in ("line1", "line2", "city", "region", "postal_code")}
         if accepted else {"city": addr.get("city")},
         "customer_name": addr.get("full_name") if accepted else None,

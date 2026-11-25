@@ -885,7 +885,7 @@ async def live_map(_: AdminUser, conn: Conn):
     )
 
     def pt(x):
-        return x if isinstance(x, dict) and "lat" in x and "lng" in x else None
+        return x if isinstance(x, dict) and isinstance(x.get("lat"), (int, float)) and isinstance(x.get("lng"), (int, float)) else None
 
     return {
         "deliveries": [
