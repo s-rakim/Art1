@@ -5,7 +5,8 @@
 
 There is deliberately no public way to become an admin. The first admin is
 made here, by someone with shell access to the server; after that admins can
-promote others from the admin API.
+promote others from the admin API. The person signs up on the site first, as
+an ordinary shopper.
 """
 
 import asyncio
@@ -22,8 +23,22 @@ async def make_admin(email: str) -> int:
     conn = await asyncpg.connect(settings.database_url, statement_cache_size=0)
     try:
         uid = await conn.fetchval("select id from profiles where lower(email) = lower($1)", email)
+        if uid is None and await conn.fetchval("select to_regclass('auth.users') is not null"):
+            # Signed up but hasn't opened a page since: take the account
+            # straight from Supabase Auth.
+            user = await conn.fetchrow(
+                """select id, email, raw_user_meta_data->>'full_name' as full_name
+                     from auth.users where lower(email) = lower($1) and deleted_at is null""",
+                email,
+            )
+            if user is not None:
+                await conn.execute(
+                    "insert into profiles (id, email, full_name) values ($1, $2, $3) on conflict (id) do nothing",
+                    user["id"], user["email"], user["full_name"],
+                )
+                uid = user["id"]
         if uid is None:
-            print(f"No profile for {email}. Sign up on the site and make one authenticated request first.")
+            print(f"No account for {email}. Sign up on the site with that address first.")
             return 1
         await conn.execute("update profiles set role = 'admin' where id = $1", uid)
     finally:

@@ -124,7 +124,8 @@ def create_app() -> FastAPI:
         max_age=600,
     )
     app.add_middleware(RateLimitMiddleware, limiter=_LazyLimiter(app), per_minute=settings.rate_limit_ip,
-                       exempt=("/healthz", "/readyz", f"{prefix}/webhooks"))
+                       exempt=("/healthz", "/readyz", f"{prefix}/webhooks"),
+                       internal_per_minute=settings.rate_limit_internal, internal_networks=settings.internal_networks)
     app.add_middleware(SecurityHeaders, hsts=settings.is_production, docs_paths=(f"{prefix}/docs",))
     if settings.trusted_hosts != ["*"]:
         app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.trusted_hosts + ["localhost", "api"])

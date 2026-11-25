@@ -24,6 +24,7 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 
 from .config import Settings
 from .errors import ApiError
+from .supabase_admin import service_headers
 
 ACCEPTED_FORMATS = {"JPEG", "PNG", "WEBP", "AVIF"}
 MAX_PIXELS = 40_000_000  # about 7300 x 5500: any real product photo, no decompression bombs
@@ -102,8 +103,7 @@ async def clean_image(data: bytes, settings: Settings) -> bytes:
 
 
 def _headers(settings: Settings) -> dict:
-    key = settings.supabase_service_role_key
-    return {"Authorization": f"Bearer {key}", "apikey": key}
+    return service_headers(settings)
 
 
 async def put_object(settings: Settings, path: str, data: bytes, content_type: str, bucket: str | None = None) -> None:

@@ -1,5 +1,6 @@
 """Transport level protections: body size cap, security headers, rate limits."""
 
+import ipaddress
 import logging
 import re
 import time
@@ -176,17 +177,33 @@ def client_ip(request: Request) -> str:
 
 
 class RateLimitMiddleware:
-    def __init__(self, app: ASGIApp, limiter: RateLimiter, per_minute: int, exempt: tuple[str, ...]):
+    def __init__(self, app: ASGIApp, limiter: RateLimiter, per_minute: int, exempt: tuple[str, ...],
+                 internal_per_minute: int | None = None, internal_networks: list[str] | None = None):
         self.app = app
         self.limiter = limiter
         self.per_minute = per_minute
         self.exempt = exempt
+        self.internal_per_minute = internal_per_minute or per_minute
+        self.internal = [ipaddress.ip_network(n, strict=False) for n in internal_networks or []]
+
+    def _is_internal(self, ip: str) -> bool:
+        try:
+            addr = ipaddress.ip_address(ip)
+        except ValueError:
+            return False
+        return any(addr in net for net in self.internal)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send):
         if scope["type"] != "http" or scope.get("path", "").startswith(self.exempt):
             return await self.app(scope, receive, send)
         ip = scope["client"][0] if scope.get("client") else "unknown"
-        ok, _ = await self.limiter.hit(f"ip:{ip}", self.per_minute)
+        # uvicorn has already swapped in the forwarded client address, so a
+        # private address here means a container on the compose network
+        # calling directly (the web app rendering a public page).
+        if self._is_internal(ip):
+            ok, _ = await self.limiter.hit("internal", self.internal_per_minute)
+        else:
+            ok, _ = await self.limiter.hit(f"ip:{ip}", self.per_minute)
         if not ok:
             body = b'{"error":{"code":"rate_limited","message":"Too many requests. Slow down a little."}}'
             await send(

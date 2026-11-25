@@ -813,3 +813,40 @@ async def test_only_upload_routes_take_big_bodies(actor, admin, fake_storage):
     r = await seller.client.post(f"{API}/seller/products", headers={**seller.headers, "Content-Type": "application/json"},
                                  content=b"{" + b" " * 400_000 + b"}")
     assert r.status_code == 413
+
+
+async def test_page_renders_from_the_web_app_get_their_own_bucket():
+    from app.security import RateLimiter, RateLimitMiddleware
+
+    async def ok_app(scope, receive, send):
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b""})
+
+    mw = RateLimitMiddleware(ok_app, RateLimiter(None), per_minute=2, exempt=(), internal_per_minute=5,
+                             internal_networks=["172.16.0.0/12"])
+
+    async def hit(ip):
+        sent = []
+
+        async def send(m):
+            sent.append(m)
+
+        await mw({"type": "http", "path": "/api/v1/products", "client": (ip, 1)}, None, send)
+        return sent[0]["status"]
+
+    assert [await hit("203.0.113.9") for _ in range(3)] == [200, 200, 429]   # a real visitor
+    assert [await hit("172.18.0.5") for _ in range(6)] == [200] * 5 + [429]  # the web container
+    assert await hit("198.51.100.1") == 200  # other visitors unaffected
+
+
+def test_service_headers_handle_both_key_styles():
+    from app.config import Settings
+    from app.supabase_admin import service_headers
+
+    base = dict(database_url="postgresql://x@localhost/x", supabase_url="https://p.supabase.co",
+                supabase_jwt_secret="s" * 40)
+    legacy = Settings(**base, supabase_service_role_key="eyJhbGciOiJIUzI1NiJ9.e30.sig")
+    assert service_headers(legacy) == {"Authorization": "Bearer eyJhbGciOiJIUzI1NiJ9.e30.sig",
+                                       "apikey": "eyJhbGciOiJIUzI1NiJ9.e30.sig"}
+    new = Settings(**base, supabase_service_role_key="sb_secret_abc")
+    assert service_headers(new) == {"apikey": "sb_secret_abc"}

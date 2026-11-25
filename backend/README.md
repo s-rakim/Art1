@@ -142,99 +142,19 @@ change announces itself whichever code made it, and only after it commits.
 The server closes the socket with code 4001 when the token expires; reconnect
 with a fresh one. The full protocol is at the top of `api/app/realtime.py`.
 
-## Running it on your Oracle server
+## Running it
 
-These steps assume an Ubuntu Ampere A1 instance. The images are built for
-both arm64 and amd64, so any shape works.
+The backend runs as part of the whole stack from `compose.yml` at the root
+of the repo, configured by the root `.env.example`. [DEPLOY.md](../DEPLOY.md)
+covers Supabase, the Oracle server, DNS, the first admin, updates and
+backups.
 
-### 1. Set up Supabase
-
-1. Create a project at supabase.com.
-2. Storage needs no setup: the first migration run creates the public
-   `product-images` and `product-videos` buckets with size and type limits.
-3. In **Authentication > Providers**, keep email on, turn on "Confirm
-   email", and leave phone sign-in off (the API refuses phone-only accounts
-   anyway). Under **Authentication > Emails** set the sender name to
-   "The Bazaar" and adjust the templates' wording.
-4. Collect, from **Project Settings**:
-   - the database connection string (Database > Connection string, session
-     pooler on port 5432),
-   - the project URL and the JWT secret (API settings). Newer projects that
-     use asymmetric signing keys can leave the secret empty; the API reads
-     the public keys instead,
-   - the `service_role` key. It never leaves the server.
-
-### 2. Prepare the server
-
-```bash
-# Docker
-curl -fsSL https://get.docker.com | sh
-sudo usermod -aG docker $USER && newgrp docker
-
-# Oracle's Ubuntu images ship with iptables rules that block everything but
-# SSH, on top of the cloud firewall. Open 80 and 443 in both places:
-sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 80 -j ACCEPT
-sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 443 -j ACCEPT
-sudo iptables -I INPUT 6 -m state --state NEW -p udp --dport 443 -j ACCEPT
-sudo netfilter-persistent save
-```
-
-Then in the Oracle console, add ingress rules for TCP 80 and 443 (and UDP 443
-for HTTP/3) to the subnet's security list.
-
-Point a DNS record such as `api.yourshop.com` at the server's public IP.
-
-### 3. Configure and start
-
-```bash
-git clone https://github.com/s-rakim/Art1.git && cd Art1/backend
-cp .env.example .env
-nano .env        # fill in the domain, Supabase values and CORS origins
-chmod 600 .env
-
-docker compose pull        # prebuilt images from GitHub, or:
-docker compose build       # build on the server itself
-docker compose up -d
-docker compose logs -f api
-```
-
-`migrate` runs first and exits, then the API, worker and search start. Caddy
-fetches a TLS certificate for `API_DOMAIN` on its own.
-
-Want sample stores and products to look at? Set `SEED_DEMO=true`, run
-`docker compose run --rm migrate`, then set it back.
-
-### 4. Make yourself an admin
-
-Sign up on the site with your own email, load any page while signed in, then:
-
-```bash
-docker compose exec api python -m app.cli make-admin you@yourshop.com
-```
-
-Turn on `ADMIN_REQUIRE_MFA=true` once you've set up a second factor in
-Supabase: every admin endpoint will then demand it.
-
-### Running without Supabase
-
-For a quick trial you can run Postgres on the box instead. Set
-`DATABASE_URL=postgresql://bazaar:<password>@db:5432/bazaar`,
-`LOCAL_DB_PASSWORD=<password>` and a long random `SUPABASE_JWT_SECRET` in
-`.env`, then `docker compose --profile localdb up -d`. You'll need some way to
-issue tokens signed with that secret; for a real launch, use Supabase.
-
-## Day to day
-
-| Task | Command |
-| --- | --- |
-| Update to the latest images | `docker compose pull && docker compose up -d` |
-| Apply new migrations | happens on every `up`; or `docker compose run --rm migrate` |
-| Put the site in maintenance | `PATCH /api/v1/admin/settings {"maintenance_mode": true}` |
-| Charge rent now instead of waiting a minute | `POST /api/v1/admin/billing/run` |
-| Back up | Supabase backs up daily; for `localdb`, `docker compose exec db pg_dump -U bazaar bazaar > backup.sql` |
-
-The worker charges rent that has come due, turns placements on and off,
-cancels unpaid card and bank transfer orders after a while to free their
+The one image under `api/` serves three roles in that stack: `migrate`
+applies migrations and exits, `api` serves HTTP and the live socket, and
+`worker` runs the background jobs. Every 15 seconds the worker offers ready
+orders to the nearest free rider and moves on from riders who let an offer
+time out. Every minute it charges rent that has come due, turns placements
+on and off, cancels unpaid card and bank transfer orders to free their
 stock, and prunes rider location history older than 14 days.
 
 ## Security
@@ -268,6 +188,8 @@ This was built expecting people to try to break it. What's in place:
   on every response, no caching of personal responses, a request size cap at
   Caddy and again in the API, per IP rate limits and tighter per user limits
   on checkout, applications, reviews, payouts, dispatch and location updates.
+  Caddy throws away any X-Forwarded-For a client sends and passes on the
+  real address, so nobody can dodge the limits by making one up.
 - **Deliveries**: riders see only the rough area until they accept; buyers
   see the rider's first name and the last three digits of their phone; the
   handover code locks after five wrong tries. Live positions reach the buyer,

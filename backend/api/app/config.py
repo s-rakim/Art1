@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Everything comes from the environment. See backend/.env.example."""
+    """Everything comes from the environment. See .env.example at the repo root."""
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
@@ -52,6 +52,13 @@ class Settings(BaseSettings):
     rate_limit_ip: int = 300
     rate_limit_sensitive: int = 20
     rate_limit_rider_location: int = 30
+    # Requests from inside the compose network with no forwarded client
+    # address are the web app's own cached page renders. They share one
+    # address, so they get a bucket of their own.
+    rate_limit_internal: int = 6000
+    internal_networks: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "127.0.0.0/8", "fc00::/7", "::1/128"]
+    )
 
     currency: str = "USD"
     payout_hold_days: int = 7
@@ -71,7 +78,7 @@ class Settings(BaseSettings):
     max_body_bytes: int = 1_000_000
     expose_docs: bool = False
 
-    @field_validator("cors_origins", "trusted_hosts", "image_url_hosts", mode="before")
+    @field_validator("cors_origins", "trusted_hosts", "image_url_hosts", "internal_networks", mode="before")
     @classmethod
     def split_csv(cls, v):
         if isinstance(v, str):

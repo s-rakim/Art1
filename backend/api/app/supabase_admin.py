@@ -21,14 +21,22 @@ ROLE_TO_APP_ROLES = {
 }
 
 
+def service_headers(settings: Settings) -> dict:
+    """Headers for calling Supabase as the service role. A legacy
+    service_role key is a JWT and goes in both headers. A newer secret key
+    (sb_secret_...) is not a JWT: it goes in apikey only, and Supabase's
+    gateway swaps it for a short-lived service token."""
+    key = settings.supabase_service_role_key
+    if key.startswith("eyJ"):
+        return {"Authorization": f"Bearer {key}", "apikey": key}
+    return {"apikey": key}
+
+
 async def sync_app_roles(settings: Settings, user_id: uuid.UUID, role: str) -> None:
     if not (settings.supabase_url and settings.supabase_service_role_key):
         return
     url = f"{settings.supabase_url.rstrip('/')}/auth/v1/admin/users/{user_id}"
-    headers = {
-        "Authorization": f"Bearer {settings.supabase_service_role_key}",
-        "apikey": settings.supabase_service_role_key,
-    }
+    headers = service_headers(settings)
     body = {"app_metadata": {"roles": ROLE_TO_APP_ROLES.get(role, ["customer"])}}
     try:
         async with httpx.AsyncClient(timeout=5) as client:

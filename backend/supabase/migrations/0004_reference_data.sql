@@ -1,24 +1,24 @@
 -- Reference data the marketplace needs before anyone signs up: rental plans,
 -- the top level category tree and the placement slots stores can book.
--- Prices are a starting point; change them from the admin API.
+-- The money columns are a starting point the admin changes in the console.
+-- Descriptions and features are public, so they never mention a price.
 
 insert into store_plans (code, name, description, monthly_price_cents, commission_rate,
                          per_item_fee_cents, product_limit, featured_slots, features, sort)
 values
   ('starter', 'Starter Stall',
-   'No rent. Pay a small fee per unit sold. Good for testing the water.',
+   'A small stall for testing the water.',
    0, 0.1500, 99, 25, 0,
-   array['Up to 25 live products', 'Storefront page', '15% commission + $0.99 per unit',
-         'Payouts every 7 days'], 10),
+   array['Up to 25 live products', 'Storefront page', 'Payouts every 7 days'], 10),
   ('boutique', 'Boutique',
-   'A proper storefront with lower commission and room to grow.',
+   'A proper storefront with room to grow.',
    2900, 0.1000, 0, 500, 1,
-   array['Up to 500 live products', 'Custom banner and logo', '10% commission, no per unit fee',
+   array['Up to 500 live products', 'Custom banner and logo',
          '1 featured placement credit a month', 'Volume pricing tiers'], 20),
   ('flagship', 'Flagship',
    'For established brands moving real volume.',
    14900, 0.0600, 0, null, 4,
-   array['Unlimited products', '6% commission', '4 featured placement credits a month',
+   array['Unlimited products', '4 featured placement credits a month',
          'Priority review of new listings', 'Wholesale minimum order quantities'], 30)
 on conflict (code) do nothing;
 
