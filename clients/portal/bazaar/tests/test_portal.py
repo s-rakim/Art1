@@ -181,7 +181,7 @@ def test_bag_lets_you_pick_lines(signed_in, backend):
 def test_rider_page_has_map_run_and_blurred_jobs(signed_in, backend):
     html = signed_in("rider").get("/rider/").content.decode()
     assert "7</span>" in html and "Gate is &lt;blue&gt;" in html            # deliveries done, buyer's note escaped
-    assert 'id="open-j2"' in html and "job-blocked" in html and "Too far from the drops" in html
+    assert 'id="open-j2"' in html and "job-blocked" in html and "Can&#x27;t join your run" in html
     assert 'data-src="/rider/map.json"' in html
 
 

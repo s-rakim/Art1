@@ -23,7 +23,7 @@ rider_only = auth.role_required("rider")
 
 BLOCKED = {
     "batch_full": "Your run is full. Finish a drop first.",
-    "on_run_far": "Too far from the drops on your run.",
+    "on_run_far": "Can't join your run: the drop-off is too far, or the buyer left no map pin.",
     "pickup_far": "The shop is too far from your other pickups.",
 }
 
