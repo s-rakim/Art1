@@ -8,7 +8,7 @@ import uuid
 import asyncpg
 import jwt
 import pytest
-from conftest import ADDRESS, API, JWT_SECRET, add_product, hire_rider, make_token, open_store
+from conftest import ADDRESS, API, JWT_SECRET, add_product, hire_rider, make_token, open_store, pay_at_door
 
 # ---------------------------------------------------------------------------
 # Tokens
@@ -168,7 +168,7 @@ async def world(actor, admin):
     return {
         "seller_a": seller_a, "seller_b": seller_b, "product_a": product_a, "buyer_a": buyer_a,
         "buyer_b": buyer_b, "order_id": order_id, "store_order_id": so["id"], "rider_a": rider_a,
-        "rider_b": rider_b, "delivery_id": delivery_id,
+        "rider_b": rider_b, "delivery_id": delivery_id, "admin": admin,
     }
 
 
@@ -212,6 +212,7 @@ async def test_handover_code_locks_after_five_guesses(world):
     ra, did = world["rider_a"], world["delivery_id"]
     await ra.patch(f"{API}/rider/deliveries/{did}", json={"action": "accept"})
     await ra.patch(f"{API}/rider/deliveries/{did}", json={"action": "picked_up"})
+    await pay_at_door(world["admin"], ra, did)
     real = (await world["buyer_a"].get(f"{API}/orders/{world['order_id']}/tracking")).json()["handover_code"]
     guesses = [f"{n:06d}" for n in range(10) if f"{n:06d}" != real][:5]
     for g in guesses:

@@ -15,7 +15,7 @@ from .config import get_settings
 from .db import create_pool
 from .realtime import Hub
 from .realtime import router as realtime_router
-from .routers import admin, catalog, me, rider, seller, shop
+from .routers import admin, catalog, me, money, rider, seller, shop
 from .security import BodySizeLimit, RateLimiter, RateLimitMiddleware, SecurityHeaders
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -25,7 +25,8 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 
 class MaintenanceMode:
     """While the admin has the site in maintenance, only reads, admin
-    routes, the status endpoint and payment webhooks get through."""
+    routes, the status endpoint, payment webhooks and the till and SMS
+    feeds get through, so no payment message is lost."""
 
     def __init__(self, app: ASGIApp, prefix: str):
         self.app = app
@@ -47,7 +48,7 @@ class MaintenanceMode:
     async def __call__(self, scope: Scope, receive: Receive, send: Send):
         if scope["type"] == "http" and scope["method"] not in ("GET", "HEAD", "OPTIONS"):
             path = scope.get("path", "")
-            exempt = path.startswith((f"{self.prefix}/admin", f"{self.prefix}/webhooks"))
+            exempt = path.startswith((f"{self.prefix}/admin", f"{self.prefix}/webhooks", f"{self.prefix}/payments/"))
             if not exempt and await self._enabled(scope):
                 body = (b'{"error":{"code":"maintenance","message":"We are doing some maintenance. '
                         b'Please try again shortly."}}')
@@ -99,8 +100,8 @@ def create_app() -> FastAPI:
     )
     errors.install(app)
 
-    for r in (catalog.router, me.router, shop.router, seller.router, rider.router, admin.router, admin.public,
-              realtime_router):
+    for r in (catalog.router, me.router, shop.router, seller.router, money.vendor, rider.router, admin.router,
+              money.admin, money.hooks, admin.public, realtime_router):
         app.include_router(r, prefix=prefix)
 
     @app.get("/healthz", include_in_schema=False)

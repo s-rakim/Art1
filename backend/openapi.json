@@ -1396,6 +1396,50 @@
         }
       }
     },
+    "/api/v1/cart/items/{item_id}/save-for-later": {
+      "post": {
+        "tags": [
+          "shop"
+        ],
+        "summary": "Save For Later",
+        "description": "Move a cart line to the wishlist.",
+        "operationId": "save_for_later_api_v1_cart_items__item_id__save_for_later_post",
+        "parameters": [
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Item Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cart"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/checkout": {
       "post": {
         "tags": [
@@ -3348,7 +3392,9 @@
           "seller"
         ],
         "summary": "Confirm Payment",
+        "description": "Stores no longer confirm payments. Shoppers pay The Bazaar's till,\nand the rider at the door (or an admin) confirms it by the transaction\ncode. Kept so old clients get a clear answer: always 403.",
         "operationId": "confirm_payment_api_v1_seller_orders__store_order_id__confirm_payment_post",
+        "deprecated": true,
         "parameters": [
           {
             "name": "store_order_id",
@@ -3644,6 +3690,389 @@
         }
       }
     },
+    "/api/v1/seller/sheets/{sheet}": {
+      "get": {
+        "tags": [
+          "seller: sheets"
+        ],
+        "summary": "Vendor Sheet",
+        "description": "Read-only sheets, built from the books themselves: ledger (every\nmovement of the store's balance), sales (items sold and paid), payments\n(each order, its transaction codes and the store's share), inventory\n(stock and units sold), entries (vendor sheet rows an admin confirmed) and\npayouts. Filter by date with from and to. format=csv downloads the lot. Your store only.",
+        "operationId": "vendor_sheet_api_v1_seller_sheets__sheet__get",
+        "parameters": [
+          {
+            "name": "sheet",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "ledger",
+                "sales",
+                "payments",
+                "inventory",
+                "entries",
+                "payouts"
+              ],
+              "type": "string",
+              "title": "Sheet"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "json",
+                "csv"
+              ],
+              "type": "string",
+              "default": "json",
+              "title": "Format"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 24,
+              "title": "Page Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SheetOut"
+                }
+              },
+              "text/csv": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/seller/sheet-entries": {
+      "get": {
+        "tags": [
+          "seller: sheets"
+        ],
+        "summary": "My Entries",
+        "operationId": "my_entries_api_v1_seller_sheet_entries_get",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "pending",
+                    "confirmed",
+                    "rejected"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 24,
+              "title": "Page Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_Entry_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "seller: sheets"
+        ],
+        "summary": "Add Entry",
+        "operationId": "add_entry_api_v1_seller_sheet_entries_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntryIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Entry"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/seller/sheet-entries/{entry_id}": {
+      "patch": {
+        "tags": [
+          "seller: sheets"
+        ],
+        "summary": "Edit Entry",
+        "description": "Editing a rejected entry sends it back to the admin as pending.",
+        "operationId": "edit_entry_api_v1_seller_sheet_entries__entry_id__patch",
+        "parameters": [
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Entry Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntryUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Entry"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "seller: sheets"
+        ],
+        "summary": "Delete Entry",
+        "operationId": "delete_entry_api_v1_seller_sheet_entries__entry_id__delete",
+        "parameters": [
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Entry Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/seller/sheet-entries/{entry_id}/history": {
+      "get": {
+        "tags": [
+          "seller: sheets"
+        ],
+        "summary": "Entry History",
+        "operationId": "entry_history_api_v1_seller_sheet_entries__entry_id__history_get",
+        "parameters": [
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Entry Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuditRow"
+                  },
+                  "title": "Response Entry History Api V1 Seller Sheet Entries  Entry Id  History Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/rider/applications": {
       "post": {
         "tags": [
@@ -3909,6 +4338,7 @@
           "rider"
         ],
         "summary": "Act",
+        "description": "accept or decline an offer, then picked_up at the shop, and delivered\nat the door with the shopper's 6 digit handover code once the payment\nis confirmed (POST .../payment). failed needs a note.",
         "operationId": "act_api_v1_rider_deliveries__delivery_id__patch",
         "parameters": [
           {
@@ -3939,6 +4369,295 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RiderDelivery"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/rider/open-jobs": {
+      "get": {
+        "tags": [
+          "rider"
+        ],
+        "summary": "Open Jobs",
+        "description": "Jobs waiting for a rider near you, and offers made to you, oldest\norder first (offers on top). While you're on a run, a job you can't add\nto it comes back with batchable false and the reason, so the app can\ngrey it out. Needs you on shift with a recent location.",
+        "operationId": "open_jobs_api_v1_rider_open_jobs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpenJobs"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/rider/open-jobs/{store_order_id}/claim": {
+      "post": {
+        "tags": [
+          "rider"
+        ],
+        "summary": "Claim",
+        "description": "Take a job from the board. It goes straight to accepted and joins your\nrun. If it was offered to you, this accepts the offer.",
+        "operationId": "claim_api_v1_rider_open_jobs__store_order_id__claim_post",
+        "parameters": [
+          {
+            "name": "store_order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Store Order Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RiderDelivery"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/rider/open-jobs/{store_order_id}/skip": {
+      "post": {
+        "tags": [
+          "rider"
+        ],
+        "summary": "Skip",
+        "description": "Not interested. The job leaves your board and won't be offered to you\nagain. An offer you skip is declined and passes to the next rider.",
+        "operationId": "skip_api_v1_rider_open_jobs__store_order_id__skip_post",
+        "parameters": [
+          {
+            "name": "store_order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Store Order Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/rider/run": {
+      "get": {
+        "tags": [
+          "rider"
+        ],
+        "summary": "Run",
+        "description": "The jobs on your current run in the order they were placed, and the\nway to go: shops you still have to collect from, then drop-offs, oldest\norder first. Stops stay on the run (delivered ones too) until you start\nthe next one.",
+        "operationId": "run_api_v1_rider_run_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RiderRun"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/rider/deliveries/{delivery_id}/arrived": {
+      "post": {
+        "tags": [
+          "rider"
+        ],
+        "summary": "Arrived",
+        "description": "You're at the drop-off. Admins get a payment check ping, and the\nshopper is told to pay the till now, quoting their order number.",
+        "operationId": "arrived_api_v1_rider_deliveries__delivery_id__arrived_post",
+        "parameters": [
+          {
+            "name": "delivery_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Delivery Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RiderDelivery"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/rider/deliveries/{delivery_id}/payment": {
+      "get": {
+        "tags": [
+          "rider"
+        ],
+        "summary": "Payment Lookup",
+        "description": "What's still owed at this door, and the payments that match q: a\ntransaction code (exact) or the payer's name (3 or more letters, up to 3\nrecent unused payments, codes masked). A used code shows used: true and\nnothing else about it.",
+        "operationId": "payment_lookup_api_v1_rider_deliveries__delivery_id__payment_get",
+        "parameters": [
+          {
+            "name": "delivery_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Delivery Id"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 80
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentCheck"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "rider"
+        ],
+        "summary": "Payment Confirm",
+        "description": "Use a payment for this order: by its transaction code, or by the\nreceipt_id a name search returned. The payment is spent for good; using\nit again anywhere fails with 409 code_used. Partial payments add up.",
+        "operationId": "payment_confirm_api_v1_rider_deliveries__delivery_id__payment_post",
+        "parameters": [
+          {
+            "name": "delivery_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Delivery Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaymentIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentCheck"
                 }
               }
             }
@@ -5645,6 +6364,783 @@
         }
       }
     },
+    "/api/v1/admin/payments/import": {
+      "post": {
+        "tags": [
+          "admin: money"
+        ],
+        "summary": "Import Payments",
+        "description": "Paste the till's or bank's messages, as many as you like. Each one is\nread for the transaction code, amount, payer and time. With commit false\nnothing is stored, so you can check the reading first. A code already in\nthe bank is never stored twice.",
+        "operationId": "import_payments_api_v1_admin_payments_import_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/payments": {
+      "get": {
+        "tags": [
+          "admin: money"
+        ],
+        "summary": "List Payments",
+        "operationId": "list_payments_api_v1_admin_payments_get",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "unconfirmed",
+                    "confirmed",
+                    "expired",
+                    "void"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 80
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 24,
+              "title": "Page Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_PaymentReceipt_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/payments/{receipt_id}": {
+      "patch": {
+        "tags": [
+          "admin: money"
+        ],
+        "summary": "Update Payment",
+        "operationId": "update_payment_api_v1_admin_payments__receipt_id__patch",
+        "parameters": [
+          {
+            "name": "receipt_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Receipt Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaymentUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentReceipt"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/settlements": {
+      "get": {
+        "tags": [
+          "admin: money"
+        ],
+        "summary": "Settlements",
+        "description": "What each store is owed. Takings become owed once they've been held\nfor the payout interval; rent, commission, fees and delivery charges\nare already taken off. Books balance when every delivered order has a\nconfirmed payment and the store has no sheet entries waiting.",
+        "operationId": "settlements_api_v1_admin_settlements_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Settlement"
+                  },
+                  "type": "array",
+                  "title": "Response Settlements Api V1 Admin Settlements Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/settlements/{store_id}": {
+      "post": {
+        "tags": [
+          "admin: money"
+        ],
+        "summary": "Settle",
+        "description": "Record that you've paid a store. Defaults to everything owed.",
+        "operationId": "settle_api_v1_admin_settlements__store_id__post",
+        "parameters": [
+          {
+            "name": "store_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Store Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettleIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/sheets/{sheet}": {
+      "get": {
+        "tags": [
+          "admin: money"
+        ],
+        "summary": "Admin Sheet",
+        "description": "Read-only sheets, built from the books themselves: ledger (every\nmovement of the store's balance), sales (items sold and paid), payments\n(each order, its transaction codes and the store's share), inventory\n(stock and units sold), entries (vendor sheet rows an admin confirmed) and\npayouts. Filter by date with from and to. format=csv downloads the lot. Every store, or one with store_id.",
+        "operationId": "admin_sheet_api_v1_admin_sheets__sheet__get",
+        "parameters": [
+          {
+            "name": "sheet",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "ledger",
+                "sales",
+                "payments",
+                "inventory",
+                "entries",
+                "payouts"
+              ],
+              "type": "string",
+              "title": "Sheet"
+            }
+          },
+          {
+            "name": "store_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Store Id"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "json",
+                "csv"
+              ],
+              "type": "string",
+              "default": "json",
+              "title": "Format"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 24,
+              "title": "Page Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SheetOut"
+                }
+              },
+              "text/csv": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/sheet-entries": {
+      "get": {
+        "tags": [
+          "admin: money"
+        ],
+        "summary": "All Entries",
+        "operationId": "all_entries_api_v1_admin_sheet_entries_get",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "pending",
+                    "confirmed",
+                    "rejected"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "store_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Store Id"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 24,
+              "title": "Page Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_Entry_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/sheet-entries/{entry_id}/confirm": {
+      "post": {
+        "tags": [
+          "admin: money"
+        ],
+        "summary": "Confirm Entry",
+        "operationId": "confirm_entry_api_v1_admin_sheet_entries__entry_id__confirm_post",
+        "parameters": [
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Entry Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Entry"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/sheet-entries/{entry_id}/reject": {
+      "post": {
+        "tags": [
+          "admin: money"
+        ],
+        "summary": "Reject Entry",
+        "operationId": "reject_entry_api_v1_admin_sheet_entries__entry_id__reject_post",
+        "parameters": [
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Entry Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Entry"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/audit": {
+      "get": {
+        "tags": [
+          "admin: money"
+        ],
+        "summary": "Audit",
+        "operationId": "audit_api_v1_admin_audit_get",
+        "parameters": [
+          {
+            "name": "entity",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "sheet_entries",
+                    "payment_receipts"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Entity"
+            }
+          },
+          {
+            "name": "entity_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Entity Id"
+            }
+          },
+          {
+            "name": "store_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Store Id"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 24,
+              "title": "Page Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_AuditRow_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/payments/sms/{token}": {
+      "post": {
+        "tags": [
+          "payment feeds"
+        ],
+        "summary": "Sms Feed",
+        "description": "For an SMS forwarding app on the phone that receives the till's\nmessages: POST {\"text\": \"...\"} here. The token is PAYMENT_WEBHOOK_TOKEN.",
+        "operationId": "sms_feed_api_v1_payments_sms__token__post",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SmsIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/status": {
       "get": {
         "tags": [
@@ -6896,6 +8392,105 @@
         "type": "object",
         "title": "ApplicationDecision"
       },
+      "AuditRow": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "entity": {
+            "type": "string",
+            "title": "Entity"
+          },
+          "entity_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Entity Id"
+          },
+          "store_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Store Id"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action"
+          },
+          "actor_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Id"
+          },
+          "actor_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Name"
+          },
+          "before": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Before"
+          },
+          "after": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "After"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "entity",
+          "entity_id",
+          "store_id",
+          "action",
+          "actor_id",
+          "actor_name",
+          "before",
+          "after",
+          "at"
+        ],
+        "title": "AuditRow"
+      },
       "AvailableRider": {
         "properties": {
           "id": {
@@ -7569,6 +9164,23 @@
             ],
             "title": "Items"
           },
+          "cart_item_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "type": "array",
+                "maxItems": 100,
+                "minItems": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cart Item Ids"
+          },
           "address_id": {
             "anyOf": [
               {
@@ -7717,6 +9329,63 @@
           "currency"
         ],
         "title": "CheckoutOut"
+      },
+      "Column": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "text",
+              "date",
+              "money",
+              "number"
+            ],
+            "title": "Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "type"
+        ],
+        "title": "Column"
+      },
+      "ConfirmIn": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 2,
+            "title": "Key"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key"
+        ],
+        "title": "ConfirmIn"
       },
       "Coupon": {
         "properties": {
@@ -8170,6 +9839,296 @@
         ],
         "title": "Earning"
       },
+      "Entry": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "store_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Store Id"
+          },
+          "store_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Store Name"
+          },
+          "entry_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Entry Date"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "amount_cents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Cents"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "confirmed",
+              "rejected"
+            ],
+            "title": "Status"
+          },
+          "admin_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Admin Note"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "confirmed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "store_id",
+          "entry_date",
+          "kind",
+          "description",
+          "quantity",
+          "amount_cents",
+          "reference",
+          "status",
+          "admin_note",
+          "created_at",
+          "updated_at",
+          "confirmed_at"
+        ],
+        "title": "Entry"
+      },
+      "EntryIn": {
+        "properties": {
+          "entry_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Entry Date"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "sale",
+              "expense",
+              "stock_in",
+              "stock_out",
+              "payment",
+              "other"
+            ],
+            "title": "Kind"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Description"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1000000.0,
+                "minimum": -1000000.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "amount_cents": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100000000000.0,
+                "minimum": -100000000000.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Cents"
+          },
+          "reference": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 2,
+            "pattern": "^[A-Za-z0-9 ./#_-]+$",
+            "title": "Reference"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "entry_date",
+          "kind",
+          "description",
+          "reference"
+        ],
+        "title": "EntryIn"
+      },
+      "EntryUpdate": {
+        "properties": {
+          "entry_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entry Date"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "sale",
+                  "expense",
+                  "stock_in",
+                  "stock_out",
+                  "payment",
+                  "other"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1000000.0,
+                "minimum": -1000000.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "amount_cents": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100000000000.0,
+                "minimum": -100000000000.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Cents"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 2,
+                "pattern": "^[A-Za-z0-9 ./#_-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "EntryUpdate"
+      },
       "Facet": {
         "properties": {
           "value": {
@@ -8302,6 +10261,161 @@
           "image_ids"
         ],
         "title": "ImageOrderIn"
+      },
+      "ImportIn": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 200000,
+            "minLength": 1,
+            "title": "Text"
+          },
+          "commit": {
+            "type": "boolean",
+            "title": "Commit",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "ImportIn"
+      },
+      "ImportOut": {
+        "properties": {
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/ImportedRow"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "stored": {
+            "type": "integer",
+            "title": "Stored"
+          },
+          "failed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Failed",
+            "description": "Snippets of messages that didn't look like a payment."
+          }
+        },
+        "type": "object",
+        "required": [
+          "rows",
+          "stored",
+          "failed"
+        ],
+        "title": "ImportOut"
+      },
+      "ImportedRow": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "mpesa",
+              "bank"
+            ],
+            "title": "Provider"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "payer_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payer Name"
+          },
+          "payer_phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payer Phone"
+          },
+          "amount_cents": {
+            "type": "integer",
+            "title": "Amount Cents"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "received_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Received At"
+          },
+          "account_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Ref"
+          },
+          "matched_order_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Matched Order Number"
+          },
+          "duplicate": {
+            "type": "boolean",
+            "title": "Duplicate"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "provider",
+          "code",
+          "payer_name",
+          "payer_phone",
+          "amount_cents",
+          "currency",
+          "received_at",
+          "account_ref",
+          "matched_order_number",
+          "duplicate"
+        ],
+        "title": "ImportedRow"
       },
       "Income": {
         "properties": {
@@ -9089,6 +11203,193 @@
         ],
         "title": "MyStoreRef"
       },
+      "OpenJob": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id",
+            "description": "The store order id. Claim and skip use it."
+          },
+          "delivery_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delivery Id",
+            "description": "Set when this job is offered to you."
+          },
+          "offered": {
+            "type": "boolean",
+            "title": "Offered"
+          },
+          "offer_expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offer Expires At"
+          },
+          "order_number": {
+            "type": "string",
+            "title": "Order Number"
+          },
+          "placed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Placed At"
+          },
+          "store": {
+            "$ref": "#/components/schemas/RiderStore"
+          },
+          "pickup": {
+            "$ref": "#/components/schemas/Point"
+          },
+          "dropoff": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Point"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Rounded to about a kilometre until you accept."
+          },
+          "area": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area"
+          },
+          "earning_cents": {
+            "type": "integer",
+            "title": "Earning Cents"
+          },
+          "amount_due_cents": {
+            "type": "integer",
+            "title": "Amount Due Cents"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "items": {
+            "type": "integer",
+            "title": "Items"
+          },
+          "distance_km": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance Km",
+            "description": "From you to the shop."
+          },
+          "trip_km": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trip Km",
+            "description": "From the shop to the drop-off."
+          },
+          "batchable": {
+            "type": "boolean",
+            "title": "Batchable"
+          },
+          "blocked_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "batch_full",
+                  "pickup_far",
+                  "on_run_far"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocked Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "offered",
+          "offer_expires_at",
+          "order_number",
+          "placed_at",
+          "store",
+          "pickup",
+          "dropoff",
+          "area",
+          "earning_cents",
+          "amount_due_cents",
+          "currency",
+          "items",
+          "distance_km",
+          "trip_km",
+          "batchable",
+          "blocked_reason"
+        ],
+        "title": "OpenJob"
+      },
+      "OpenJobs": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OpenJob"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "ride_status": {
+            "type": "string",
+            "enum": [
+              "offline",
+              "idle",
+              "delivering"
+            ],
+            "title": "Ride Status"
+          },
+          "rules": {
+            "$ref": "#/components/schemas/RiderRules"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "ride_status",
+          "rules"
+        ],
+        "title": "OpenJobs"
+      },
       "Order": {
         "properties": {
           "id": {
@@ -9477,6 +11778,37 @@
         ],
         "title": "Page[AdminStore]"
       },
+      "Page_AuditRow_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AuditRow"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[AuditRow]"
+      },
       "Page_Earning_": {
         "properties": {
           "items": {
@@ -9507,6 +11839,37 @@
           "page_size"
         ],
         "title": "Page[Earning]"
+      },
+      "Page_Entry_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Entry"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[Entry]"
       },
       "Page_InventoryAdjustment_": {
         "properties": {
@@ -9631,6 +11994,37 @@
           "page_size"
         ],
         "title": "Page[OrderSummary]"
+      },
+      "Page_PaymentReceipt_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PaymentReceipt"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[PaymentReceipt]"
       },
       "Page_Payout_": {
         "properties": {
@@ -9910,6 +12304,478 @@
           "page_size"
         ],
         "title": "Page[Store]"
+      },
+      "PaymentCheck": {
+        "properties": {
+          "due_cents": {
+            "type": "integer",
+            "title": "Due Cents"
+          },
+          "paid_cents": {
+            "type": "integer",
+            "title": "Paid Cents"
+          },
+          "payment_confirmed": {
+            "type": "boolean",
+            "title": "Payment Confirmed"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "matches": {
+            "items": {
+              "$ref": "#/components/schemas/PaymentMatch"
+            },
+            "type": "array",
+            "title": "Matches",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "due_cents",
+          "paid_cents",
+          "payment_confirmed",
+          "currency"
+        ],
+        "title": "PaymentCheck"
+      },
+      "PaymentDetails": {
+        "properties": {
+          "mpesa_till": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mpesa Till"
+          },
+          "mpesa_paybill": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mpesa Paybill"
+          },
+          "account_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Name"
+          },
+          "bank_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bank Name"
+          },
+          "bank_account_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bank Account Name"
+          },
+          "bank_account_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bank Account Number"
+          },
+          "instructions": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instructions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mpesa_till",
+          "mpesa_paybill",
+          "account_name",
+          "bank_name",
+          "bank_account_name",
+          "bank_account_number",
+          "instructions"
+        ],
+        "title": "PaymentDetails",
+        "description": "Where shoppers pay. Shown at checkout and when the rider arrives."
+      },
+      "PaymentIn": {
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9]{6,24}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "receipt_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Receipt Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "PaymentIn"
+      },
+      "PaymentMatch": {
+        "properties": {
+          "receipt_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Receipt Id"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code",
+            "description": "Masked to the last 3 characters when found by name."
+          },
+          "payer_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payer Name"
+          },
+          "amount_cents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Cents"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "received_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Received At"
+          },
+          "used": {
+            "type": "boolean",
+            "title": "Used"
+          },
+          "enough": {
+            "type": "boolean",
+            "title": "Enough"
+          }
+        },
+        "type": "object",
+        "required": [
+          "receipt_id",
+          "code",
+          "payer_name",
+          "amount_cents",
+          "currency",
+          "received_at",
+          "used",
+          "enough"
+        ],
+        "title": "PaymentMatch"
+      },
+      "PaymentReceipt": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "amount_cents": {
+            "type": "integer",
+            "title": "Amount Cents"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "payer_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payer Name"
+          },
+          "payer_phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payer Phone"
+          },
+          "account_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Ref"
+          },
+          "received_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Received At"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "unconfirmed",
+              "confirmed",
+              "expired",
+              "void"
+            ],
+            "title": "Status"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "order_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Id"
+          },
+          "order_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Number"
+          },
+          "confirmed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmed At"
+          },
+          "confirmed_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmed By Name"
+          },
+          "confirmed_role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmed Role"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "provider",
+          "source",
+          "code",
+          "amount_cents",
+          "currency",
+          "payer_name",
+          "payer_phone",
+          "account_ref",
+          "received_at",
+          "status",
+          "expires_at",
+          "order_id",
+          "order_number",
+          "confirmed_at",
+          "confirmed_by_name",
+          "confirmed_role",
+          "note",
+          "created_at"
+        ],
+        "title": "PaymentReceipt"
+      },
+      "PaymentUpdate": {
+        "properties": {
+          "order_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Id"
+          },
+          "order_number": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Number"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "void"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "PaymentUpdate"
       },
       "Payout": {
         "properties": {
@@ -11306,6 +14172,21 @@
         "title": "PublicPlan",
         "description": "A stall plan as the public sees it: what it includes, not what it\ncosts. Prices are agreed with the admin; GET /status has the contact."
       },
+      "RejectIn": {
+        "properties": {
+          "note": {
+            "type": "string",
+            "maxLength": 500,
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "note"
+        ],
+        "title": "RejectIn"
+      },
       "RentInvoice": {
         "properties": {
           "id": {
@@ -11535,8 +14416,13 @@
             "type": "string",
             "title": "Order Number"
           },
+          "placed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Placed At"
+          },
           "store": {
-            "$ref": "#/components/schemas/StoreRef"
+            "$ref": "#/components/schemas/RiderStore"
           },
           "pickup": {
             "anyOf": [
@@ -11592,9 +14478,32 @@
             ],
             "title": "Customer Phone"
           },
+          "customer_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Note"
+          },
+          "amount_due_cents": {
+            "type": "integer",
+            "title": "Amount Due Cents"
+          },
           "cash_to_collect_cents": {
             "type": "integer",
             "title": "Cash To Collect Cents"
+          },
+          "payment_confirmed": {
+            "type": "boolean",
+            "title": "Payment Confirmed"
+          },
+          "earning_cents": {
+            "type": "integer",
+            "title": "Earning Cents"
           },
           "fee_cents": {
             "type": "integer",
@@ -11607,6 +14516,18 @@
           "items": {
             "type": "integer",
             "title": "Items"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
           },
           "assigned_at": {
             "type": "string",
@@ -11637,6 +14558,18 @@
             ],
             "title": "Picked Up At"
           },
+          "arrived_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Arrived At"
+          },
           "delivered_at": {
             "anyOf": [
               {
@@ -11655,19 +14588,26 @@
           "id",
           "status",
           "order_number",
+          "placed_at",
           "store",
           "pickup",
           "dropoff",
           "dropoff_address",
           "customer_name",
           "customer_phone",
+          "customer_note",
+          "amount_due_cents",
           "cash_to_collect_cents",
+          "payment_confirmed",
+          "earning_cents",
           "fee_cents",
           "currency",
           "items",
+          "run_id",
           "assigned_at",
           "accepted_at",
           "picked_up_at",
+          "arrived_at",
           "delivered_at"
         ],
         "title": "RiderDelivery"
@@ -11798,6 +14738,18 @@
           "currency": {
             "type": "string",
             "title": "Currency"
+          },
+          "ride_status": {
+            "type": "string",
+            "enum": [
+              "offline",
+              "idle",
+              "delivering"
+            ],
+            "title": "Ride Status"
+          },
+          "rules": {
+            "$ref": "#/components/schemas/RiderRules"
           }
         },
         "type": "object",
@@ -11816,7 +14768,9 @@
           "completed_deliveries",
           "earnings_cents",
           "unpaid_earnings_cents",
-          "currency"
+          "currency",
+          "ride_status",
+          "rules"
         ],
         "title": "RiderMe"
       },
@@ -11910,6 +14864,106 @@
           "vehicle"
         ],
         "title": "RiderPublic"
+      },
+      "RiderRules": {
+        "properties": {
+          "pool_radius_km": {
+            "type": "number",
+            "title": "Pool Radius Km"
+          },
+          "batch_radius_km": {
+            "type": "number",
+            "title": "Batch Radius Km"
+          },
+          "pickup_radius_km": {
+            "type": "number",
+            "title": "Pickup Radius Km"
+          },
+          "max_batch": {
+            "type": "integer",
+            "title": "Max Batch"
+          },
+          "commission_rate": {
+            "type": "number",
+            "title": "Commission Rate"
+          },
+          "rider_fee_cents": {
+            "type": "integer",
+            "title": "Rider Fee Cents"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pool_radius_km",
+          "batch_radius_km",
+          "pickup_radius_km",
+          "max_batch",
+          "commission_rate",
+          "rider_fee_cents"
+        ],
+        "title": "RiderRules",
+        "description": "The admin's rules for riders, so the app can explain what's locked."
+      },
+      "RiderRun": {
+        "properties": {
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "stops": {
+            "items": {
+              "$ref": "#/components/schemas/RiderDelivery"
+            },
+            "type": "array",
+            "title": "Stops"
+          },
+          "route": {
+            "items": {
+              "$ref": "#/components/schemas/Waypoint"
+            },
+            "type": "array",
+            "title": "Route"
+          }
+        },
+        "type": "object",
+        "required": [
+          "run_id",
+          "stops",
+          "route"
+        ],
+        "title": "RiderRun"
+      },
+      "RiderStore": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "slug",
+          "name"
+        ],
+        "title": "RiderStore"
       },
       "SellerMe": {
         "properties": {
@@ -12528,6 +15582,206 @@
         ],
         "title": "SellerVariant"
       },
+      "SettleIn": {
+        "properties": {
+          "amount_cents": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10000000000.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Cents"
+          },
+          "reference": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 2,
+            "title": "Reference"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "force": {
+            "type": "boolean",
+            "title": "Force",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "reference"
+        ],
+        "title": "SettleIn"
+      },
+      "Settlement": {
+        "properties": {
+          "store_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Store Id"
+          },
+          "store_name": {
+            "type": "string",
+            "title": "Store Name"
+          },
+          "store_slug": {
+            "type": "string",
+            "title": "Store Slug"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "owed_cents": {
+            "type": "integer",
+            "title": "Owed Cents",
+            "description": "Takings past the holding period, after rent, commission and delivery."
+          },
+          "held_cents": {
+            "type": "integer",
+            "title": "Held Cents",
+            "description": "Takings still inside the payout interval."
+          },
+          "sales_cents": {
+            "type": "integer",
+            "title": "Sales Cents"
+          },
+          "commission_cents": {
+            "type": "integer",
+            "title": "Commission Cents"
+          },
+          "fees_cents": {
+            "type": "integer",
+            "title": "Fees Cents"
+          },
+          "delivery_cents": {
+            "type": "integer",
+            "title": "Delivery Cents"
+          },
+          "rent_cents": {
+            "type": "integer",
+            "title": "Rent Cents"
+          },
+          "paid_out_cents": {
+            "type": "integer",
+            "title": "Paid Out Cents"
+          },
+          "net_cents": {
+            "type": "integer",
+            "title": "Net Cents",
+            "description": "What a settlement now would pay: owed_cents if positive."
+          },
+          "books_balanced": {
+            "type": "boolean",
+            "title": "Books Balanced"
+          },
+          "blockers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Blockers"
+          },
+          "last_payout_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Payout At"
+          },
+          "next_payout_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Next Payout At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "store_id",
+          "store_name",
+          "store_slug",
+          "currency",
+          "owed_cents",
+          "held_cents",
+          "sales_cents",
+          "commission_cents",
+          "fees_cents",
+          "delivery_cents",
+          "rent_cents",
+          "paid_out_cents",
+          "net_cents",
+          "books_balanced",
+          "blockers",
+          "last_payout_at",
+          "next_payout_at"
+        ],
+        "title": "Settlement"
+      },
+      "SheetOut": {
+        "properties": {
+          "sheet": {
+            "type": "string",
+            "title": "Sheet"
+          },
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/Column"
+            },
+            "type": "array",
+            "title": "Columns"
+          },
+          "rows": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Rows"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sheet",
+          "columns",
+          "rows",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "SheetOut"
+      },
       "ShiftIn": {
         "properties": {
           "online": {
@@ -12722,6 +15976,10 @@
             "type": "integer",
             "title": "Rider Fee Cents"
           },
+          "rider_commission_rate": {
+            "type": "number",
+            "title": "Rider Commission Rate"
+          },
           "tax_rate": {
             "type": "number",
             "title": "Tax Rate"
@@ -12741,6 +15999,9 @@
             ],
             "title": "Maintenance Message"
           },
+          "payment": {
+            "$ref": "#/components/schemas/PaymentDetails"
+          },
           "vendor_signups_open": {
             "type": "boolean",
             "title": "Vendor Signups Open"
@@ -12748,6 +16009,107 @@
           "rider_signups_open": {
             "type": "boolean",
             "title": "Rider Signups Open"
+          },
+          "rider_pool_radius_km": {
+            "type": "number",
+            "title": "Rider Pool Radius Km"
+          },
+          "rider_batch_radius_km": {
+            "type": "number",
+            "title": "Rider Batch Radius Km"
+          },
+          "rider_pickup_radius_km": {
+            "type": "number",
+            "title": "Rider Pickup Radius Km"
+          },
+          "rider_max_batch": {
+            "type": "integer",
+            "title": "Rider Max Batch"
+          },
+          "payout_interval_days": {
+            "type": "integer",
+            "title": "Payout Interval Days"
+          },
+          "payment_code_ttl_hours": {
+            "type": "integer",
+            "title": "Payment Code Ttl Hours"
+          },
+          "mpesa_till": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mpesa Till"
+          },
+          "mpesa_paybill": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mpesa Paybill"
+          },
+          "payment_account_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Account Name"
+          },
+          "bank_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bank Name"
+          },
+          "bank_account_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bank Account Name"
+          },
+          "bank_account_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bank Account Number"
+          },
+          "payment_instructions": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Instructions"
           },
           "updated_at": {
             "type": "string",
@@ -12767,11 +16129,26 @@
           "express_shipping_cents",
           "free_shipping_over_cents",
           "rider_fee_cents",
+          "rider_commission_rate",
           "tax_rate",
           "maintenance_mode",
           "maintenance_message",
+          "payment",
           "vendor_signups_open",
           "rider_signups_open",
+          "rider_pool_radius_km",
+          "rider_batch_radius_km",
+          "rider_pickup_radius_km",
+          "rider_max_batch",
+          "payout_interval_days",
+          "payment_code_ttl_hours",
+          "mpesa_till",
+          "mpesa_paybill",
+          "payment_account_name",
+          "bank_name",
+          "bank_account_name",
+          "bank_account_number",
+          "payment_instructions",
           "updated_at"
         ],
         "title": "SiteSettings"
@@ -12951,6 +16328,181 @@
               }
             ],
             "title": "Contact Note"
+          },
+          "rider_commission_rate": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rider Commission Rate"
+          },
+          "rider_pool_radius_km": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 200.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rider Pool Radius Km"
+          },
+          "rider_batch_radius_km": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 50.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rider Batch Radius Km"
+          },
+          "rider_pickup_radius_km": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 50.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rider Pickup Radius Km"
+          },
+          "rider_max_batch": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rider Max Batch"
+          },
+          "payout_interval_days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 90.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payout Interval Days"
+          },
+          "payment_code_ttl_hours": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 2160.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Code Ttl Hours"
+          },
+          "mpesa_till": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9]{4,10}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mpesa Till"
+          },
+          "mpesa_paybill": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9]{4,10}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mpesa Paybill"
+          },
+          "payment_account_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Account Name"
+          },
+          "bank_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bank Name"
+          },
+          "bank_account_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bank Account Name"
+          },
+          "bank_account_number": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9A-Za-z -]{4,34}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bank Account Number"
+          },
+          "payment_instructions": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Instructions"
           }
         },
         "additionalProperties": false,
@@ -13041,6 +16593,10 @@
             "type": "integer",
             "title": "Rider Fee Cents"
           },
+          "rider_commission_rate": {
+            "type": "number",
+            "title": "Rider Commission Rate"
+          },
           "tax_rate": {
             "type": "number",
             "title": "Tax Rate"
@@ -13059,6 +16615,9 @@
               }
             ],
             "title": "Maintenance Message"
+          },
+          "payment": {
+            "$ref": "#/components/schemas/PaymentDetails"
           }
         },
         "type": "object",
@@ -13073,9 +16632,11 @@
           "express_shipping_cents",
           "free_shipping_over_cents",
           "rider_fee_cents",
+          "rider_commission_rate",
           "tax_rate",
           "maintenance_mode",
-          "maintenance_message"
+          "maintenance_message",
+          "payment"
         ],
         "title": "SiteStatus"
       },
@@ -13122,6 +16683,48 @@
         "additionalProperties": false,
         "type": "object",
         "title": "SlotUpdate"
+      },
+      "SmsIn": {
+        "properties": {
+          "text": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 10000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 10000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "body": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 10000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Body"
+          }
+        },
+        "type": "object",
+        "title": "SmsIn"
       },
       "StockChange": {
         "properties": {
@@ -14759,6 +18362,55 @@
           "caption"
         ],
         "title": "Video"
+      },
+      "Waypoint": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "rider",
+              "pickup",
+              "dropoff"
+            ],
+            "title": "Kind"
+          },
+          "lat": {
+            "type": "number",
+            "title": "Lat"
+          },
+          "lng": {
+            "type": "number",
+            "title": "Lng"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "delivery_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "title": "Delivery Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "lat",
+          "lng",
+          "label",
+          "delivery_ids"
+        ],
+        "title": "Waypoint"
       },
       "WishlistIn": {
         "properties": {

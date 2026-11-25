@@ -1236,28 +1236,21 @@ async def inventory_history(
 
 
 # ---------------------------------------------------------------------------
-# Payment confirmation (cash on delivery, bank transfer to the store)
+# Payment confirmation
 # ---------------------------------------------------------------------------
 
 
-@router.post("/orders/{store_order_id}/confirm-payment", response_model=s.StoreOrder,
+@router.post("/orders/{store_order_id}/confirm-payment", response_model=s.StoreOrder, deprecated=True,
              dependencies=[sensitive_limit("confirm-payment")])
-async def confirm_payment(store_order_id: uuid.UUID, ctx: ActiveSeller, conn: Conn, settings: Cfg):
-    async with conn.transaction():
-        so = await conn.fetchrow(
-            """select so.payment_status, o.payment_method from store_orders so join orders o on o.id = so.order_id
-                where so.id = $1 and so.store_id = $2 for update of so""",
-            store_order_id, ctx.store_id,
-        )
-        if so is None:
-            raise not_found("order")
-        if so["payment_method"] == "card":
-            raise ApiError(409, "paid_online", "Card orders are confirmed by the payment provider, not the store.")
-        if so["payment_status"] == "paid":
-            raise ApiError(409, "already_paid", "This order is already marked paid.")
-        await conn.execute("select mark_store_order_paid($1, 'store', 0)", store_order_id)
-    await dispatch_mod.try_assign(conn, [store_order_id], settings)
-    return await _store_order(conn, ctx.store_id, store_order_id)
+async def confirm_payment(store_order_id: uuid.UUID, ctx: ActiveSeller, conn: Conn):
+    """Stores no longer confirm payments. Shoppers pay The Bazaar's till,
+    and the rider at the door (or an admin) confirms it by the transaction
+    code. Kept so old clients get a clear answer: always 403."""
+    if not await conn.fetchval("select 1 from store_orders where id = $1 and store_id = $2",
+                               store_order_id, ctx.store_id):
+        raise not_found("order")
+    raise ApiError(403, "payments_central",
+                   "Payments go to The Bazaar's till and are confirmed by the rider or an admin, not the store.")
 
 
 # ---------------------------------------------------------------------------
@@ -1325,13 +1318,14 @@ async def _store_riders(conn: asyncpg.Connection, store_id: uuid.UUID, settings:
     sql = _STORE_RIDERS + (" and r.id = $2" if rider_id else "")
     recs = await conn.fetch(sql, store_id, *([rider_id] if rider_id else []))
     has_pickup = store["pickup_lat"] is not None
+    pool_km = (await dispatch_mod.rules(conn))["pool_radius_km"]
     out = []
     for r in recs:
         km = None
         if has_pickup and r["last_lat"] is not None:
             km = round(haversine_km(store["pickup_lat"], store["pickup_lng"], r["last_lat"], r["last_lng"]), 2)
         relation = "on_job" if r["on_job"] else "recent" if r["worked"] else "nearby"
-        if relation == "nearby" and (km is None or km > settings.dispatch_radius_km):
+        if relation == "nearby" and (km is None or km > pool_km):
             continue
         works_here = relation != "nearby"
         jobs = []
@@ -1408,13 +1402,17 @@ async def dispatch(store_order_id: uuid.UUID, body: s.DispatchIn, ctx: ActiveSel
             raise ApiError(409, "already_dispatched", "A rider is already on this order.")
         if so["pickup_lat"] is None:
             raise ApiError(422, "pickup_missing", "Set your store's pickup location before dispatching riders.")
+        dlat, dlng = dispatch_mod._dropoff(so)
         rider = await conn.fetchrow(
-            f"""select r.id from riders r join profiles p on p.id = r.id
-                 where r.id = $1 and {dispatch_mod.AVAILABLE} for update of r""",
-            body.rider_id,
+            f"""select r.id, rider_batch_block(r.id, $2, $3, $4, $5, $6) as blocked
+                  from riders r join profiles p on p.id = r.id
+                 where r.id = $1 and {dispatch_mod.AVAILABLE} for update of r skip locked""",
+            body.rider_id, so["store_id"], so["pickup_lat"], so["pickup_lng"], dlat, dlng,
         )
         if rider is None:
             raise ApiError(409, "rider_unavailable", "That rider isn't available right now.")
+        if rider["blocked"]:
+            raise ApiError(409, "rider_unavailable", "That rider is on a run that doesn't go your way.")
         await dispatch_mod.create_delivery(conn, so, rider["id"], settings, body.note)
     return await _store_order(conn, ctx.store_id, store_order_id)
 

@@ -35,8 +35,15 @@ async def tick(pool: asyncpg.Pool, hourly: bool) -> None:
                 "select expire_unpaid_orders(make_interval(mins => $1), interval '72 hours')",
                 settings.unpaid_order_ttl_minutes,
             )
-        if billed or expired:
-            log.info("billed %s subscriptions, expired %s unpaid orders", billed, expired)
+            # Payments nobody used within the admin's window stop working
+            # for riders; an admin can still apply them.
+            stale = await conn.fetchval(
+                """with t as (update payment_receipts set status = 'expired'
+                               where status = 'unconfirmed' and expires_at < now() returning 1)
+                   select count(*) from t"""
+            )
+        if billed or expired or stale:
+            log.info("billed %s subscriptions, expired %s unpaid orders and %s payments", billed, expired, stale)
         if hourly:
             pruned = await conn.fetchval(
                 "select prune_rider_locations(make_interval(days => $1))", settings.rider_location_retention_days

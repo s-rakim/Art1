@@ -137,6 +137,9 @@ class Actor:
     async def patch(self, url, json=None, **kw):
         return await self.client.patch(url, headers=self.headers, json=json, **kw)
 
+    async def put(self, url, json=None, **kw):
+        return await self.client.put(url, headers=self.headers, json=json, **kw)
+
     async def delete(self, url, **kw):
         return await self.client.delete(url, headers=self.headers, **kw)
 
@@ -231,3 +234,36 @@ ADDRESS = {
     "lat": 5.56,
     "lng": -0.20,
 }
+
+
+_codes = iter(range(10_000_000, 99_999_999))
+
+
+def new_code() -> str:
+    """A fresh M-Pesa style transaction code."""
+    return f"TK{next(_codes)}"
+
+
+async def till_message(admin: Actor, amount_cents: int, order_number: str | None = None,
+                       name: str = "AMA BUYER", code: str | None = None, currency: str = "USD") -> str:
+    """The admin pastes one till message into the payments bank. Returns its code."""
+    code = code or new_code()
+    ref = f" for account {order_number}" if order_number else ""
+    text = (f"{code} Confirmed. {currency} {amount_cents // 100}.{amount_cents % 100:02d} received from {name} "
+            f"254712345678{ref} on 25/11/26 at 3:41 PM. New Account balance is {currency} 99.00.")
+    r = await admin.post(f"{API}/admin/payments/import", json={"text": text, "commit": True})
+    assert r.status_code == 200, r.text
+    assert r.json()["stored"] == 1, r.json()
+    return code
+
+
+async def pay_at_door(admin: Actor, rider: Actor, delivery_id: str) -> dict:
+    """The rider arrives, the shopper pays the till, the rider confirms the code."""
+    r = await rider.post(f"{API}/rider/deliveries/{delivery_id}/arrived")
+    assert r.status_code == 200, r.text
+    d = r.json()
+    code = await till_message(admin, d["amount_due_cents"], d["order_number"])
+    r = await rider.post(f"{API}/rider/deliveries/{delivery_id}/payment", json={"code": code})
+    assert r.status_code == 200, r.text
+    assert r.json()["payment_confirmed"] is True, r.json()
+    return {"code": code, **r.json()}

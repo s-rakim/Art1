@@ -77,27 +77,86 @@ worked out in the database while the stock rows are locked; the client only
 says what and how many. The buyer drops a pin for delivery at checkout and
 can move it (`PUT /orders/{id}/dropoff`) until the parcel arrives.
 
-**Payments.** Card payments are wired for Stripe but switched off until you're
-ready. Until then buyers choose cash on delivery or bank transfer, and the
-store presses "confirm payment" when the money arrives. Every movement of a
-store's money is a row in `ledger_entries`: sales, commission, per unit fees,
-rent, placements, delivery fees, payouts and refunds. A store's balance is
-the sum. Sales paid through the platform are held for `PAYOUT_HOLD_DAYS`
-before they can be paid out.
+**Payments.** Every buyer pays one account: The Bazaar's M-Pesa till or bank
+account, which the admin sets in the console (`PATCH /admin/settings`) and
+which `/status` shows to the apps. Stores never take money directly and can't
+mark an order paid. A checkout that spans several stores is still one
+payment. Buyers either pay on arrival (`cod`: M-Pesa or bank while the rider
+is at the door) or pay first (`bank_transfer`).
+
+Payment messages go into a payments bank (`payment_receipts`). They arrive
+three ways: an admin pastes or forwards M-Pesa and bank SMS
+(`POST /admin/payments/import`, preview first, then commit), a phone forwards
+them as they come in (`POST /payments/sms/{token}`), or Safaricom's Daraja
+posts each till payment (`/payments/till/{token}/confirmation`). The reader
+pulls out the transaction code, amount, payer's name and phone, time and any
+order number, caps and cleans the text, and stores each code once. A code is
+unconfirmed until it is matched to an order, then confirmed for good:
+a database trigger refuses to change, reuse or delete a confirmed code, and
+unconfirmed ones expire after `payment_code_ttl_hours`. Partial payments add
+up; the order's store parts are marked paid once their total is covered.
+
+At the door the rider taps "arrived" (the admin and the buyer see it live),
+then types the transaction code or the payer's name. They see the amount and
+whether it covers the order, and confirm. Two riders racing for the same code
+can't both win: the order and the receipt are locked, and the loser gets
+`code_used`. Only then can the parcel be marked delivered, with the buyer's
+handover code as before. An admin can match a code to an order from the
+console too (`PATCH /admin/payments/{id}`), or void a bad one.
+
+**Ledger and payouts.** Every movement of a store's money is a row in
+`ledger_entries`: sales, commission, per unit fees, rent, placements, the
+rider's delivery fee, payouts and refunds. A store's balance is the sum.
+Takings are held for the admin's payout interval (`payout_interval_days`),
+then show as owed on `GET /admin/settlements`. The admin pays a store and
+records it (`POST /admin/settlements/{store_id}`) once the books balance:
+no vendor sheet entries waiting, no delivered orders still unpaid and no
+rider waiting at a door. Settling early or with open items needs `force` and
+a note.
+
+**Sheets.** Read-only sheets per store: ledger, sales, payments (with the
+codes), inventory sold, the vendor's own entries and payouts. Each comes as
+JSON or CSV (`?format=csv`). A vendor gets only their own store
+(`GET /seller/sheets/{sheet}`); the admin gets any store or all of them
+(`GET /admin/sheets/{sheet}`). The editable sheet is `sheet_entries`: a
+vendor adds and fixes rows (`/seller/sheet-entries`), and they stay pending
+until the admin confirms them against a transaction code or other reference
+(`POST /admin/sheet-entries/{id}/confirm` with the matching key). Confirmed
+rows are locked and appear in the read-only sheets. Every change to entries
+and payment codes goes to `audit_log`, which the database won't let anyone
+edit or delete (`GET /admin/audit`). CSV cells that start with `=`, `+`, `-`
+or `@` are escaped so a spreadsheet won't run them.
 
 **Deliveries.** As soon as a store order is ready to leave (straight away for
-cash on delivery, once the store confirms a transfer), it is offered to the
-closest free rider to the shop: hired, on shift, seen in the last ten
-minutes, carrying fewer than three jobs and within `DISPATCH_RADIUS_KM`. The
-rider has `DISPATCH_ACCEPT_SECONDS` to accept; a decline or silence passes it
-to the next closest, and with nobody free the order waits and the worker tries
-again every 15 seconds. The store can step in at any time, pull a job back and
-pick a rider itself. The rider sees only the rough area until they accept,
-then the exact pin. While they're on the job their phone sends its position,
-heading and speed every 10 to 15 seconds, and the buyer, the store and the
-admin watch it live, and nobody else. At the door the buyer reads a six digit
-handover code to the rider; without it the parcel can't be marked delivered,
-and five wrong guesses lock the delivery.
+pay on arrival, once paid for bank transfer), it is offered to the closest
+free rider to the shop: hired, on shift, seen in the last ten minutes, not
+holding another offer, and within the admin's pool radius. Riders with
+nothing on are asked first. The rider has `DISPATCH_ACCEPT_SECONDS` to
+accept; a decline or silence passes it to the next closest, and with nobody
+free the order waits and the worker tries again every 15 seconds.
+
+Riders also see a job board (`GET /rider/open-jobs`) of waiting orders and
+can claim or skip them. A rider on a run can only add jobs whose shop is
+close to the shop of the run (`rider_pickup_radius_km`) and whose drop-off is
+close to the run's drop-offs (`rider_batch_radius_km`), up to
+`rider_max_batch` at once; anything else is marked not batchable. The same
+rule, one database function, applies to offers, claims and a store choosing
+a rider by hand. `GET /rider/run` returns the stops and a route in the order
+the jobs were placed. A rider earns the admin's flat fee plus their
+commission on the delivery charge, fixed on the delivery when it is created.
+
+The store can step in at any time, pull a job back and pick a rider itself.
+The rider sees only the rough area until they accept, then the exact pin,
+the buyer's phone and their note. While they're on the job their phone sends
+its position, heading and speed every 10 to 15 seconds, and the buyer, the
+store and the admin watch it live, and nobody else. At the door the buyer
+reads a six digit handover code to the rider; without it the parcel can't be
+marked delivered, and five wrong guesses lock the delivery.
+
+**Wishlist and choosing what to buy.** The wishlist is separate from the
+cart (`/wishlist`, and `POST /cart/items/{id}/save-for-later` moves a line
+across). Checkout can take some cart lines (`cart_item_ids`); the rest stay in
+the cart.
 
 Vendors get a riders list (`GET /seller/riders`) with the riders on their
 jobs, those who delivered for them lately, and free riders nearby. Phone
@@ -204,6 +263,23 @@ This was built expecting people to try to break it. What's in place:
   under the store's own folder with random names, and a store can only
   attach, replace or delete its own files. Only the upload routes accept
   bodies over 2 MB, at Caddy and in the API.
+- **Payment codes**: a transaction code is unique in the database and, once
+  confirmed, can't be changed, reused or deleted, even by an admin with SQL
+  access through the API. Confirming locks the order and then the code, so
+  two riders at two doors can't both spend it. Riders can only look up codes
+  for a delivery they are standing at; a name search shows at most three
+  unconfirmed matches with the code masked, and a code already used elsewhere
+  just reads as used. Lookups are rate limited per rider. Message text is
+  capped at 2,000 characters and cleaned before anything reads it.
+- **Payment feeds** (`/payments/sms/{token}`, `/payments/till/{token}/...`)
+  need a secret of at least 32 characters in the address, checked in
+  constant time, and Daraja posts must name our own shortcode. The secret is
+  masked in Caddy's logs and the API's access log is off. The feeds stay open
+  during maintenance so no payment message is lost.
+- **Sheets and audit**: vendor sheets are filtered by the caller's store in
+  SQL, never by a parameter. Confirmed sheet entries are locked by a trigger,
+  and `audit_log` refuses updates, deletes and truncation. CSV exports escape
+  formula characters.
 - **Webhooks**: Stripe events are signature checked and cross-checked
   against the order's amount, currency and session before anything is
   marked paid. The endpoint doesn't exist until Stripe is configured.

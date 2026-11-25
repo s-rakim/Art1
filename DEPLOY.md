@@ -130,10 +130,13 @@ nano .env
 | `SUPABASE_SERVICE_ROLE_KEY` | the service role or secret key |
 | `SUPABASE_JWT_SECRET` | the legacy JWT secret, or empty (step 1.7) |
 | `MAP_CENTER` | `lat,lng` of your city |
+| `CURRENCY` | `KES` for M-Pesa |
+| `PAYMENT_WEBHOOK_TOKEN` | a long random secret, `openssl rand -hex 24`. Only needed for the SMS forwarder or Daraja (step 7) |
 | `PORTAL_SECRET_KEY` | `openssl rand -hex 32`; signs the portal's cookies |
 
 Leave prices alone: there aren't any in `.env`. Shipping, tax, the rider's
-fee, stall rent and placements are all set by an admin in the console once
+fee and commission, stall rent, placements, the payout interval and the till
+or bank account buyers pay into are all set by an admin in the console once
 the site is up.
 
 The anon key ends up in the web app's JavaScript, which is expected; row
@@ -200,6 +203,16 @@ Sign out and back in, and you land on the admin console. From there:
 - set shipping, tax, the rider's fee, and the contact details shown to
   would-be vendors on the stall page
 - set stall rent, commission and placement prices
+- set where buyers pay: the M-Pesa till or paybill number, or the bank
+  name, account name and number, plus a line of instructions. Every order
+  on the site is paid into this one account
+- set how riders work: their commission on the delivery charge, how far
+  away riders are looked for (`rider_pool_radius_km`, 15 by default), how
+  close two shops must be to share a run (`rider_pickup_radius_km`, 2), how
+  close the drop-offs must be (`rider_batch_radius_km`, 8) and how many jobs
+  one rider can carry (`rider_max_batch`, 3)
+- set the payout interval (`payout_interval_days`, 7) and how long an
+  unmatched payment code stays usable (`payment_code_ttl_hours`, 72)
 - hire or turn down rider applications
 - approve vendors
 
@@ -223,6 +236,55 @@ grant select on categories, products, stores, product_variants to bazaar_search;
 Then set `SEARCH_DATABASE_URL` to the same session pooler string with the
 user changed to `bazaar_search.<project-ref>` and the new password, and run
 `docker compose up -d`.
+
+## 7. Getting payment messages in
+
+Riders confirm payment at the door by the transaction code, so the codes
+have to be in the system first. There are three ways, and you can use more
+than one. A code is stored once, however many ways it arrives.
+
+**Paste them.** Admin console > Payments > Import. Paste one or many M-Pesa
+or bank SMS, check the preview, then save. Nothing else to set up.
+
+**Forward them from a phone.** Put the till's SIM in a spare Android phone
+and install an SMS forwarding app that can POST to a web address. Point it
+at
+
+```
+https://yourdomain.com/api/v1/payments/sms/<PAYMENT_WEBHOOK_TOKEN>
+```
+
+with the body `{"text": "<the message>"}` (most apps let you set this as a
+JSON template). Only forward messages from MPESA and your bank's sender
+name. Anyone with the address can post to it, so treat it like a password;
+if it leaks, change `PAYMENT_WEBHOOK_TOKEN` and the phone, then
+`docker compose up -d`.
+
+**Daraja.** Once Safaricom has approved a Daraja app for the till, with
+OAuth switched on, set `MPESA_ENV`, `MPESA_SHORTCODE`,
+`MPESA_CONSUMER_KEY` and `MPESA_CONSUMER_SECRET` in `.env`, run
+`docker compose up -d`, then register the callback once:
+
+```bash
+docker compose exec api python -m app.cli register-mpesa-urls
+```
+
+From then on every till payment is posted to the API the moment it lands.
+Try it with `MPESA_ENV=sandbox` and the sandbox shortcode first. Do this
+again if you change the domain or the token.
+
+Unmatched codes expire after `payment_code_ttl_hours`. Confirmed ones are
+kept for good and can't be used twice.
+
+### Paying the stores
+
+Admin console > Settlements lists what each store is owed once takings have
+been held for the payout interval, minus rent, commission and delivery.
+Pay the store from the till or bank as you normally would, then record it
+there with the M-Pesa or bank reference. It only lets you once the books
+balance: no vendor sheet entries waiting for you, no delivered order still
+unpaid and no rider waiting at a door. You can settle anyway with a note,
+and the note is kept.
 
 ## Day to day
 

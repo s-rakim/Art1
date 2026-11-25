@@ -58,9 +58,13 @@
 		reverse_proxy web:3000
 	}
 
+	# The till and SMS feed addresses carry a secret; keep it out of logs.
 	log {
 		output stdout
-		format json
+		format filter {
+			request>uri regexp ^(/api/v1/payments/(?:sms|till)/)[^/?]+ ${1}REDACTED
+			wrap json
+		}
 	}
 }
 

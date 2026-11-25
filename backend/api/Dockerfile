@@ -36,4 +36,6 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
 ENTRYPOINT ["/usr/bin/tini", "--"]
 # --proxy-headers so rate limits see the real client IP from Caddy. Only
 # safe because the API port is never published; Caddy is the only client.
-CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers ${WEB_CONCURRENCY} --proxy-headers --forwarded-allow-ips='*' --no-server-header --no-date-header --timeout-graceful-shutdown 20"]
+# Caddy logs every request (with the payment feed secret masked), so
+# uvicorn's own access log, which would print it in full, is off.
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers ${WEB_CONCURRENCY} --proxy-headers --forwarded-allow-ips='*' --no-access-log --no-server-header --no-date-header --timeout-graceful-shutdown 20"]
