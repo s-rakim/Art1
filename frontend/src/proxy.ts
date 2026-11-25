@@ -99,6 +99,6 @@ export const config = {
   matcher: [
     // Prefetches go through the proxy too, so nobody can skip the auth check or forge
     // the x-pathname header by sending a prefetch-looking request.
-    "/((?!_next/static|_next/image|favicon.ico|icon.svg|robots.txt|vendor/).*)",
+    "/((?!_next/static|_next/image|favicon.ico|icon.svg|robots.txt|vendor/|img/).*)",
   ],
 };

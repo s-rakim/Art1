@@ -5,10 +5,10 @@ import { LogoMark } from "./guest-frame";
 import { NavToggle } from "./app-navigation";
 import { AccountMenu, AppMenu, BagButton, HeaderSearch, WishLink } from "./header-client";
 
-/** Nextcloud's header: transparent over the plain background, white glyphs, apps on the left, user menu on the right. */
+/** Nextcloud's header: on the wallpaper, white glyphs, apps on the left, user menu on the right. */
 export function Header({ hasNav = false }: { hasNav?: boolean }) {
   return (
-    <header className="sticky top-0 z-40 flex h-[44px] items-center gap-1 bg-background-plain px-1.5 text-background-plain-text">
+    <header className="wallpaper sticky top-0 z-40 flex h-[44px] items-center gap-1 px-1.5 text-background-plain-text">
       {hasNav && <NavToggle />}
       <Link href="/" className="flex h-[44px] shrink-0 items-center gap-2 rounded-element px-2" aria-label={`${STORE_NAME} home`}>
         <LogoMark size={26} />

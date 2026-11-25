@@ -17,9 +17,9 @@ export function ProductCard({ p, sponsored = false }: { p: P; sponsored?: boolea
           <ProductImage src={p.image_url} art={p.art} alt={p.title} className="transition-transform duration-300 group-hover:scale-[1.02]" />
         </Link>
         <div className="pointer-events-none absolute top-2 left-2 flex flex-col items-start gap-1">
-          {off > 0 && <span className="chip chip-error">−{off}%</span>}
-          {p.badges?.includes("New") && <span className="chip chip-primary">New</span>}
-          {p.badges?.includes("Bestseller") && <span className="chip chip-warning">Bestseller</span>}
+          {off > 0 && <span className="chip chip-primary">−{off}%</span>}
+          {p.badges?.includes("New") && <span className="chip chip-secondary">New</span>}
+          {p.badges?.includes("Bestseller") && <span className="chip chip-secondary">Bestseller</span>}
         </div>
         <div className="absolute top-2 right-2">
           <WishButton id={p.id} />
@@ -28,7 +28,7 @@ export function ProductCard({ p, sponsored = false }: { p: P; sponsored?: boolea
       <div className="flex flex-1 flex-col gap-0.5 px-0.5 pt-2 pb-0.5">
         <Link href={`/s/${p.store.slug}`} className="relative z-10 flex w-fit max-w-full items-center gap-1 truncate text-[13px] text-maxcontrast hover:text-main-text hover:underline">
           {p.store.name}
-          {p.store.verified && <CheckCircle size={14} className="shrink-0 text-element-success" aria-label="Verified store" />}
+          {p.store.verified && <CheckCircle size={14} className="shrink-0 text-primary-element" aria-label="Verified store" />}
         </Link>
         <h3 className="line-clamp-2 text-[15px] leading-snug font-medium">
           <Link href={`/p/${p.slug}`} className="after:absolute after:inset-0 after:content-['']">

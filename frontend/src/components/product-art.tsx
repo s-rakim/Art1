@@ -23,12 +23,12 @@ const shapes: Record<ArtShape, (fg: string) => React.ReactNode> = {
 export function ProductArt({ art, className, label }: { art?: Art; className?: string; label?: string }) {
   const a = {
     shape: art && art.shape in shapes ? art.shape : ("bag" as ArtShape),
-    bg: safeColor(art?.bg, "#e9e3d6"),
     fg: safeColor(art?.fg, "#16130f"),
   };
   return (
     <svg viewBox="0 0 200 200" className={className} role="img" aria-label={label ?? "Product illustration"} preserveAspectRatio="xMidYMid slice">
-      <rect width="200" height="200" fill={a.bg} />
+      {/* Placeholders share one pale blue backdrop so listings read as part of the same blue and white page. */}
+      <rect width="200" height="200" style={{ fill: "var(--color-primary-element-light)" }} />
       <ellipse cx="100" cy="166" rx="56" ry="6" fill="#16130f" opacity=".12" />
       {shapes[a.shape](a.fg)}
     </svg>

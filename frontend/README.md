@@ -73,23 +73,29 @@ Tracking uses MapLibre GL with raster tiles from `tile.openstreetmap.org`. Posit
 
 ## Look and feel
 
-The interface follows Nextcloud's design: the default Nextcloud blue (`#00679e`), the system font stack at 15px, 34px controls with 8px corners, a blue header with the app switcher on the left, and a rounded white body with a 300px navigation column. Below 1024px the navigation turns into a drawer behind the menu button in the header.
+The interface copies Nextcloud. Behind everything sits Nextcloud's default wallpaper, the blue and white "Fluid" image, with the header resting on it in white glyphs. Pages sit in a rounded body inset 8px from the edges: a see-through white navigation column on the left (the wallpaper shows through it, blurred) with the selected entry filled solid blue, and a white content area on the right. Below 1024px the navigation turns into a drawer behind the menu button.
 
-All of it comes from one token layer at the top of `src/app/globals.css`. The colour names match Nextcloud's CSS variables (`--color-main-background`, `--color-primary-element`, `--color-primary-element-light`, `--color-border-maxcontrast` and so on) and the values were computed with the same maths Nextcloud's theming app uses, for light and dark. Dark mode follows the operating system. Below the tokens are a handful of component classes copied from Nextcloud's Vue library: `.btn` (primary, secondary, tertiary, error, success), `.field`, `.chip`, `.counter`, `.note`, `.card`, `.nav-entry`, `.menu` and `.modal`. Pages use those and the token utilities rather than raw colours, so a theme change happens in one file.
+The home page is laid out like Nextcloud's Dashboard: a greeting on the wallpaper, shortcut pills, and see-through white panels for deals, new arrivals, shops, departments, rented shelves, wholesale and selling.
 
-Icons are Material Design Icons (`@mdi/js` paths, Apache 2.0), the set Nextcloud ships, inlined in `src/components/icons.tsx`.
+All of it comes from one token layer at the top of `src/app/globals.css`. The colour names match Nextcloud's CSS variables (`--color-main-background`, `--color-main-background-blur`, `--color-primary-element`, `--color-primary-element-light` and so on), and the values were computed with the same maths Nextcloud's theming app uses, from its default blue `#00679e`, for light and dark. Dark mode follows the operating system and swaps in the dark wallpaper. Below the tokens are component classes copied from Nextcloud's Vue library: `.btn` (primary, secondary, tertiary, error, success), `.field`, `.chip`, `.counter`, `.note`, `.card`, `.nav-entry`, `.widget`, `.menu` and `.modal`, plus a `glass` utility for the see-through surfaces. Pages use those and the token utilities rather than raw colours, so a theme change happens in one file. Accents stay blue and white; green, yellow and red only show up for status (delivered, pending, errors).
 
-The four areas share one frame:
+Icons are filled Material Design Icons (`@mdi/js` paths, Apache 2.0), the set and style Nextcloud uses, inlined in `src/components/icons.tsx`.
+
+The wallpaper (`public/img/background.webp` and `background-dark.webp`) is "Fluid" by Jo Myoung Hee, Nextcloud GmbH, licensed CC BY-SA 4.0. The footer and the login page carry that credit; keep it if the images stay.
+
+The areas share one frame:
 
 - `components/app-frame.tsx` is the header, the navigation column and the content area. The shop, the vendor dashboard, the rider app and the admin console each pass it their own navigation.
-- `components/guest-frame.tsx` is the centred card on the blue background used for log in, sign up, errors and maintenance, like Nextcloud's login page.
+- `app/(home)/layout.tsx` is the Dashboard-style frame for the home page, with no side navigation.
+- `components/guest-frame.tsx` is the centred white box on the wallpaper used for log in, sign up, errors and maintenance, like Nextcloud's login page.
 - The header's app menu shows Shop, Vendor, Rider and Admin depending on the signed-in user's roles (all four in demo mode).
 
 ## Layout
 
 ```
 src/
-  app/(shop)/     shopper routes, wrapped in the shop navigation
+  app/(home)/     the home page, laid out like Nextcloud's Dashboard
+  app/(shop)/     the other shopper routes, wrapped in the shop navigation
   app/seller/     vendor dashboard
   app/rider/      rider app and rider application
   app/admin/      admin console

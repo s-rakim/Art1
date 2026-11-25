@@ -81,7 +81,7 @@ export default async function SellPage() {
                 {left !== null && pl.booked != null && (
                   <>
                     <div className="mt-2 h-1.5 overflow-hidden rounded-pill bg-background-dark"><div className="h-full rounded-pill bg-primary-element" style={{ width: `${Math.min(100, (pl.booked / Math.max(1, pl.capacity)) * 100)}%` }} /></div>
-                    <p className={`mt-1 text-[12px] tabular-nums ${left <= 4 ? "text-text-error" : "text-maxcontrast"}`}>{left} of {pl.capacity} spots free today</p>
+                    <p className={`mt-1 text-[12px] tabular-nums ${left <= 4 ? "font-semibold text-primary-element" : "text-maxcontrast"}`}>{left} of {pl.capacity} spots free today</p>
                   </>
                 )}
                 {left === null && <p className="mt-1 text-[12px] text-maxcontrast tabular-nums">{pl.capacity} spots a day</p>}

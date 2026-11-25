@@ -18,7 +18,7 @@ export function Stat({ label, value, note, tone }: { label: string; value: strin
   return (
     <div className="card p-4">
       <p className="label">{label}</p>
-      <p className={`price mt-0.5 text-[24px] leading-tight ${tone === "signal" ? "text-text-error" : tone === "market" ? "text-text-success" : ""}`}>{value}</p>
+      <p className={`price mt-0.5 text-[24px] leading-tight ${tone === "signal" ? "text-primary-element" : tone === "market" ? "text-text-success" : ""}`}>{value}</p>
       {note && <p className="mt-0.5 text-[13px] text-maxcontrast">{note}</p>}
     </div>
   );

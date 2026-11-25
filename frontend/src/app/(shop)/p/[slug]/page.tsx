@@ -4,12 +4,13 @@ import { notFound } from "next/navigation";
 import { BuyBox } from "@/components/buy-box";
 import { CheckCircle, Message, Return, Shield, Truck } from "@/components/icons";
 import { ProductImage } from "@/components/product-art";
+import { Avatar } from "@/components/widget";
 import { ProductCard } from "@/components/product-card";
 import { TrackView } from "@/components/recently-viewed";
 import { Breadcrumbs, SectionHead, Stars } from "@/components/ui";
 import { api } from "@/lib/api";
 import { compact, pct, shortDate } from "@/lib/format";
-import { safeColor, safeSlug } from "@/lib/safe";
+import { safeSlug } from "@/lib/safe";
 
 type Params = Promise<{ slug: string }>;
 
@@ -64,7 +65,7 @@ export default async function ProductPage({ params }: { params: Params }) {
         <div className="lg:sticky lg:top-[60px] lg:self-start">
           <Link href={`/s/${product.store.slug}`} className="inline-flex items-center gap-1.5 text-[14px] text-maxcontrast hover:text-main-text hover:underline">
             {product.store.name}
-            {product.store.verified && <CheckCircle size={16} className="text-element-success" aria-label="Verified store" />}
+            {product.store.verified && <CheckCircle size={16} className="text-primary-element" aria-label="Verified store" />}
           </Link>
           <h1 className="heading mt-1 text-[24px]">{product.title}</h1>
           <div className="mt-1 flex flex-wrap items-center gap-3 text-[14px]">
@@ -88,10 +89,14 @@ export default async function ProductPage({ params }: { params: Params }) {
 
           {store && (
             <div className="card mt-4 overflow-hidden">
-              <div className="flex items-center gap-3 p-4" style={{ background: safeColor(store.banner_color), color: safeColor(store.accent_color, "#ffffff") }}>
-                <span className="text-[17px] font-semibold">{store.name}</span>
+              <div className="flex items-center gap-3 p-4">
+                <Avatar name={store.name} />
+                <span className="min-w-0">
+                  <span className="block truncate text-[17px] font-semibold">{store.name}</span>
+                  <span className="block truncate text-[14px] text-maxcontrast">{store.tagline}</span>
+                </span>
               </div>
-              <dl className="flex divide-x divide-border bg-main-background text-center">
+              <dl className="flex divide-x divide-border border-t border-border text-center">
                 {([
                   ["Rating", store.review_count === 0 ? "New" : store.rating.toFixed(1)],
                   ["Items", String(store.product_count)],

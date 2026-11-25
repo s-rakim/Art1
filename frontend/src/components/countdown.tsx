@@ -20,7 +20,7 @@ export function Countdown() {
     <span className="inline-flex items-center gap-1 text-[14px] font-semibold tabular-nums" aria-label="Time left on today's deals" suppressHydrationWarning>
       {parts.map((p, i) => (
         <span key={i} className="flex items-center gap-1">
-          <span className="rounded-small bg-error px-1.5 py-0.5 text-error-text tabular-nums">{p}</span>
+          <span className="rounded-small bg-primary-element-light px-1.5 py-0.5 font-semibold text-primary-element-light-text tabular-nums">{p}</span>
           {i < 2 && <span>:</span>}
         </span>
       ))}

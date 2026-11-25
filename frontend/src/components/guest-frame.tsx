@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
+import { WallpaperCredit } from "./footer";
 
-/** Nextcloud's guest pages (login, errors, maintenance): a single box centred on the blue background. */
+/** Nextcloud's guest pages (login, errors, maintenance): a single box centred on the wallpaper. */
 export function GuestFrame({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
   return (
     <div className="flex min-h-dvh flex-col items-center px-4 py-10 text-background-plain-text">
@@ -8,7 +9,10 @@ export function GuestFrame({ children, wide = false }: { children: ReactNode; wi
       <main id="main" className={`mt-8 w-full ${wide ? "max-w-[560px]" : "max-w-[420px]"} rounded-large bg-main-background p-5 text-main-text shadow-modal sm:p-7`}>
         {children}
       </main>
-      <p className="mt-auto pt-10 text-center text-[13px] opacity-80">Independent shops, one checkout.</p>
+      <div className="mt-auto pt-10 text-center [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]">
+        <p className="text-[13px]">Independent shops, one checkout.</p>
+        <p className="mt-1 text-[12px]"><WallpaperCredit /></p>
+      </div>
     </div>
   );
 }

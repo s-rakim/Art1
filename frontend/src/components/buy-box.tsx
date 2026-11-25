@@ -61,11 +61,11 @@ export function BuyBox({ product }: { product: Product }) {
     <div className="space-y-6">
       <div>
         <div className="flex flex-wrap items-baseline gap-3">
-          <span className={`price text-[30px] leading-tight ${off ? "text-text-error" : ""}`}>{money(unit, product.currency)}</span>
+          <span className="price text-[30px] leading-tight">{money(unit, product.currency)}</span>
           {off > 0 && (
             <>
               <s className="text-[15px] text-maxcontrast">{money(compare!, product.currency)}</s>
-              <span className="chip chip-error">−{off}%</span>
+              <span className="chip chip-primary">−{off}%</span>
             </>
           )}
         </div>
@@ -131,7 +131,7 @@ export function BuyBox({ product }: { product: Product }) {
                   className={`relative h-[34px] min-w-[46px] rounded-element border px-3 text-[14px] font-medium ${size === s ? "border-primary-element bg-primary-element-light text-primary-element-light-text" : "border-border-maxcontrast hover:bg-background-hover"} disabled:border-border disabled:text-maxcontrast disabled:line-through`}
                 >
                   {s}
-                  {stock > 0 && stock < 4 && <span className="absolute -top-2.5 -right-2 rounded-pill bg-warning px-1.5 text-[12px] leading-[18px] text-warning-text">{stock} left</span>}
+                  {stock > 0 && stock < 4 && <span className="absolute -top-2.5 -right-2 rounded-pill bg-primary-element px-1.5 text-[12px] leading-[18px] text-primary-element-text">{stock} left</span>}
                 </button>
               );
             })}

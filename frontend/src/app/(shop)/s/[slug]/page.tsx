@@ -7,7 +7,7 @@ import { Breadcrumbs } from "@/components/ui";
 import { api } from "@/lib/api";
 import { compact, pct, shortDate } from "@/lib/format";
 import { parseQuery, type SP } from "@/lib/query";
-import { safeColor, safeSlug } from "@/lib/safe";
+import { safeSlug } from "@/lib/safe";
 
 type Params = Promise<{ slug: string }>;
 
@@ -27,24 +27,28 @@ export default async function StorePage({ params, searchParams }: { params: Para
   const query = parseQuery(sp, { store: store.slug, page_size: 48 });
   const sort = query.sort ?? "popular";
   const products = await api.products({ ...query, sort });
-  const bg = safeColor(store.banner_color);
-  const fg = safeColor(store.accent_color, "#ffffff");
 
   return (
     <>
       <div className="px-4 pt-4 md:px-6"><Breadcrumbs items={[["Home", "/"], ["Stores", "/stores"], [store.name]]} /></div>
-      <section style={{ background: bg, color: fg }} className="mx-4 rounded-large md:mx-6">
+      {/* Laid out like a Nextcloud profile page: a primary band with a large avatar. */}
+      <section className="mx-4 rounded-large bg-primary-element text-primary-element-text md:mx-6">
         <div className="px-5 pt-6 pb-6 md:px-7">
-          <div className="flex flex-wrap items-end justify-between gap-6">
-            <div>
-              <p className="text-[14px] opacity-85">
+          <div className="flex flex-wrap items-center justify-between gap-6">
+            <div className="flex min-w-0 items-center gap-4">
+              <span aria-hidden className="flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-full bg-primary-element-text text-[30px] font-semibold text-primary-element">
+                {store.name.slice(0, 1).toUpperCase()}
+              </span>
+              <div className="min-w-0">
+              <p className="text-[14px] opacity-90">
                 {store.verified ? "Verified store" : "Independent store"} · {store.country} · since {shortDate(store.joined_at)}
               </p>
               <h1 className="heading mt-1 text-[26px]">{store.name}</h1>
               <p className="mt-1 max-w-xl text-[16px] opacity-90">{store.tagline}</p>
+              </div>
             </div>
             <div className="flex gap-2">
-              <a href="#contact" className="btn border-transparent bg-white/90 text-[#222222] hover:!bg-white"><Message size={18} /> Contact</a>
+              <a href="#contact" className="btn border-transparent bg-primary-element-text text-primary-element hover:opacity-90"><Message size={18} /> Contact</a>
             </div>
           </div>
         </div>

@@ -93,7 +93,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
       <p className="mt-2 text-center text-[14px] text-maxcontrast">{mode === "signup" ? current.signup : current.blurb}</p>
 
       {!AUTH_ENABLED && (
-        <p className="note note-warning mt-5 text-[14px]">
+        <p className="note note-info mt-5 text-[14px]">
           <span>
             This server doesn&apos;t have Supabase keys yet, so sign-in is off. The rest of the store works in demo mode, and you
             can look around the <Link className="underline" href={current.home}>{current.label.toLowerCase()} area</Link> with sample data.

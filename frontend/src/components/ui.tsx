@@ -24,13 +24,13 @@ export function Price({
   const off = discount(cents, compare);
   return (
     <span className="inline-flex flex-wrap items-center gap-x-2">
-      <span className={cx("price", off ? "text-text-error" : "text-main-text", size === "lg" ? "text-[26px]" : size === "sm" ? "text-[14px]" : "text-[16px]")}>
+      <span className={cx("price", "text-main-text", size === "lg" ? "text-[26px]" : size === "sm" ? "text-[14px]" : "text-[16px]")}>
         {money(cents, currency)}
       </span>
       {off > 0 && (
         <>
           <s className="text-[13px] text-maxcontrast">{money(compare!, currency)}</s>
-          {size === "lg" && <span className="chip chip-error">−{off}%</span>}
+          {size === "lg" && <span className="chip chip-primary">−{off}%</span>}
         </>
       )}
     </span>
@@ -65,7 +65,7 @@ export function Empty({ title, body, action, icon }: { title: string; body?: str
 
 export function DemoNotice({ what = "sample data" }: { what?: string }) {
   return (
-    <div className="note note-warning mb-5 text-[14px]">
+    <div className="note note-info mb-5 text-[14px]">
       <Info size={20} />
       <p>
         You&apos;re looking at {what}. Sign-in isn&apos;t configured yet, so nothing here is saved. Add the Supabase

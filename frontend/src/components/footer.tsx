@@ -7,6 +7,16 @@ const cols: Array<[string, Array<[string, string]>]> = [
   ["Help", [["Your orders", "/orders"], ["Returns", "/help/returns"], ["Shipping", "/help/shipping"], ["Buyer protection", "/help/protection"]]],
 ];
 
+/** The wallpaper is Nextcloud's default background, used under its CC BY-SA 4.0 licence. */
+export function WallpaperCredit() {
+  return (
+    <>
+      Background: &ldquo;Fluid&rdquo; by Jo Myoung Hee, Nextcloud GmbH,{" "}
+      <a href="https://creativecommons.org/licenses/by-sa/4.0/" className="underline underline-offset-2" rel="license noopener noreferrer" target="_blank">CC BY-SA 4.0</a>
+    </>
+  );
+}
+
 export function Footer() {
   return (
     <footer className="mt-16 border-t border-border px-4 pt-8 pb-6 text-[14px] md:px-6">
@@ -30,6 +40,9 @@ export function Footer() {
       </div>
       <p className="mt-8 text-[13px] text-maxcontrast">
         © {new Date().getFullYear()} {STORE_NAME}. Prices include the seller&apos;s fees; taxes are added at checkout.
+      </p>
+      <p className="mt-1 text-[13px] text-maxcontrast">
+        <WallpaperCredit />
       </p>
     </footer>
   );

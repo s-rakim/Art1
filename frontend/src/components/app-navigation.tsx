@@ -59,13 +59,16 @@ export function AppNavigation({ sections, footer, label }: { sections: NavSectio
   return (
     <>
       {open && <div className="fixed inset-0 top-[44px] z-30 bg-black/30 lg:hidden" onClick={() => setOpen(false)} aria-hidden />}
-      <nav
-        aria-label={label}
-        className={`${open ? "flex animate-slide-left" : "hidden"} fixed top-[44px] bottom-2 left-2 z-40 w-[300px] max-w-[calc(100vw-60px)] flex-col overflow-hidden rounded-l-large border-r border-border bg-main-background shadow-modal lg:sticky lg:top-[44px] lg:bottom-auto lg:left-auto lg:z-0 lg:flex lg:h-[calc(100dvh-52px)] lg:max-w-none lg:shrink-0 lg:animate-none lg:shadow-none`}
-      >
-        <div className="flex-1 overflow-y-auto p-1">{sections.map(list)}</div>
-        {footer && <div className="border-t border-border p-1">{list(footer, -1)}</div>}
-      </nav>
+      {/* The column is see-through white over the wallpaper, like Nextcloud's app navigation. */}
+      <div className="max-lg:contents lg:glass lg:w-[300px] lg:shrink-0">
+        <nav
+          aria-label={label}
+          className={`${open ? "flex animate-slide-left" : "hidden"} fixed top-[44px] bottom-2 left-2 z-40 w-[300px] max-w-[calc(100vw-60px)] flex-col overflow-hidden rounded-l-large bg-main-background shadow-modal lg:sticky lg:top-[44px] lg:bottom-auto lg:left-auto lg:z-0 lg:flex lg:h-[calc(100dvh-52px)] lg:w-full lg:max-w-none lg:animate-none lg:bg-transparent lg:shadow-none`}
+        >
+          <div className="flex-1 overflow-y-auto p-1">{sections.map(list)}</div>
+          {footer && <div className="p-1">{list(footer, -1)}</div>}
+        </nav>
+      </div>
     </>
   );
 }
