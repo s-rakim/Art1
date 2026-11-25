@@ -1,8 +1,8 @@
-# Marketplace backend
+# The Bazaar: backend
 
-This is the server side of the shop: a multi-vendor marketplace where other
-retailers rent space to sell, riders carry orders from stores to buyers, and
-everyone can watch the delivery move on a map.
+This is the server side of The Bazaar: a market where independent retailers
+rent a stall to sell, riders carry orders from the stalls to buyers, and the
+buyer, the stall and the admin all watch the delivery move on a map.
 
 It is three small programs and a database.
 
@@ -10,49 +10,72 @@ It is three small programs and a database.
 | --- | --- | --- |
 | `api/` | Python, FastAPI | The HTTP and websocket API the frontend talks to. Also runs the background worker and the migration runner. |
 | `search/` | Go | Keeps the whole catalogue in memory and answers searches in a millisecond or two: typo tolerant, plural aware, search-as-you-type, facet counts. |
-| `supabase/migrations/` | SQL, PL/pgSQL | The schema, the money logic (checkout, payment confirmation, cancellations, rent billing) and the row level security lockdown. |
+| `supabase/migrations/` | SQL, PL/pgSQL | The schema, the money logic (checkout, payment confirmation, cancellations, rent billing), the live event triggers and the row level security lockdown. |
 | `scripts/` | Bash | The migration runner and demo data. |
 
-Supabase provides Postgres, sign in, and image storage. Everything else
-runs in Docker on your own server.
+Supabase provides Postgres, sign in, and file storage. Everything else runs
+in Docker on your own server.
 
-## How the marketplace works
+## How The Bazaar works
 
-**Four kinds of account.** Everybody signs up through Supabase Auth and
-starts as a customer. From there:
+**One login, four kinds of account.** Everyone signs in on the same page with
+an email address and password (Supabase Auth). The account decides where
+they land: `GET /me` returns the role and a `home` path, and phone-number
+sign-ins are refused. There are two sign-up links:
 
-- A **vendor** applies with `POST /seller/applications`, choosing a plan. An
-  admin approves the store, which makes the account a vendor and starts the
-  lease.
-- A **rider** applies with `POST /rider/applications`. An admin hires them.
-- An **admin** can't sign up at all. The first one is made from the server
+- **Shoppers** sign up, confirm their email, log in and land on the home page.
+- **Riders** sign up through the rider link (the frontend sends
+  `user_metadata.requested_role = "rider"`). The account starts as a
+  `rider_applicant`, which can do exactly two things: fill in the hiring form
+  (`POST /rider/applications`) and check on it (`GET /rider/me`). Every other
+  endpoint answers 403 `rider_not_hired`. The application shows up on the
+  admin's hiring page (`GET /admin/rider-applications`), where the admin
+  hires (`POST .../approve`) or turns it down (`POST .../reject`). Only a
+  hired rider gets into the rider app, and one who is later let go drops back
+  to waiting rather than to shopping.
+- **Vendors** start as shoppers and apply for a stall with
+  `POST /seller/applications`. An admin approves the store.
+- **Admins** can't sign up at all. The first one is made from the server
   (see below) and can promote others.
 
-Roles live in the `profiles` table and are checked on every request. They are
-mirrored into Supabase `app_metadata.roles` (as `customer`, `vendor`,
-`rider`, `admin`) so the frontend can show the right pages, but the API never
-trusts the token for that.
+Sign-up metadata can only ever lower what an account may do: asking for
+`admin` or `vendor` there gets an ordinary shopper. Roles live in the
+`profiles` table and are checked on every request. They are mirrored into
+Supabase `app_metadata.roles` for the frontend's convenience, but the API
+never trusts the token for that.
 
-**Renting space.** A store signs a plan. Plans mix the two models the big
-marketplaces use: a monthly rent and a commission on each sale, with a
-pay-per-unit tier for small sellers. Out of the box:
+**Prices are the admin's.** Nothing about money is fixed in the code. The
+admin sets shipping, the free shipping threshold, tax and the rider's fee in
+`PATCH /admin/settings`, and stall rent and commission per plan in
+`PATCH /admin/plans/{id}`. The public plan list (`GET /plans`) says what each
+stall plan includes but not what it costs; `GET /status` carries the admin
+contact (name, email, phone, WhatsApp, a note) the rent-a-stall page shows
+instead. A fresh install starts with three plans (Starter Stall, Boutique,
+Flagship) and shipping at 4.99, which the admin is expected to change.
 
-| Plan | Rent | Commission | Live products | Free placement days |
-| --- | --- | --- | --- | --- |
-| Starter Stall | none | 15% + $0.99 a unit | 25 | 0 |
-| Boutique | $29 | 10% | 500 | 1 a month |
-| Flagship | $149 | 6% | unlimited | 4 a month |
+The first month of rent is charged when a store is approved and every month
+after by the worker. Stores can also book paid placements by the day: the
+homepage hero, homepage picks, category spotlights and sponsored search
+results.
 
-The first month is charged when a store is approved and every month after by
-the worker. Stores can also book paid placements by the day: the homepage
-hero, homepage picks, category spotlights and sponsored search results.
-Prices and plans are all editable from the admin API.
+**Products.** Vendors upload photos and one video per product. The files go
+through the API, not straight to storage, so they can be checked: photos must
+decode as JPEG, PNG, WebP or AVIF and are re-encoded to WebP at most 2000 px
+across, which strips EXIF data such as GPS positions and anything hidden in
+the file. Videos must be well formed MP4, MOV or WebM, at most 50 MB and three
+minutes; an MP4 has to be a clean chain of boxes from first byte to last, so a
+file that is also a web page is turned away. Everything lands under the
+store's own folder with a random name, and product image URLs must point
+there. Stock can be edited one variant at a time or in bulk
+(`PATCH /seller/inventory`, all or nothing), and every manual change is kept
+with who made it and why (`GET /seller/inventory/history`).
 
 **Orders.** A checkout can contain products from several stores. It becomes
 one order for the buyer and one sub-order per store, so each store packs and
 ships its own part. Prices, volume discounts, coupons and shipping are always
 worked out in the database while the stock rows are locked; the client only
-says what and how many.
+says what and how many. The buyer drops a pin for delivery at checkout and
+can move it (`PUT /orders/{id}/dropoff`) until the parcel arrives.
 
 **Payments.** Card payments are wired for Stripe but switched off until you're
 ready. Until then buyers choose cash on delivery or bank transfer, and the
@@ -62,13 +85,26 @@ rent, placements, delivery fees, payouts and refunds. A store's balance is
 the sum. Sales paid through the platform are held for `PAYOUT_HOLD_DAYS`
 before they can be paid out.
 
-**Deliveries.** When an order is ready, the store picks an available rider
-(sorted by distance from the store) and dispatches them. The rider sees only
-the rough area until they accept, then the exact address. While they're on
-the job their phone sends its position every 10 to 15 seconds, and the buyer,
-the store and the admin watch it live. At the door the buyer reads a six
-digit handover code to the rider; without it the parcel can't be marked
-delivered, and five wrong guesses lock the delivery.
+**Deliveries.** As soon as a store order is ready to leave (straight away for
+cash on delivery, once the store confirms a transfer), it is offered to the
+closest free rider to the shop: hired, on shift, seen in the last ten
+minutes, carrying fewer than three jobs and within `DISPATCH_RADIUS_KM`. The
+rider has `DISPATCH_ACCEPT_SECONDS` to accept; a decline or silence passes it
+to the next closest, and with nobody free the order waits and the worker tries
+again every 15 seconds. The store can step in at any time, pull a job back and
+pick a rider itself. The rider sees only the rough area until they accept,
+then the exact pin. While they're on the job their phone sends its position,
+heading and speed every 10 to 15 seconds, and the buyer, the store and the
+admin watch it live, and nobody else. At the door the buyer reads a six digit
+handover code to the rider; without it the parcel can't be marked delivered,
+and five wrong guesses lock the delivery.
+
+Vendors get a riders list (`GET /seller/riders`) with the riders on their
+jobs, those who delivered for them lately, and free riders nearby. Phone
+numbers are shown only for riders who work the store's orders and exact
+positions only while a rider is out on one of them. Admins see every rider
+with contact details, last position and recent jobs (`GET /admin/riders`,
+`GET /admin/riders/{id}`).
 
 ## API
 
@@ -84,20 +120,27 @@ Some conventions:
 - Errors return `{"error": {"code": "out_of_stock", "message": "Only 2 left of ..."}}`.
   The code is stable for the frontend to switch on; the message is safe to show.
 
-### Live tracking
+### Live updates
 
-Connect to `wss://<api>/api/v1/ws/tracking` and send the token as the first
-message, not in the URL:
+Connect to `wss://<api>/api/v1/ws/live` (also served at `/ws/tracking`) and
+send the token as the first message, not in the URL:
 
 ```json
 {"type": "auth", "token": "<supabase access token>"}
-{"type": "subscribe", "delivery_id": "<id from /orders/{id}/tracking>"}
+{"type": "subscribe", "scope": "me"}
 ```
 
-You'll get `location` events (`lat`, `lng`, `heading`, `at`) and `status`
-events. Admins can subscribe with `{"type": "subscribe", "scope": "admin"}`
-to see every rider on shift. `GET /orders/{id}/tracking` gives the current
-state, the ETA and the handover code if the socket isn't open.
+`scope: "me"` streams whatever concerns that account: `order` (the buyer and
+the store), `job` (the rider, the store and the buyer), `stock` (the store),
+`application` (the applicant and admins) and `catalog` (everyone, when a live
+product is edited). Add `{"type": "subscribe", "delivery_id": "..."}` to
+follow one delivery on a map (`location` with `lat`, `lng`, `heading`,
+`speed_kmh`, and `status`); only the buyer, the store, the rider and admins
+may. Admins can subscribe with `{"type": "subscribe", "scope": "admin"}` to
+see every rider on shift. Events are fired by database triggers, so every
+change announces itself whichever code made it, and only after it commits.
+The server closes the socket with code 4001 when the token expires; reconnect
+with a fresh one. The full protocol is at the top of `api/app/realtime.py`.
 
 ## Running it on your Oracle server
 
@@ -107,9 +150,12 @@ both arm64 and amd64, so any shape works.
 ### 1. Set up Supabase
 
 1. Create a project at supabase.com.
-2. In **Storage**, create a public bucket called `product-images`.
-3. In **Authentication > Providers**, keep email on and turn on "Confirm
-   email". Add Google or others if you want them.
+2. Storage needs no setup: the first migration run creates the public
+   `product-images` and `product-videos` buckets with size and type limits.
+3. In **Authentication > Providers**, keep email on, turn on "Confirm
+   email", and leave phone sign-in off (the API refuses phone-only accounts
+   anyway). Under **Authentication > Emails** set the sender name to
+   "The Bazaar" and adjust the templates' wording.
 4. Collect, from **Project Settings**:
    - the database connection string (Database > Connection string, session
      pooler on port 5432),
@@ -172,7 +218,7 @@ Supabase: every admin endpoint will then demand it.
 ### Running without Supabase
 
 For a quick trial you can run Postgres on the box instead. Set
-`DATABASE_URL=postgresql://market:<password>@db:5432/market`,
+`DATABASE_URL=postgresql://bazaar:<password>@db:5432/bazaar`,
 `LOCAL_DB_PASSWORD=<password>` and a long random `SUPABASE_JWT_SECRET` in
 `.env`, then `docker compose --profile localdb up -d`. You'll need some way to
 issue tokens signed with that secret; for a real launch, use Supabase.
@@ -185,7 +231,7 @@ issue tokens signed with that secret; for a real launch, use Supabase.
 | Apply new migrations | happens on every `up`; or `docker compose run --rm migrate` |
 | Put the site in maintenance | `PATCH /api/v1/admin/settings {"maintenance_mode": true}` |
 | Charge rent now instead of waiting a minute | `POST /api/v1/admin/billing/run` |
-| Back up | Supabase backs up daily; for `localdb`, `docker compose exec db pg_dump -U market market > backup.sql` |
+| Back up | Supabase backs up daily; for `localdb`, `docker compose exec db pg_dump -U bazaar bazaar > backup.sql` |
 
 The worker charges rent that has come due, turns placements on and off,
 cancels unpaid card and bank transfer orders after a while to free their
@@ -224,7 +270,18 @@ This was built expecting people to try to break it. What's in place:
   on checkout, applications, reviews, payouts, dispatch and location updates.
 - **Deliveries**: riders see only the rough area until they accept; buyers
   see the rider's first name and the last three digits of their phone; the
-  handover code locks after five wrong tries.
+  handover code locks after five wrong tries. Live positions reach the buyer,
+  the store, the rider and admins of that delivery only, and a socket is
+  closed when its token expires so a suspended rider or demoted admin stops
+  hearing events within the hour.
+- **Accounts**: sign-up metadata can only lower an account's rights, riders
+  can do nothing but apply until hired, and phone-only sign-ins are refused.
+- **Uploads**: photos are decoded and re-encoded (no EXIF, no smuggled
+  payloads, no decompression bombs), videos must be structurally valid
+  MP4/MOV/WebM, the browser's claimed file type is ignored, files are stored
+  under the store's own folder with random names, and a store can only
+  attach, replace or delete its own files. Only the upload routes accept
+  bodies over 2 MB, at Caddy and in the API.
 - **Webhooks**: Stripe events are signature checked and cross-checked
   against the order's amount, currency and session before anything is
   marked paid. The endpoint doesn't exist until Stripe is configured.

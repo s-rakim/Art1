@@ -2,9 +2,10 @@
 
     python -m app.worker
 
-Every minute it bills rent that has come due, switches placements on and
-off, releases stock held by unpaid orders, and every hour it prunes old
-rider breadcrumbs and marks silent riders offline. Each job is a database
+Every 15 seconds it matches waiting orders with the closest free rider and
+passes on offers nobody answered. Every minute it bills rent that has come
+due, switches placements on and off and releases stock held by unpaid
+orders, and every hour it prunes old rider breadcrumbs. Each job is a database
 function that is safe to run concurrently, so running two workers by
 accident does no harm.
 """
@@ -16,7 +17,9 @@ import time
 
 import asyncpg
 
+from . import dispatch
 from .config import get_settings
+from .db import create_pool
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger("worker")
@@ -41,27 +44,41 @@ async def tick(pool: asyncpg.Pool, hourly: bool) -> None:
             log.info("pruned %s rider locations", pruned)
 
 
+async def dispatch_tick(pool: asyncpg.Pool) -> None:
+    async with pool.acquire() as conn:
+        timed_out, assigned = await dispatch.sweep(conn, get_settings())
+    if timed_out or assigned:
+        log.info("dispatch: %s offers timed out, %s orders assigned", timed_out, assigned)
+
+
 async def main() -> None:
     settings = get_settings()
-    pool = await asyncpg.create_pool(settings.database_url, min_size=1, max_size=2, statement_cache_size=0)
+    pool = await create_pool(settings.model_copy(update={"db_pool_min": 1, "db_pool_max": 2}))
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, stop.set)
 
     last_hourly = 0.0
+    last_minute = 0.0
     log.info("worker started")
     while not stop.is_set():
-        hourly = time.monotonic() - last_hourly > 3600
         try:
-            await tick(pool, hourly)
-            if hourly:
-                last_hourly = time.monotonic()
+            await dispatch_tick(pool)
         except Exception:
-            log.exception("worker tick failed")
+            log.exception("dispatch tick failed")
+        if time.monotonic() - last_minute >= 60:
+            last_minute = time.monotonic()
+            hourly = time.monotonic() - last_hourly > 3600
+            try:
+                await tick(pool, hourly)
+                if hourly:
+                    last_hourly = time.monotonic()
+            except Exception:
+                log.exception("worker tick failed")
         try:
-            await asyncio.wait_for(stop.wait(), timeout=60)
-        except asyncio.TimeoutError:
+            await asyncio.wait_for(stop.wait(), timeout=15)
+        except TimeoutError:
             pass
     await pool.close()
     log.info("worker stopped")

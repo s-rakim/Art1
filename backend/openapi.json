@@ -1,8 +1,8 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Marketplace API",
-    "description": "Multi-vendor marketplace: catalogue, cart, checkout, orders, store space rental, rider dispatch and live delivery tracking. Authenticate with a Supabase access token as `Authorization: Bearer <token>`. Money is integer cents with a currency code. Errors look like `{\"error\": {\"code\": \"...\", \"message\": \"...\"}}`.",
+    "title": "The Bazaar API",
+    "description": "The Bazaar, a multi-vendor market: catalogue, cart, checkout, orders, store space rental, rider hiring and dispatch, and live updates over /ws/live. Everyone signs in on one page with email and password through Supabase Auth; GET /me says which role the account has and where to send it. Authenticate with a Supabase access token as `Authorization: Bearer <token>`. Money is integer cents with a currency code. Errors look like `{\"error\": {\"code\": \"...\", \"message\": \"...\"}}`.",
     "version": "1.0.0"
   },
   "paths": {
@@ -740,6 +740,7 @@
           "catalog"
         ],
         "summary": "Plans",
+        "description": "Stall plans without prices. Rent and commission are set by the admin\n(PATCH /admin/plans/{id}) and shown to a vendor in their own back office\nonce they're on a plan.",
         "operationId": "plans_api_v1_plans_get",
         "responses": {
           "200": {
@@ -748,7 +749,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/Plan"
+                    "$ref": "#/components/schemas/PublicPlan"
                   },
                   "type": "array",
                   "title": "Response Plans Api V1 Plans Get"
@@ -843,6 +844,7 @@
           "me"
         ],
         "summary": "Get Me",
+        "description": "Who is signed in and where they belong. After the one login page, the\nfrontend sends people to `home`: shoppers to the storefront, vendors to\ntheir back office, riders to their jobs, admins to the console, and\nriders who aren't hired yet to the hiring page.",
         "operationId": "get_me_api_v1_me_get",
         "responses": {
           "200": {
@@ -1640,6 +1642,60 @@
         }
       }
     },
+    "/api/v1/orders/{order_id}/dropoff": {
+      "put": {
+        "tags": [
+          "shop"
+        ],
+        "summary": "Move Dropoff",
+        "description": "Move the drop-off pin, for example to the gate the rider should come\nto. Works until the parcel is delivered. A rider already on the way sees\nthe new pin straight away.",
+        "operationId": "move_dropoff_api_v1_orders__order_id__dropoff_put",
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Order Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DropoffIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tracking"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/seller/applications": {
       "post": {
         "tags": [
@@ -2194,12 +2250,393 @@
         }
       }
     },
+    "/api/v1/seller/products/{product_id}/images": {
+      "post": {
+        "tags": [
+          "seller"
+        ],
+        "summary": "Add Image",
+        "description": "Add a picture to the end of the product's gallery (12 at most).",
+        "operationId": "add_image_api_v1_seller_products__product_id__images_post",
+        "parameters": [
+          {
+            "name": "product_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Product Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_add_image_api_v1_seller_products__product_id__images_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SellerProduct"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/seller/products/{product_id}/images/{image_id}": {
+      "put": {
+        "tags": [
+          "seller"
+        ],
+        "summary": "Replace Image",
+        "description": "Swap one picture for a new file, keeping its place in the gallery.",
+        "operationId": "replace_image_api_v1_seller_products__product_id__images__image_id__put",
+        "parameters": [
+          {
+            "name": "product_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Product Id"
+            }
+          },
+          {
+            "name": "image_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Image Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_replace_image_api_v1_seller_products__product_id__images__image_id__put"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SellerProduct"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "seller"
+        ],
+        "summary": "Update Image",
+        "description": "Change a picture's description.",
+        "operationId": "update_image_api_v1_seller_products__product_id__images__image_id__patch",
+        "parameters": [
+          {
+            "name": "product_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Product Id"
+            }
+          },
+          {
+            "name": "image_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Image Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImageAltIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SellerProduct"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "seller"
+        ],
+        "summary": "Delete Image",
+        "operationId": "delete_image_api_v1_seller_products__product_id__images__image_id__delete",
+        "parameters": [
+          {
+            "name": "product_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Product Id"
+            }
+          },
+          {
+            "name": "image_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Image Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SellerProduct"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/seller/products/{product_id}/image-order": {
+      "put": {
+        "tags": [
+          "seller"
+        ],
+        "summary": "Reorder Images",
+        "description": "Send every image id of the product in the order to show them. The\nfirst one is the cover picture.",
+        "operationId": "reorder_images_api_v1_seller_products__product_id__image_order_put",
+        "parameters": [
+          {
+            "name": "product_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Product Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImageOrderIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SellerProduct"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/seller/products/{product_id}/video": {
+      "put": {
+        "tags": [
+          "seller"
+        ],
+        "summary": "Set Video",
+        "description": "Add the product's video, or replace the one it has. Each product has\none video next to its photos.",
+        "operationId": "set_video_api_v1_seller_products__product_id__video_put",
+        "parameters": [
+          {
+            "name": "product_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Product Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_set_video_api_v1_seller_products__product_id__video_put"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SellerProduct"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "seller"
+        ],
+        "summary": "Delete Video",
+        "operationId": "delete_video_api_v1_seller_products__product_id__video_delete",
+        "parameters": [
+          {
+            "name": "product_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Product Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SellerProduct"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/seller/uploads": {
       "post": {
         "tags": [
           "seller"
         ],
         "summary": "Create Upload",
+        "description": "Older direct-to-Storage upload. The bucket only takes images up to\n5 MB, but the file isn't cleaned. Use POST /seller/products/{id}/images.",
         "operationId": "create_upload_api_v1_seller_uploads_post",
         "requestBody": {
           "content": {
@@ -2232,7 +2669,8 @@
               }
             }
           }
-        }
+        },
+        "deprecated": true
       }
     },
     "/api/v1/seller/orders": {
@@ -2787,6 +3225,121 @@
             }
           }
         }
+      },
+      "patch": {
+        "tags": [
+          "seller"
+        ],
+        "summary": "Update Inventory",
+        "description": "Update stock for up to 200 variants at once. All or nothing: if one\nline is wrong, nothing changes. Every change is kept in the history.",
+        "operationId": "update_inventory_api_v1_seller_inventory_patch",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InventoryUpdateIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InventoryUpdateOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/seller/inventory/history": {
+      "get": {
+        "tags": [
+          "seller"
+        ],
+        "summary": "Inventory History",
+        "description": "Who changed stock by hand, when, and why. Sales aren't listed here;\nthey're on the orders.",
+        "operationId": "inventory_history_api_v1_seller_inventory_history_get",
+        "parameters": [
+          {
+            "name": "variant_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Variant Id"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 24,
+              "title": "Page Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_InventoryAdjustment_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/seller/orders/{store_order_id}/confirm-payment": {
@@ -2857,12 +3410,82 @@
         }
       }
     },
+    "/api/v1/seller/riders": {
+      "get": {
+        "tags": [
+          "seller"
+        ],
+        "summary": "Store Riders",
+        "description": "Riders on the store's jobs, riders who delivered for it lately, and\nfree riders close to the shop, closest first within each group. Each row\ncarries what the expandable panel shows: contact, vehicle, live position\nand recent jobs for this store.",
+        "operationId": "store_riders_api_v1_seller_riders_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/StoreRider"
+                  },
+                  "type": "array",
+                  "title": "Response Store Riders Api V1 Seller Riders Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/seller/riders/{rider_id}": {
+      "get": {
+        "tags": [
+          "seller"
+        ],
+        "summary": "Store Rider",
+        "operationId": "store_rider_api_v1_seller_riders__rider_id__get",
+        "parameters": [
+          {
+            "name": "rider_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Rider Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoreRider"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/seller/orders/{store_order_id}/dispatch": {
       "post": {
         "tags": [
           "seller"
         ],
         "summary": "Dispatch",
+        "description": "Send a rider for the order. Leave rider_id out to send the closest\nfree rider to the shop (409 \"no_riders\" if nobody is on shift nearby;\nthe order then stays on automatic dispatch and goes to the first rider\nwho frees up). Orders are normally dispatched automatically as soon as\nthey're ready, so this is for re-sending after a failed attempt, or for\nchoosing a particular rider.",
         "operationId": "dispatch_api_v1_seller_orders__store_order_id__dispatch_post",
         "parameters": [
           {
@@ -2983,7 +3606,7 @@
           "seller"
         ],
         "summary": "Cancel Delivery",
-        "description": "Pull a job back from a rider who hasn't collected it yet.",
+        "description": "Pull a job back from a rider who hasn't collected it yet. The order\ncomes off automatic dispatch, so it waits for the store to choose the\nnext rider (or to dispatch again with no rider to go back to automatic).",
         "operationId": "cancel_delivery_api_v1_seller_deliveries__delivery_id__cancel_post",
         "parameters": [
           {
@@ -3027,6 +3650,7 @@
           "rider"
         ],
         "summary": "Apply",
+        "description": "The hiring form. Open to riders who signed up through the rider link\nand to existing shoppers. The application lands on the admins' hiring\npage, and the account gets rider access only once an admin hires it.",
         "operationId": "apply_api_v1_rider_applications_post",
         "requestBody": {
           "content": {
@@ -3068,6 +3692,7 @@
           "rider"
         ],
         "summary": "Rider Me",
+        "description": "The rider's profile, or the state of their application while they\nwait: status is \"applicant\" until an admin decides, then \"active\" or\n\"rejected\". 404 means they haven't applied yet.",
         "operationId": "rider_me_api_v1_rider_me_get",
         "responses": {
           "200": {
@@ -3413,6 +4038,7 @@
           "admin"
         ],
         "summary": "Update Site Settings",
+        "description": "Fees take effect for orders placed from now on; orders already placed\nkeep what they were charged.",
         "operationId": "update_site_settings_api_v1_admin_settings_patch",
         "requestBody": {
           "content": {
@@ -4362,7 +4988,7 @@
           "admin"
         ],
         "summary": "Mark Paid",
-        "description": "For transfers made to the marketplace's own account.",
+        "description": "For transfers made to The Bazaar's own account.",
         "operationId": "mark_paid_api_v1_admin_orders__order_id__mark_paid_post",
         "parameters": [
           {
@@ -4670,12 +5296,108 @@
         }
       }
     },
+    "/api/v1/admin/riders/{rider_id}": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Rider Detail",
+        "description": "Everything for the expandable row: contact, last position and\nheading, and the latest 20 jobs.",
+        "operationId": "rider_detail_api_v1_admin_riders__rider_id__get",
+        "parameters": [
+          {
+            "name": "rider_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Rider Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminRiderDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Update Rider",
+        "operationId": "update_rider_api_v1_admin_riders__rider_id__patch",
+        "parameters": [
+          {
+            "name": "rider_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Rider Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminRiderUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminRider"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/rider-applications": {
       "get": {
         "tags": [
           "admin"
         ],
         "summary": "Rider Applications",
+        "description": "The hiring queue: riders who filled in the form and are waiting.",
         "operationId": "rider_applications_api_v1_admin_rider_applications_get",
         "parameters": [
           {
@@ -4727,13 +5449,14 @@
         }
       }
     },
-    "/api/v1/admin/riders/{rider_id}": {
-      "patch": {
+    "/api/v1/admin/rider-applications/{rider_id}/approve": {
+      "post": {
         "tags": [
           "admin"
         ],
-        "summary": "Update Rider",
-        "operationId": "update_rider_api_v1_admin_riders__rider_id__patch",
+        "summary": "Hire Rider",
+        "description": "Hire the rider. Their account switches to the rider role and they can\nsign in to the rider app.",
+        "operationId": "hire_rider_api_v1_admin_rider_applications__rider_id__approve_post",
         "parameters": [
           {
             "name": "rider_id",
@@ -4751,7 +5474,61 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/AdminRiderUpdate"
+                "$ref": "#/components/schemas/ApplicationDecision"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminRider"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/rider-applications/{rider_id}/reject": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Reject Rider",
+        "description": "Turn the application down. The note is shown to the applicant.",
+        "operationId": "reject_rider_api_v1_admin_rider_applications__rider_id__reject_post",
+        "parameters": [
+          {
+            "name": "rider_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Rider Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplicationDecision"
               }
             }
           }
@@ -4874,6 +5651,7 @@
           "status"
         ],
         "summary": "Status",
+        "description": "Maintenance state, the fees the cart should show, and the admin\ncontact the rent-a-stall page shows instead of prices.",
         "operationId": "status_api_v1_status_get",
         "responses": {
           "200": {
@@ -5569,6 +6347,17 @@
             ],
             "title": "Last Lng"
           },
+          "last_heading": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Heading"
+          },
           "last_seen_at": {
             "anyOf": [
               {
@@ -5621,6 +6410,7 @@
           "is_online",
           "last_lat",
           "last_lng",
+          "last_heading",
           "last_seen_at",
           "active_deliveries",
           "completed_deliveries",
@@ -5628,6 +6418,177 @@
           "approved_at"
         ],
         "title": "AdminRider"
+      },
+      "AdminRiderDetail": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "full_name": {
+            "type": "string",
+            "title": "Full Name"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "phone": {
+            "type": "string",
+            "title": "Phone"
+          },
+          "city": {
+            "type": "string",
+            "title": "City"
+          },
+          "vehicle": {
+            "type": "string",
+            "title": "Vehicle"
+          },
+          "licence_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Licence Number"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "review_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Note"
+          },
+          "is_online": {
+            "type": "boolean",
+            "title": "Is Online"
+          },
+          "last_lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Lat"
+          },
+          "last_lng": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Lng"
+          },
+          "last_heading": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Heading"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "active_deliveries": {
+            "type": "integer",
+            "title": "Active Deliveries"
+          },
+          "completed_deliveries": {
+            "type": "integer",
+            "title": "Completed Deliveries"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "approved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved At"
+          },
+          "unpaid_earnings_cents": {
+            "type": "integer",
+            "title": "Unpaid Earnings Cents"
+          },
+          "jobs": {
+            "items": {
+              "$ref": "#/components/schemas/RiderJob"
+            },
+            "type": "array",
+            "title": "Jobs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "full_name",
+          "email",
+          "phone",
+          "city",
+          "vehicle",
+          "licence_number",
+          "status",
+          "review_note",
+          "is_online",
+          "last_lat",
+          "last_lng",
+          "last_heading",
+          "last_seen_at",
+          "active_deliveries",
+          "completed_deliveries",
+          "created_at",
+          "approved_at",
+          "unpaid_earnings_cents",
+          "jobs"
+        ],
+        "title": "AdminRiderDetail"
       },
       "AdminRiderUpdate": {
         "properties": {
@@ -5702,6 +6663,10 @@
             "type": "integer",
             "title": "Pending Stores"
           },
+          "pending_riders": {
+            "type": "integer",
+            "title": "Pending Riders"
+          },
           "customers": {
             "type": "integer",
             "title": "Customers"
@@ -5727,6 +6692,7 @@
           "rent_mrr_cents",
           "active_stores",
           "pending_stores",
+          "pending_riders",
           "customers",
           "active_products",
           "payouts_requested_cents"
@@ -5911,6 +6877,25 @@
         ],
         "title": "AdminUserUpdate"
       },
+      "ApplicationDecision": {
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ApplicationDecision"
+      },
       "AvailableRider": {
         "properties": {
           "id": {
@@ -6022,6 +7007,102 @@
           "orders_expired"
         ],
         "title": "BillingRunOut"
+      },
+      "Body_add_image_api_v1_seller_products__product_id__images_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "description": "JPEG, PNG, WebP or AVIF. Stored as WebP."
+          },
+          "alt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alt",
+            "description": "What the picture shows, for screen readers"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_add_image_api_v1_seller_products__product_id__images_post"
+      },
+      "Body_replace_image_api_v1_seller_products__product_id__images__image_id__put": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "description": "JPEG, PNG, WebP or AVIF. Stored as WebP."
+          },
+          "alt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alt",
+            "description": "What the picture shows, for screen readers"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_replace_image_api_v1_seller_products__product_id__images__image_id__put"
+      },
+      "Body_set_video_api_v1_seller_products__product_id__video_put": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "description": "MP4, MOV or WebM, up to 50 MB and 3 minutes"
+          },
+          "poster": {
+            "anyOf": [
+              {
+                "type": "string",
+                "contentMediaType": "application/octet-stream"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Poster",
+            "description": "Optional still shown before the video plays"
+          },
+          "caption": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_set_video_api_v1_seller_products__product_id__video_put"
       },
       "BusinessInfo": {
         "properties": {
@@ -6985,8 +8066,15 @@
       "DispatchIn": {
         "properties": {
           "rider_id": {
-            "type": "string",
-            "format": "uuid",
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Rider Id"
           },
           "note": {
@@ -7004,10 +8092,42 @@
         },
         "additionalProperties": false,
         "type": "object",
-        "required": [
-          "rider_id"
-        ],
         "title": "DispatchIn"
+      },
+      "DropoffIn": {
+        "properties": {
+          "lat": {
+            "type": "number",
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Lat"
+          },
+          "lng": {
+            "type": "number",
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Lng"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "lat",
+          "lng"
+        ],
+        "title": "DropoffIn"
       },
       "Earning": {
         "properties": {
@@ -7117,6 +8237,25 @@
         ],
         "title": "Image"
       },
+      "ImageAltIn": {
+        "properties": {
+          "alt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alt"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ImageAltIn"
+      },
       "ImageIn": {
         "properties": {
           "url": {
@@ -7143,6 +8282,26 @@
           "url"
         ],
         "title": "ImageIn"
+      },
+      "ImageOrderIn": {
+        "properties": {
+          "image_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "maxItems": 12,
+            "minItems": 1,
+            "title": "Image Ids"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "image_ids"
+        ],
+        "title": "ImageOrderIn"
       },
       "Income": {
         "properties": {
@@ -7244,6 +8403,82 @@
         ],
         "title": "IncomeDay"
       },
+      "InventoryAdjustment": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "variant_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Variant Id"
+          },
+          "product_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Product Id"
+          },
+          "product_title": {
+            "type": "string",
+            "title": "Product Title"
+          },
+          "sku": {
+            "type": "string",
+            "title": "Sku"
+          },
+          "stock_before": {
+            "type": "integer",
+            "title": "Stock Before"
+          },
+          "stock_after": {
+            "type": "integer",
+            "title": "Stock After"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "By"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "variant_id",
+          "product_id",
+          "product_title",
+          "sku",
+          "stock_before",
+          "stock_after",
+          "reason",
+          "by",
+          "created_at"
+        ],
+        "title": "InventoryAdjustment"
+      },
       "InventoryRow": {
         "properties": {
           "variant_id": {
@@ -7316,6 +8551,41 @@
           "sold_30d"
         ],
         "title": "InventoryRow"
+      },
+      "InventoryUpdateIn": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/StockChange"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Items"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "InventoryUpdateIn"
+      },
+      "InventoryUpdateOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/StockLevel"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "InventoryUpdateOut"
       },
       "LedgerEntry": {
         "properties": {
@@ -7578,6 +8848,19 @@
               }
             ],
             "title": "Heading"
+          },
+          "speed_mps": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Speed Mps"
           }
         },
         "additionalProperties": false,
@@ -7646,6 +8929,17 @@
             ],
             "title": "Full Name"
           },
+          "first_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Name"
+          },
           "avatar_url": {
             "anyOf": [
               {
@@ -7659,7 +8953,43 @@
           },
           "role": {
             "type": "string",
+            "enum": [
+              "customer",
+              "seller",
+              "rider",
+              "admin",
+              "rider_applicant"
+            ],
             "title": "Role"
+          },
+          "signup_as": {
+            "type": "string",
+            "enum": [
+              "customer",
+              "rider"
+            ],
+            "title": "Signup As"
+          },
+          "home": {
+            "type": "string",
+            "title": "Home"
+          },
+          "rider_status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "applicant",
+                  "active",
+                  "suspended",
+                  "rejected"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rider Status"
           },
           "store": {
             "anyOf": [
@@ -7677,8 +9007,12 @@
           "id",
           "email",
           "full_name",
+          "first_name",
           "avatar_url",
           "role",
+          "signup_as",
+          "home",
+          "rider_status",
           "store"
         ],
         "title": "Me"
@@ -8173,6 +9507,37 @@
           "page_size"
         ],
         "title": "Page[Earning]"
+      },
+      "Page_InventoryAdjustment_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/InventoryAdjustment"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[InventoryAdjustment]"
       },
       "Page_InventoryRow_": {
         "properties": {
@@ -9560,6 +10925,16 @@
             "type": "array",
             "title": "Images"
           },
+          "video": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Video"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "store": {
             "$ref": "#/components/schemas/StoreSummary"
           },
@@ -9854,11 +11229,82 @@
               }
             ],
             "title": "Images"
+          },
+          "video": {
+            "type": "null",
+            "title": "Video"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "title": "ProductUpdate"
+      },
+      "PublicPlan": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "product_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product Limit"
+          },
+          "featured_slots": {
+            "type": "integer",
+            "title": "Featured Slots"
+          },
+          "features": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Features"
+          },
+          "price_on_request": {
+            "type": "boolean",
+            "title": "Price On Request",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "code",
+          "name",
+          "description",
+          "product_limit",
+          "featured_slots",
+          "features"
+        ],
+        "title": "PublicPlan",
+        "description": "A stall plan as the public sees it: what it includes, not what it\ncosts. Prices are agreed with the admin; GET /status has the contact."
       },
       "RentInvoice": {
         "properties": {
@@ -10226,6 +11672,48 @@
         ],
         "title": "RiderDelivery"
       },
+      "RiderJob": {
+        "properties": {
+          "delivery_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Delivery Id"
+          },
+          "order_number": {
+            "type": "string",
+            "title": "Order Number"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "assigned_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Assigned At"
+          },
+          "delivered_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delivered At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "delivery_id",
+          "order_number",
+          "status",
+          "assigned_at"
+        ],
+        "title": "RiderJob"
+      },
       "RiderMe": {
         "properties": {
           "id": {
@@ -10360,6 +11848,17 @@
           "lng": {
             "type": "number",
             "title": "Lng"
+          },
+          "heading": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heading"
           },
           "at": {
             "anyOf": [
@@ -10558,6 +12057,16 @@
             },
             "type": "array",
             "title": "Images"
+          },
+          "video": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Video"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "created_at": {
             "type": "string",
@@ -11131,6 +12640,92 @@
       },
       "SiteSettings": {
         "properties": {
+          "contact_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Name"
+          },
+          "contact_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Email"
+          },
+          "contact_phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Phone"
+          },
+          "contact_whatsapp": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Whatsapp"
+          },
+          "contact_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Note"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "standard_shipping_cents": {
+            "type": "integer",
+            "title": "Standard Shipping Cents"
+          },
+          "express_shipping_cents": {
+            "type": "integer",
+            "title": "Express Shipping Cents"
+          },
+          "free_shipping_over_cents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Free Shipping Over Cents"
+          },
+          "rider_fee_cents": {
+            "type": "integer",
+            "title": "Rider Fee Cents"
+          },
+          "tax_rate": {
+            "type": "number",
+            "title": "Tax Rate"
+          },
           "maintenance_mode": {
             "type": "boolean",
             "title": "Maintenance Mode"
@@ -11162,6 +12757,17 @@
         },
         "type": "object",
         "required": [
+          "contact_name",
+          "contact_email",
+          "contact_phone",
+          "contact_whatsapp",
+          "contact_note",
+          "currency",
+          "standard_shipping_cents",
+          "express_shipping_cents",
+          "free_shipping_over_cents",
+          "rider_fee_cents",
+          "tax_rate",
           "maintenance_mode",
           "maintenance_message",
           "vendor_signups_open",
@@ -11216,6 +12822,135 @@
               }
             ],
             "title": "Rider Signups Open"
+          },
+          "standard_shipping_cents": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10000000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Standard Shipping Cents"
+          },
+          "express_shipping_cents": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10000000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Express Shipping Cents"
+          },
+          "free_shipping_over_cents": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100000000.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Free Shipping Over Cents"
+          },
+          "rider_fee_cents": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10000000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rider Fee Cents"
+          },
+          "tax_rate": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 0.5,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Rate"
+          },
+          "contact_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Name"
+          },
+          "contact_email": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "email"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Email"
+          },
+          "contact_phone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32,
+                "minLength": 6,
+                "pattern": "^[0-9+() .-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Phone"
+          },
+          "contact_whatsapp": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32,
+                "minLength": 6,
+                "pattern": "^[0-9+() .-]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Whatsapp"
+          },
+          "contact_note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Note"
           }
         },
         "additionalProperties": false,
@@ -11224,6 +12959,92 @@
       },
       "SiteStatus": {
         "properties": {
+          "contact_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Name"
+          },
+          "contact_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Email"
+          },
+          "contact_phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Phone"
+          },
+          "contact_whatsapp": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Whatsapp"
+          },
+          "contact_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Note"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "standard_shipping_cents": {
+            "type": "integer",
+            "title": "Standard Shipping Cents"
+          },
+          "express_shipping_cents": {
+            "type": "integer",
+            "title": "Express Shipping Cents"
+          },
+          "free_shipping_over_cents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Free Shipping Over Cents"
+          },
+          "rider_fee_cents": {
+            "type": "integer",
+            "title": "Rider Fee Cents"
+          },
+          "tax_rate": {
+            "type": "number",
+            "title": "Tax Rate"
+          },
           "maintenance_mode": {
             "type": "boolean",
             "title": "Maintenance Mode"
@@ -11242,6 +13063,17 @@
         },
         "type": "object",
         "required": [
+          "contact_name",
+          "contact_email",
+          "contact_phone",
+          "contact_whatsapp",
+          "contact_note",
+          "currency",
+          "standard_shipping_cents",
+          "express_shipping_cents",
+          "free_shipping_over_cents",
+          "rider_fee_cents",
+          "tax_rate",
           "maintenance_mode",
           "maintenance_message"
         ],
@@ -11290,6 +13122,95 @@
         "additionalProperties": false,
         "type": "object",
         "title": "SlotUpdate"
+      },
+      "StockChange": {
+        "properties": {
+          "variant_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Variant Id"
+          },
+          "stock": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1000000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stock"
+          },
+          "adjust_by": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1000000.0,
+                "minimum": -1000000.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adjust By"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "variant_id"
+        ],
+        "title": "StockChange",
+        "description": "Set `stock` to a count, or move it by `adjust_by` (a delivery in, a\ndamaged item out). `adjust_by` is safer while orders are coming in,\nbecause it doesn't overwrite a sale that happened a second ago."
+      },
+      "StockLevel": {
+        "properties": {
+          "variant_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Variant Id"
+          },
+          "product_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Product Id"
+          },
+          "sku": {
+            "type": "string",
+            "title": "Sku"
+          },
+          "stock_before": {
+            "type": "integer",
+            "title": "Stock Before"
+          },
+          "stock": {
+            "type": "integer",
+            "title": "Stock"
+          }
+        },
+        "type": "object",
+        "required": [
+          "variant_id",
+          "product_id",
+          "sku",
+          "stock_before",
+          "stock"
+        ],
+        "title": "StockLevel"
       },
       "Store": {
         "properties": {
@@ -11853,6 +13774,154 @@
           "name"
         ],
         "title": "StoreRef"
+      },
+      "StoreRider": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "relation": {
+            "type": "string",
+            "enum": [
+              "on_job",
+              "recent",
+              "nearby"
+            ],
+            "title": "Relation"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "vehicle": {
+            "type": "string",
+            "title": "Vehicle"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "on_shift": {
+            "type": "boolean",
+            "title": "On Shift"
+          },
+          "lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lat"
+          },
+          "lng": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lng"
+          },
+          "heading": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heading"
+          },
+          "last_seen_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen At"
+          },
+          "distance_km": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance Km"
+          },
+          "eta_to_store_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eta To Store Minutes"
+          },
+          "active_deliveries": {
+            "type": "integer",
+            "title": "Active Deliveries"
+          },
+          "completed_deliveries": {
+            "type": "integer",
+            "title": "Completed Deliveries"
+          },
+          "jobs": {
+            "items": {
+              "$ref": "#/components/schemas/RiderJob"
+            },
+            "type": "array",
+            "title": "Jobs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "relation",
+          "name",
+          "phone",
+          "vehicle",
+          "status",
+          "on_shift",
+          "lat",
+          "lng",
+          "heading",
+          "last_seen_at",
+          "distance_km",
+          "eta_to_store_minutes",
+          "active_deliveries",
+          "completed_deliveries",
+          "jobs"
+        ],
+        "title": "StoreRider",
+        "description": "A rider as a store sees them. `relation` says why they're listed:\non_job (carrying or about to carry one of the store's orders), recent\n(delivered for the store in the last 30 days) or nearby (on shift, free\nand close to the shop). Phone numbers are shown for riders who work the\nstore's orders, never for strangers nearby, and the exact position only\nwhile the rider is out on one of the store's jobs. completed_deliveries\ncounts deliveries for this store in the last 30 days."
       },
       "StoreSummary": {
         "properties": {
@@ -12630,6 +14699,66 @@
         "additionalProperties": false,
         "type": "object",
         "title": "VariantUpdate"
+      },
+      "Video": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "poster_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Poster Url"
+          },
+          "content_type": {
+            "type": "string",
+            "title": "Content Type"
+          },
+          "duration_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration S"
+          },
+          "caption": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "url",
+          "poster_url",
+          "content_type",
+          "duration_s",
+          "caption"
+        ],
+        "title": "Video"
       },
       "WishlistIn": {
         "properties": {

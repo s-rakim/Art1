@@ -10,12 +10,13 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import Field, StringConstraints
 
 from .. import schemas as s
-from ..auth import CurrentUser, User
+from ..auth import AccountUser, CurrentUser, User
 from ..common import Paging, paging
 from ..config import Settings, get_settings
 from ..db import get_conn
 from ..errors import ApiError, forbidden, not_found
 from ..geo import coarse
+from .. import dispatch
 from ..realtime import publish
 from ..security import sensitive_limit
 
@@ -23,7 +24,7 @@ router = APIRouter(prefix="/rider", tags=["rider"])
 Conn = Annotated[asyncpg.Connection, Depends(get_conn)]
 Cfg = Annotated[Settings, Depends(get_settings)]
 
-MAX_ACTIVE_DELIVERIES = 3
+MAX_ACTIVE_DELIVERIES = dispatch.MAX_ACTIVE_DELIVERIES
 MAX_CODE_ATTEMPTS = 5
 LIVE = ("assigned", "accepted", "picked_up")
 
@@ -68,6 +69,8 @@ class LocationIn(s.Strict):
     lng: Annotated[float, Field(ge=-180, le=180)]
     accuracy_m: Annotated[float, Field(ge=0, le=10_000)] | None = None
     heading: Annotated[float, Field(ge=0, lt=360)] | None = None
+    # As the browser's Geolocation API reports it, metres per second.
+    speed_mps: Annotated[float, Field(ge=0, le=100)] | None = None
 
 
 class Point(s.BaseModel):
@@ -121,7 +124,10 @@ async def signups_open(conn: asyncpg.Connection, kind: str) -> bool:
 
 
 @router.post("/applications", response_model=RiderMe, status_code=201, dependencies=[sensitive_limit("rider-apply")])
-async def apply(body: RiderApplicationIn, user: CurrentUser, conn: Conn, settings: Cfg):
+async def apply(body: RiderApplicationIn, user: AccountUser, conn: Conn, settings: Cfg):
+    """The hiring form. Open to riders who signed up through the rider link
+    and to existing shoppers. The application lands on the admins' hiring
+    page, and the account gets rider access only once an admin hires it."""
     if not await signups_open(conn, "rider"):
         raise ApiError(403, "signups_closed", "We aren't hiring riders right now.")
     if user.role in ("seller", "admin"):
@@ -162,7 +168,7 @@ async def _rider_me(conn: asyncpg.Connection, rider_id: uuid.UUID, settings: Set
         list(LIVE),
     )
     if r is None:
-        raise ApiError(403, "not_a_rider", "Apply to ride first.")
+        raise ApiError(404, "no_application", "There's no rider application for this account yet.")
     return {**dict(r), "currency": settings.currency}
 
 
@@ -186,7 +192,10 @@ Rider = Annotated[RiderCtx, Depends(active_rider)]
 
 
 @router.get("/me", response_model=RiderMe)
-async def rider_me(user: CurrentUser, conn: Conn, settings: Cfg):
+async def rider_me(user: AccountUser, conn: Conn, settings: Cfg):
+    """The rider's profile, or the state of their application while they
+    wait: status is "applicant" until an admin decides, then "active" or
+    "rejected". 404 means they haven't applied yet."""
     return await _rider_me(conn, user.id, settings)
 
 
@@ -206,6 +215,7 @@ async def set_shift(body: ShiftIn, rider: Rider, conn: Conn, settings: Cfg):
 async def post_location(body: LocationIn, rider: Rider, conn: Conn):
     """Send every 10 to 15 seconds while on shift."""
     now = datetime.now(timezone.utc)
+    speed_kmh = round(body.speed_mps * 3.6, 1) if body.speed_mps is not None else None
     async with conn.transaction():
         await conn.execute(
             """update riders set last_lat = $2, last_lng = $3, last_accuracy_m = $4, last_heading = $5,
@@ -222,15 +232,15 @@ async def post_location(body: LocationIn, rider: Rider, conn: Conn):
             rider.id, active[0]["id"] if active else None, body.lat, body.lng, body.accuracy_m, body.heading, now,
         )
         for d in active:
-            await publish(conn, {
+            await publish(conn, [f"delivery:{d['id']}", "admin"], {
                 "type": "location", "delivery_id": str(d["id"]), "lat": body.lat, "lng": body.lng,
-                "heading": body.heading, "at": now.isoformat(),
+                "heading": body.heading, "speed_kmh": speed_kmh, "at": now.isoformat(),
             })
         if not active:
             # Still useful for the admin's live map of riders on shift.
-            await publish(conn, {
+            await publish(conn, ["admin"], {
                 "type": "rider_location", "rider_id": str(rider.id), "lat": body.lat, "lng": body.lng,
-                "at": now.isoformat(),
+                "heading": body.heading, "speed_kmh": speed_kmh, "at": now.isoformat(),
             })
     return {"ok": True}
 
@@ -355,7 +365,6 @@ async def act(delivery_id: uuid.UUID, body: DeliveryActionIn, rider: Rider, conn
                 raise ApiError(409, "too_many_deliveries", "Finish a delivery before taking another.")
             await conn.execute("update deliveries set status = 'accepted', accepted_at = $2 where id = $1",
                                delivery_id, now)
-            new_status = "accepted"
 
         elif body.action == "decline":
             need("assigned")
@@ -363,19 +372,17 @@ async def act(delivery_id: uuid.UUID, body: DeliveryActionIn, rider: Rider, conn
                 "update deliveries set status = 'declined', ended_at = $2, note = $3 where id = $1",
                 delivery_id, now, body.note,
             )
-            new_status = "declined"
 
         elif body.action == "picked_up":
             need("accepted")
             await conn.execute("update deliveries set status = 'picked_up', picked_up_at = $2 where id = $1",
                                delivery_id, now)
             await conn.execute(
-                """update store_orders set status = 'shipped', shipped_at = $2, tracking_carrier = 'Marketplace rider',
+                """update store_orders set status = 'shipped', shipped_at = $2, tracking_carrier = 'Bazaar rider',
                           tracking_number = $3
                     where id = $1 and status = 'processing'""",
                 d["store_order_id"], now, str(delivery_id)[:8].upper(),
             )
-            new_status = "picked_up"
 
         elif body.action == "delivered":
             need("picked_up")
@@ -400,7 +407,6 @@ async def act(delivery_id: uuid.UUID, body: DeliveryActionIn, rider: Rider, conn
                        values ($1, 'delivery', $2, $3, 'delivery', $4, 'Rider delivery fee')""",
                     d["store_id"], -d["fee_cents"], d["currency"], delivery_id,
                 )
-            new_status = "delivered"
 
         else:  # failed
             need("accepted", "picked_up")
@@ -415,11 +421,10 @@ async def act(delivery_id: uuid.UUID, body: DeliveryActionIn, rider: Rider, conn
                 "update store_orders set status = 'processing' where id = $1 and status = 'shipped'",
                 d["store_order_id"],
             )
-            new_status = "failed"
 
-        await publish(conn, {"type": "status", "delivery_id": str(delivery_id), "status": new_status,
-                             "at": now.isoformat()})
-
+    if body.action == "decline":
+        # Straight on to the next closest rider.
+        await dispatch.try_assign(conn, [d["store_order_id"]], settings)
     rec = await conn.fetchrow(DELIVERY_SELECT + " where d.id = $1", delivery_id)
     return _for_rider(rec)
 

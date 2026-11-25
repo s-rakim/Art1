@@ -12,6 +12,7 @@ from .. import schemas as s
 from ..auth import AdminUser
 from ..common import Paging, paging
 from ..config import Settings, get_settings
+from ..dispatch import ready_store_orders, try_assign
 from ..db import get_conn
 from ..errors import ApiError, not_found
 from ..supabase_admin import sync_app_roles
@@ -32,7 +33,26 @@ def _like(q: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-class SiteStatus(s.BaseModel):
+class Fees(s.BaseModel):
+    currency: str
+    standard_shipping_cents: int
+    express_shipping_cents: int
+    free_shipping_over_cents: int | None
+    rider_fee_cents: int
+    tax_rate: float
+
+
+class Contact(s.BaseModel):
+    """Who would-be vendors talk to about renting a stall and its price."""
+
+    contact_name: str | None
+    contact_email: str | None
+    contact_phone: str | None
+    contact_whatsapp: str | None
+    contact_note: str | None
+
+
+class SiteStatus(Fees, Contact):
     maintenance_mode: bool
     maintenance_message: str | None
 
@@ -43,35 +63,63 @@ class SiteSettings(SiteStatus):
     updated_at: datetime
 
 
+Phone = Annotated[str, s.StringConstraints(min_length=6, max_length=32, pattern=r"^[0-9+() .-]+$")]
+Fee = Annotated[int, s.Field(ge=0, le=10_000_000)]
+
+
 class SiteSettingsUpdate(s.Strict):
     maintenance_mode: bool | None = None
     maintenance_message: s.MediumText | None = None
     vendor_signups_open: bool | None = None
     rider_signups_open: bool | None = None
+    standard_shipping_cents: Fee | None = None
+    express_shipping_cents: Fee | None = None
+    # Send null to make shipping never free.
+    free_shipping_over_cents: Annotated[int, s.Field(ge=1, le=100_000_000)] | None = None
+    rider_fee_cents: Fee | None = None
+    tax_rate: Annotated[float, s.Field(ge=0, le=0.5)] | None = None
+    contact_name: s.ShortText | None = None
+    contact_email: s.EmailStr | None = None
+    contact_phone: Phone | None = None
+    contact_whatsapp: Phone | None = None
+    contact_note: s.MediumText | None = None
+
+
+# Fields where an explicit null means something (clear it, or "never free").
+_NULLABLE = {"maintenance_message", "free_shipping_over_cents", "contact_name", "contact_email", "contact_phone",
+             "contact_whatsapp", "contact_note"}
+_SETTINGS_SELECT = "select *, tax_rate::float as tax_rate from app_settings"
 
 
 @public.get("/status", response_model=SiteStatus)
-async def status(conn: Conn, response: Response):
-    rec = await conn.fetchrow("select maintenance_mode, maintenance_message from app_settings")
+async def status(conn: Conn, response: Response, settings: Cfg):
+    """Maintenance state, the fees the cart should show, and the admin
+    contact the rent-a-stall page shows instead of prices."""
+    rec = await conn.fetchrow(_SETTINGS_SELECT)
     response.headers["Cache-Control"] = "public, max-age=15"
-    return dict(rec)
+    return {**dict(rec), "currency": settings.currency}
 
 
 @router.get("/settings", response_model=SiteSettings)
-async def get_site_settings(_: AdminUser, conn: Conn):
-    return dict(await conn.fetchrow("select * from app_settings"))
+async def get_site_settings(_: AdminUser, conn: Conn, settings: Cfg):
+    return {**dict(await conn.fetchrow(_SETTINGS_SELECT)), "currency": settings.currency}
 
 
 @router.patch("/settings", response_model=SiteSettings)
-async def update_site_settings(body: SiteSettingsUpdate, admin: AdminUser, conn: Conn):
+async def update_site_settings(body: SiteSettingsUpdate, admin: AdminUser, conn: Conn, settings: Cfg):
+    """Fees take effect for orders placed from now on; orders already placed
+    keep what they were charged."""
     data = body.model_dump(exclude_unset=True)
+    for k, v in data.items():
+        if v is None and k not in _NULLABLE:
+            raise ApiError(422, "invalid_value", f"{k} can't be empty.")
     cols = [k for k in SiteSettingsUpdate.model_fields if k in data]
     if cols:
         sets = ", ".join(f"{c} = ${i + 2}" for i, c in enumerate(cols))
         await conn.execute(
             f"update app_settings set {sets}, updated_at = now(), updated_by = $1", admin.id, *[data[c] for c in cols]
         )
-    return dict(await conn.fetchrow("select * from app_settings"))
+    return {**dict(await conn.fetchrow(_SETTINGS_SELECT)), "currency": settings.currency}
 
 
 # ---------------------------------------------------------------------------
@@ -100,6 +148,7 @@ async def stats(_: AdminUser, conn: Conn, settings: Cfg):
                where ss.status in ('active', 'trialing') and not ss.cancel_at_period_end)::bigint as mrr,
              (select count(*) from stores where status = 'active')::int as active_stores,
              (select count(*) from stores where status = 'pending')::int as pending_stores,
+             (select count(*) from riders where status = 'applicant')::int as pending_riders,
              (select count(*) from profiles where role = 'customer')::int as customers,
              (select count(*) from products where status = 'active')::int as active_products,
              (select coalesce(sum(amount_cents), 0) from payouts where status in ('requested', 'approved'))::bigint
@@ -116,6 +165,7 @@ async def stats(_: AdminUser, conn: Conn, settings: Cfg):
         "rent_mrr_cents": int(r["mrr"]),
         "active_stores": r["active_stores"],
         "pending_stores": r["pending_stores"],
+        "pending_riders": r["pending_riders"],
         "customers": r["customers"],
         "active_products": r["active_products"],
         "payouts_requested_cents": int(r["payouts_requested"]),
@@ -492,13 +542,14 @@ async def order(order_id: uuid.UUID, _: AdminUser, conn: Conn):
 
 @router.post("/orders/{order_id}/mark-paid", response_model=s.Order)
 async def mark_paid(order_id: uuid.UUID, _: AdminUser, conn: Conn, settings: Cfg):
-    """For transfers made to the marketplace's own account."""
+    """For transfers made to The Bazaar's own account."""
     async with conn.transaction():
         changed = await conn.fetchval(
             "select mark_order_paid($1, 'manual', null, $2)", order_id, settings.payout_hold_days
         )
         if not changed:
             raise ApiError(409, "not_payable", "That order is already paid or canceled.")
+    await try_assign(conn, await ready_store_orders(conn, order_id), settings)
     return await order_detail(conn, order_id, None)
 
 
@@ -582,6 +633,7 @@ class AdminRider(s.BaseModel):
     is_online: bool
     last_lat: float | None
     last_lng: float | None
+    last_heading: float | None
     last_seen_at: datetime | None
     active_deliveries: int
     completed_deliveries: int
@@ -596,7 +648,7 @@ class AdminRiderUpdate(s.Strict):
 
 RIDER_SELECT = """
     select r.id, r.full_name, p.email, r.phone, r.city, r.vehicle, r.licence_number, r.status, r.review_note,
-           r.is_online, r.last_lat, r.last_lng, r.last_seen_at, r.created_at, r.approved_at,
+           r.is_online, r.last_lat, r.last_lng, r.last_heading, r.last_seen_at, r.created_at, r.approved_at,
            (select count(*) from deliveries d where d.rider_id = r.id
               and d.status in ('assigned', 'accepted', 'picked_up'))::int as active_deliveries,
            (select count(*) from deliveries d where d.rider_id = r.id and d.status = 'delivered')::int
@@ -628,16 +680,61 @@ async def riders(
     return pg.wrap([dict(r) for r in recs], total)
 
 
+class AdminRiderDetail(AdminRider):
+    unpaid_earnings_cents: int
+    jobs: list[s.RiderJob]
+
+
+@router.get("/riders/{rider_id}", response_model=AdminRiderDetail)
+async def rider_detail(rider_id: uuid.UUID, _: AdminUser, conn: Conn):
+    """Everything for the expandable row: contact, last position and
+    heading, and the latest 20 jobs."""
+    rec = await conn.fetchrow(RIDER_SELECT + " where r.id = $1", rider_id)
+    if rec is None:
+        raise not_found("rider")
+    jobs = await conn.fetch(
+        """select d.id as delivery_id, o.number as order_number, d.status, d.assigned_at, d.delivered_at
+             from deliveries d join store_orders so on so.id = d.store_order_id join orders o on o.id = so.order_id
+            where d.rider_id = $1
+            order by (d.status in ('assigned', 'accepted', 'picked_up')) desc, d.assigned_at desc limit 20""",
+        rider_id,
+    )
+    unpaid = await conn.fetchval(
+        "select coalesce(sum(amount_cents), 0) from rider_earnings where rider_id = $1 and not paid_out", rider_id
+    )
+    return {**dict(rec), "unpaid_earnings_cents": int(unpaid), "jobs": [dict(j) for j in jobs]}
+
+
 @router.get("/rider-applications", response_model=s.Page[AdminRider])
 async def rider_applications(_: AdminUser, conn: Conn, pg: Annotated[Paging, Depends(paging)]):
+    """The hiring queue: riders who filled in the form and are waiting."""
     return await riders(_, conn, pg, status="applicant", online=None)
+
+
+class ApplicationDecision(s.Strict):
+    note: s.MediumText | None = None
+
+
+@router.post("/rider-applications/{rider_id}/approve", response_model=AdminRider)
+async def hire_rider(rider_id: uuid.UUID, body: ApplicationDecision, admin: AdminUser, conn: Conn, settings: Cfg):
+    """Hire the rider. Their account switches to the rider role and they can
+    sign in to the rider app."""
+    return await update_rider(rider_id, AdminRiderUpdate(status="active", review_note=body.note), admin, conn, settings)
+
+
+@router.post("/rider-applications/{rider_id}/reject", response_model=AdminRider)
+async def reject_rider(rider_id: uuid.UUID, body: ApplicationDecision, admin: AdminUser, conn: Conn, settings: Cfg):
+    """Turn the application down. The note is shown to the applicant."""
+    return await update_rider(rider_id, AdminRiderUpdate(status="rejected", review_note=body.note), admin, conn, settings)
 
 
 @router.patch("/riders/{rider_id}", response_model=AdminRider)
 async def update_rider(rider_id: uuid.UUID, body: AdminRiderUpdate, _: AdminUser, conn: Conn, settings: Cfg):
     async with conn.transaction():
-        r = await conn.fetchrow("select r.status, p.role from riders r join profiles p on p.id = r.id where r.id = $1 for update of r",
-                                rider_id)
+        r = await conn.fetchrow(
+            "select r.status, p.role, p.signup_as from riders r join profiles p on p.id = r.id where r.id = $1 for update of r",
+            rider_id,
+        )
         if r is None:
             raise not_found("rider")
         if body.status == "active":
@@ -664,8 +761,13 @@ async def update_rider(rider_id: uuid.UUID, body: AdminRiderUpdate, _: AdminUser
                 "update riders set status = $2, review_note = $3, is_online = false where id = $1",
                 rider_id, body.status, body.review_note,
             )
-            await conn.execute("update profiles set role = 'customer' where id = $1 and role = 'rider'", rider_id)
-            new_role = "customer"
+            # Someone who signed up to ride goes back to waiting, with no
+            # shop access. A shopper who applied goes back to shopping.
+            new_role = "rider_applicant" if r["signup_as"] == "rider" else "customer"
+            if r["role"] in ("rider", "rider_applicant"):
+                await conn.execute("update profiles set role = $2 where id = $1", rider_id, new_role)
+            else:
+                new_role = r["role"]
     await sync_app_roles(settings, rider_id, new_role)
     rec = await conn.fetchrow(RIDER_SELECT + " where r.id = $1", rider_id)
     return dict(rec)
@@ -705,7 +807,7 @@ async def live_map(_: AdminUser, conn: Conn):
     scope "admin" for updates."""
     ds = await conn.fetch(
         """select d.id, d.status, st.name as store_name, o.number as order_number, d.rider_id,
-                  r.full_name as rider_name, r.last_lat, r.last_lng, r.last_seen_at, d.pickup, d.dropoff,
+                  r.full_name as rider_name, r.last_lat, r.last_lng, r.last_heading, r.last_seen_at, d.pickup, d.dropoff,
                   d.assigned_at
              from deliveries d
              join riders r on r.id = d.rider_id
@@ -730,7 +832,8 @@ async def live_map(_: AdminUser, conn: Conn):
             {
                 "id": d["id"], "status": d["status"], "store_name": d["store_name"],
                 "order_number": d["order_number"], "rider_id": d["rider_id"], "rider_name": d["rider_name"],
-                "rider_position": {"lat": d["last_lat"], "lng": d["last_lng"], "at": d["last_seen_at"]}
+                "rider_position": {"lat": d["last_lat"], "lng": d["last_lng"], "heading": d["last_heading"],
+                                   "at": d["last_seen_at"]}
                 if d["last_lat"] is not None else None,
                 "pickup": pt(d["pickup"]), "dropoff": pt(d["dropoff"]), "assigned_at": d["assigned_at"],
             }

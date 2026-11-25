@@ -1,41 +1,66 @@
-"""Live delivery tracking.
+"""Live updates between shoppers, vendors, riders and admins.
 
-Riders post their position over HTTP. The API writes it and fires
-pg_notify('delivery_events', ...). Every API worker keeps one LISTEN
-connection and fans events out to the websockets it holds, so this works with
-several uvicorn workers or replicas without Redis pub/sub.
+Database triggers (migration 0005) and the API fire pg_notify('live_events')
+with a list of topics and a small event. Every API worker keeps one LISTEN
+connection and fans each event out to the websockets subscribed to one of
+those topics, so this works with several uvicorn workers or replicas without
+Redis pub/sub. NOTIFY waits for the transaction to commit, so nobody hears
+about a change that was rolled back.
 
-Websocket protocol (/api/v1/ws/tracking):
+Websocket protocol (/api/v1/ws/live, also served at /api/v1/ws/tracking):
 
     client -> {"type": "auth", "token": "<supabase access token>"}     within 10 s
-    server -> {"type": "ready", "role": "customer"}
+    server -> {"type": "ready", "role": "customer", "expires_at": <unix time>}
+
+    client -> {"type": "subscribe", "scope": "me"}
+    server -> {"type": "subscribed", "scope": "me"}, then whatever concerns
+              this account:
+        {"type": "order", "order_id", "store_order_id", "status", "payment_status", "at"}
+              the buyer and the store
+        {"type": "job", "delivery_id", "store_order_id", "status", "at"}
+              the rider, the store and the buyer
+        {"type": "stock", "product_id", "variant_id", "stock", "at"}
+              the store
+        {"type": "application", "kind": "rider"|"vendor", "id", "status", "at"}
+              the applicant, and admins
+        {"type": "catalog", "product_id", "slug", "at"}
+              everyone: a live product was edited, priced, hidden or re-imaged
+        (admins also get every order, job and application on the site)
+
     client -> {"type": "subscribe", "delivery_id": "<uuid>"}
-           or {"type": "subscribe", "scope": "admin"}                  admins only
-    server -> {"type": "subscribed", ...} then a stream of
-              {"type": "location", "delivery_id", "lat", "lng", "heading", "at"}
+              the buyer, the store, the rider or an admin
+    server -> {"type": "location", "delivery_id", "lat", "lng", "heading", "at"}
               {"type": "status", "delivery_id", "status", "at"}
 
+    client -> {"type": "subscribe", "scope": "admin"}                  admins only
+    server -> every location and status, plus {"type": "rider_location", ...}
+              for riders on shift without a job
+
+Events are "something changed" signals: clients refetch the view they show.
 The token goes in the first message, not the URL, so it never lands in proxy
-logs.
+logs, and the server closes the socket (code 4001) when the token expires.
+The frontend reconnects with a fresh one.
 """
 
 import asyncio
 import contextlib
 import json
 import logging
+import time
 import uuid
 from collections import defaultdict
 
 import asyncpg
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from .auth import _load_user, decode_token
-from .config import get_settings
+from .auth import User, _load_user, decode_token
+from .config import Settings, get_settings
 from .errors import ApiError
 
 log = logging.getLogger("api.realtime")
-CHANNEL = "delivery_events"
+CHANNEL = "live_events"
 ADMIN_TOPIC = "admin"
+MAX_QUEUE = 200
 
 
 class Hub:
@@ -66,14 +91,19 @@ class Hub:
 
     def _on_notify(self, _conn, _pid, _channel, payload: str):
         try:
-            event = json.loads(payload)
-        except ValueError:
+            message = json.loads(payload)
+            topics, event = message["to"], message["event"]
+        except (ValueError, KeyError, TypeError):
             return
-        topics = [str(event.get("delivery_id")), ADMIN_TOPIC]
+        if not isinstance(topics, list) or not isinstance(event, dict):
+            return
+        # A socket subscribed to several matching topics gets the event once.
+        targets: set[asyncio.Queue] = set()
         for topic in topics:
-            for q in list(self._subs.get(topic, ())):
-                if q.qsize() < 100:  # slow consumer: drop rather than grow without bound
-                    q.put_nowait(event)
+            targets.update(self._subs.get(str(topic), ()))
+        for q in targets:
+            if q.qsize() < MAX_QUEUE:  # slow consumer: drop rather than grow without bound
+                q.put_nowait(event)
 
     def subscribe(self, topic: str, q: asyncio.Queue):
         self._subs[topic].add(q)
@@ -93,9 +123,29 @@ class Hub:
             await self._conn.close()
 
 
-async def publish(conn: asyncpg.Connection, event: dict):
+async def publish(conn: asyncpg.Connection, topics: list[str], event: dict):
     """Delivered when the surrounding transaction commits."""
-    await conn.execute("select pg_notify($1, $2)", CHANNEL, json.dumps(event, default=str))
+    await conn.execute("select pg_notify($1, $2)", CHANNEL, json.dumps({"to": topics, "event": event}, default=str))
+
+
+async def personal_topics(conn: asyncpg.Connection, user: User, admin_ok: bool = True) -> list[str]:
+    """What scope "me" covers for this account, decided from the database at
+    subscribe time."""
+    topics = [f"user:{user.id}", "catalog"]
+    if user.role == "seller":
+        store_id = await conn.fetchval("select id from stores where owner_id = $1", user.id)
+        if store_id:
+            topics.append(f"store:{store_id}")
+    elif user.role == "rider":
+        if await conn.fetchval("select 1 from riders where id = $1 and status = 'active'", user.id):
+            topics.append(f"rider:{user.id}")
+    elif user.role == "admin" and admin_ok:
+        topics.append("ops")
+    return topics
+
+
+def _admin_ok(user: User, settings: Settings) -> bool:
+    return user.is_admin and (not settings.admin_require_mfa or user.aal == "aal2")
 
 
 async def can_watch(conn: asyncpg.Connection, user_id: uuid.UUID, role: str, delivery_id: uuid.UUID) -> bool:
@@ -118,8 +168,9 @@ async def can_watch(conn: asyncpg.Connection, user_id: uuid.UUID, role: str, del
 router = APIRouter()
 
 
+@router.websocket("/ws/live")
 @router.websocket("/ws/tracking")
-async def tracking_socket(ws: WebSocket):
+async def live_socket(ws: WebSocket):
     settings = get_settings()
     origin = ws.headers.get("origin")
     if origin and origin not in settings.cors_origins:
@@ -144,14 +195,25 @@ async def tracking_socket(ws: WebSocket):
             await ws.send_json({"type": "error", "code": "unauthorized"})
             await ws.close(code=1008)
             return
-        await ws.send_json({"type": "ready", "role": user.role})
+        expires_at = int(claims["exp"])
+        await ws.send_json({"type": "ready", "role": user.role, "expires_at": expires_at})
 
         async def pump():
             while True:
                 event = await queue.get()
                 await ws.send_json(event)
 
+        async def expire():
+            # The token was checked once, at the start. Don't let a socket
+            # outlive it: past this point a suspended rider or demoted admin
+            # would keep hearing events.
+            await asyncio.sleep(max(0, expires_at - time.time()))
+            with contextlib.suppress(Exception):
+                await ws.send_json({"type": "error", "code": "token_expired"})
+            await ws.close(code=4001)
+
         pump_task = asyncio.create_task(pump())
+        expiry_task = asyncio.create_task(expire())
         try:
             while True:
                 msg = await ws.receive_json()
@@ -160,8 +222,17 @@ async def tracking_socket(ws: WebSocket):
                 if subscribed >= 20:
                     await ws.send_json({"type": "error", "code": "too_many_subscriptions"})
                     continue
-                if msg.get("scope") == "admin":
-                    if user.role != "admin":
+                scope = msg.get("scope")
+                if scope == "me":
+                    async with pool.acquire() as conn:
+                        topics = await personal_topics(conn, user, _admin_ok(user, settings))
+                    for topic in topics:
+                        hub.subscribe(topic, queue)
+                    subscribed += 1
+                    await ws.send_json({"type": "subscribed", "scope": "me"})
+                    continue
+                if scope == "admin":
+                    if not _admin_ok(user, settings):
                         await ws.send_json({"type": "error", "code": "forbidden"})
                         continue
                     hub.subscribe(ADMIN_TOPIC, queue)
@@ -174,16 +245,17 @@ async def tracking_socket(ws: WebSocket):
                     await ws.send_json({"type": "error", "code": "bad_delivery_id"})
                     continue
                 async with pool.acquire() as conn:
-                    allowed = await can_watch(conn, user.id, user.role, delivery_id)
+                    allowed = _admin_ok(user, settings) or await can_watch(conn, user.id, "", delivery_id)
                 if not allowed:
                     # Same answer for "not yours" and "doesn't exist".
                     await ws.send_json({"type": "error", "code": "not_found"})
                     continue
-                hub.subscribe(str(delivery_id), queue)
+                hub.subscribe(f"delivery:{delivery_id}", queue)
                 subscribed += 1
                 await ws.send_json({"type": "subscribed", "delivery_id": str(delivery_id)})
         finally:
             pump_task.cancel()
+            expiry_task.cancel()
     except (WebSocketDisconnect, asyncio.TimeoutError, ValueError, RuntimeError):
         pass
     finally:

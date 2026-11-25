@@ -82,11 +82,12 @@ begin
     -- Signed out visitors have no business with any of these.
     execute 'revoke all on profiles, addresses, carts, cart_items, wishlist_items, orders, store_orders,
                            order_items, ledger_entries, payouts, coupons, rent_invoices, store_subscriptions,
-                           riders, deliveries, rider_locations, rider_earnings, app_settings from anon';
+                           riders, deliveries, rider_locations, rider_earnings, app_settings,
+                           inventory_adjustments from anon';
     -- Riders and deliveries hold phone numbers and live locations. They are
     -- served only through the API, which applies the per-delivery rules.
-    execute 'revoke all on riders, deliveries, rider_locations, rider_earnings, app_settings, coupons
-             from authenticated';
+    execute 'revoke all on riders, deliveries, rider_locations, rider_earnings, app_settings, coupons,
+                           inventory_adjustments from authenticated';
     -- Store rows are public once active, but the application (tax ids,
     -- phone numbers), the admin's note and the owner id are not.
     execute 'revoke select on stores from anon, authenticated';
@@ -114,6 +115,9 @@ begin
                 using (is_active and exists (select 1 from products p join stores s on s.id = p.store_id
                                               where p.id = product_id and p.status = 'active' and s.status = 'active'))$p$;
     execute $p$create policy "images of active products" on product_images for select
+                using (exists (select 1 from products p join stores s on s.id = p.store_id
+                                where p.id = product_id and p.status = 'active' and s.status = 'active'))$p$;
+    execute $p$create policy "videos of active products" on product_videos for select
                 using (exists (select 1 from products p join stores s on s.id = p.store_id
                                 where p.id = product_id and p.status = 'active' and s.status = 'active'))$p$;
     execute $p$create policy "reviews are public" on reviews for select using (true)$p$;

@@ -7,7 +7,7 @@ import asyncpg
 from fastapi import APIRouter, Depends, Response
 
 from .. import schemas as s
-from ..auth import CurrentUser
+from ..auth import HOME, AccountUser, CurrentUser
 from ..common import CARD_SELECT, VISIBLE, Paging, card, paging
 from ..db import get_conn
 from ..errors import ApiError, not_found
@@ -21,18 +21,28 @@ MAX_WISHLIST = 500
 
 
 async def _me(conn: asyncpg.Connection, user_id: uuid.UUID) -> dict:
-    p = await conn.fetchrow("select id, email, full_name, avatar_url, role from profiles where id = $1", user_id)
+    p = await conn.fetchrow(
+        """select p.id, p.email, p.full_name, p.avatar_url, p.role, p.signup_as, r.status as rider_status
+             from profiles p left join riders r on r.id = p.id where p.id = $1""",
+        user_id,
+    )
     store = await conn.fetchrow("select id, slug, name, status from stores where owner_id = $1", user_id)
-    return {**dict(p), "store": dict(store) if store else None}
+    first = (p["full_name"] or "").split()
+    return {**dict(p), "first_name": first[0] if first else None, "home": HOME.get(p["role"], "/"),
+            "store": dict(store) if store else None}
 
 
 @router.get("/me", response_model=s.Me)
-async def get_me(user: CurrentUser, conn: Conn):
+async def get_me(user: AccountUser, conn: Conn):
+    """Who is signed in and where they belong. After the one login page, the
+    frontend sends people to `home`: shoppers to the storefront, vendors to
+    their back office, riders to their jobs, admins to the console, and
+    riders who aren't hired yet to the hiring page."""
     return await _me(conn, user.id)
 
 
 @router.patch("/me", response_model=s.Me)
-async def update_me(body: s.MeUpdate, user: CurrentUser, conn: Conn):
+async def update_me(body: s.MeUpdate, user: AccountUser, conn: Conn):
     data = body.model_dump(exclude_unset=True)
     if data:
         await conn.execute(

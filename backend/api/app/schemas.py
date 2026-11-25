@@ -146,6 +146,15 @@ class CategoryRef(BaseModel):
     name: str
 
 
+class Video(BaseModel):
+    id: uuid.UUID
+    url: str
+    poster_url: str | None
+    content_type: str
+    duration_s: float | None
+    caption: str | None
+
+
 class ProductDetail(BaseModel):
     id: uuid.UUID
     slug: str
@@ -162,6 +171,7 @@ class ProductDetail(BaseModel):
     sold_count: int
     variants: list[Variant]
     images: list[Image]
+    video: "Video | None" = None
     store: StoreSummary
     category: CategoryRef | None
 
@@ -205,6 +215,20 @@ class Plan(BaseModel):
     product_limit: int | None
     featured_slots: int
     features: list[str]
+
+
+class PublicPlan(BaseModel):
+    """A stall plan as the public sees it: what it includes, not what it
+    costs. Prices are agreed with the admin; GET /status has the contact."""
+
+    id: uuid.UUID
+    code: str
+    name: str
+    description: str | None
+    product_limit: int | None
+    featured_slots: int
+    features: list[str]
+    price_on_request: bool = True
 
 
 class Store(BaseModel):
@@ -262,8 +286,14 @@ class Me(BaseModel):
     id: uuid.UUID
     email: str | None
     full_name: str | None
+    # For the greeting ("Good morning, Malcolm"). Sign-up should send
+    # user_metadata.full_name, or first_name and last_name.
+    first_name: str | None
     avatar_url: str | None
-    role: str
+    role: Literal["customer", "seller", "rider", "admin", "rider_applicant"]
+    signup_as: Literal["customer", "rider"]
+    home: str
+    rider_status: Literal["applicant", "active", "suspended", "rejected"] | None
     store: MyStoreRef | None
 
 
@@ -596,6 +626,9 @@ class ProductUpdate(Strict):
     attributes: Annotated[dict[ShortText, ShortText], Field(max_length=40)] | None = None
     tags: Annotated[list[Annotated[str, StringConstraints(min_length=1, max_length=40)]], Field(max_length=20)] | None = None
     images: Annotated[list[ImageIn], Field(max_length=12)] | None = None
+    # Only null is accepted here, to remove the video. Videos are added with
+    # PUT /seller/products/{id}/video so the file can be checked.
+    video: None = None
 
 
 class SellerVariant(Variant):
@@ -620,6 +653,7 @@ class SellerProduct(BaseModel):
     sold_count: int
     variants: list[SellerVariant]
     images: list[Image]
+    video: "Video | None" = None
     created_at: datetime
     updated_at: datetime
 
@@ -701,8 +735,43 @@ class AvailableRider(BaseModel):
     last_seen_at: datetime | None
 
 
+class RiderJob(BaseModel):
+    delivery_id: uuid.UUID
+    order_number: str
+    status: str
+    assigned_at: datetime
+    delivered_at: datetime | None = None
+
+
+class StoreRider(BaseModel):
+    """A rider as a store sees them. `relation` says why they're listed:
+    on_job (carrying or about to carry one of the store's orders), recent
+    (delivered for the store in the last 30 days) or nearby (on shift, free
+    and close to the shop). Phone numbers are shown for riders who work the
+    store's orders, never for strangers nearby, and the exact position only
+    while the rider is out on one of the store's jobs. completed_deliveries
+    counts deliveries for this store in the last 30 days."""
+
+    id: uuid.UUID
+    relation: Literal["on_job", "recent", "nearby"]
+    name: str
+    phone: str | None
+    vehicle: str
+    status: str
+    on_shift: bool
+    lat: float | None
+    lng: float | None
+    heading: float | None
+    last_seen_at: datetime | None
+    distance_km: float | None
+    eta_to_store_minutes: int | None
+    active_deliveries: int
+    completed_deliveries: int
+    jobs: list[RiderJob]
+
+
 class DispatchIn(Strict):
-    rider_id: uuid.UUID
+    rider_id: uuid.UUID | None = None
     note: MediumText | None = None
 
 
@@ -809,6 +878,69 @@ class PlacementBooking(BaseModel):
     headline: str | None
 
 
+class ImageAltIn(Strict):
+    alt: ShortText | None = None
+
+
+class ImageOrderIn(Strict):
+    image_ids: Annotated[list[uuid.UUID], Field(min_length=1, max_length=12)]
+
+
+class StockChange(Strict):
+    """Set `stock` to a count, or move it by `adjust_by` (a delivery in, a
+    damaged item out). `adjust_by` is safer while orders are coming in,
+    because it doesn't overwrite a sale that happened a second ago."""
+
+    variant_id: uuid.UUID
+    stock: Annotated[int, Field(ge=0, le=1_000_000)] | None = None
+    adjust_by: Annotated[int, Field(ge=-1_000_000, le=1_000_000)] | None = None
+    reason: ShortText | None = None
+
+    @model_validator(mode="after")
+    def one_of(self):
+        if (self.stock is None) == (self.adjust_by is None):
+            raise ValueError("send either stock or adjust_by")
+        if self.adjust_by == 0:
+            raise ValueError("adjust_by can't be zero")
+        return self
+
+
+class InventoryUpdateIn(Strict):
+    items: Annotated[list[StockChange], Field(min_length=1, max_length=200)]
+
+    @model_validator(mode="after")
+    def unique(self):
+        ids = [i.variant_id for i in self.items]
+        if len(set(ids)) != len(ids):
+            raise ValueError("each variant can appear once")
+        return self
+
+
+class StockLevel(BaseModel):
+    variant_id: uuid.UUID
+    product_id: uuid.UUID
+    sku: str
+    stock_before: int
+    stock: int
+
+
+class InventoryUpdateOut(BaseModel):
+    items: list[StockLevel]
+
+
+class InventoryAdjustment(BaseModel):
+    id: uuid.UUID
+    variant_id: uuid.UUID
+    product_id: uuid.UUID
+    product_title: str
+    sku: str
+    stock_before: int
+    stock_after: int
+    reason: str | None
+    by: str | None
+    created_at: datetime
+
+
 class UploadIn(Strict):
     filename: Annotated[str, StringConstraints(min_length=1, max_length=120)]
     content_type: Literal["image/jpeg", "image/png", "image/webp", "image/avif"]
@@ -858,6 +990,7 @@ class AdminStats(BaseModel):
     rent_mrr_cents: int
     active_stores: int
     pending_stores: int
+    pending_riders: int
     customers: int
     active_products: int
     payouts_requested_cents: int
@@ -972,9 +1105,16 @@ class MapPoint(BaseModel):
     label: str | None = None
 
 
+class DropoffIn(Strict):
+    lat: Lat
+    lng: Lng
+    note: MediumText | None = None
+
+
 class RiderPosition(BaseModel):
     lat: float
     lng: float
+    heading: float | None = None
     at: datetime | None
 
 
@@ -1011,3 +1151,7 @@ class Tracking(BaseModel):
 
 StoreDelivery.model_rebuild()
 StoreOrder.model_rebuild()
+
+
+ProductDetail.model_rebuild()
+SellerProduct.model_rebuild()

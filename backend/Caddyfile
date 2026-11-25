@@ -12,7 +12,13 @@
 	encode zstd gzip
 
 	# Payloads are capped in the API too; this stops abuse at the edge.
-	request_body {
+	# Only product photo and video uploads may be big.
+	@uploads path_regexp ^/api/v1/seller/products/[0-9a-fA-F-]{36}/(images(/[0-9a-fA-F-]{36})?|video)$
+	request_body @uploads {
+		max_size 60MB
+	}
+	@everything_else not path_regexp ^/api/v1/seller/products/[0-9a-fA-F-]{36}/(images(/[0-9a-fA-F-]{36})?|video)$
+	request_body @everything_else {
 		max_size 2MB
 	}
 

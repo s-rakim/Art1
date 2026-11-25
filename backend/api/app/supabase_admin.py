@@ -17,6 +17,7 @@ ROLE_TO_APP_ROLES = {
     "seller": ["customer", "vendor"],
     "rider": ["customer", "rider"],
     "admin": ["admin"],
+    "rider_applicant": ["rider_applicant"],
 }
 
 

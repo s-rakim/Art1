@@ -37,6 +37,8 @@ os.environ.update(
         "RATE_LIMIT_SENSITIVE": "1000",
         "RATE_LIMIT_RIDER_LOCATION": "1000",
         "MAX_BODY_BYTES": "200000",
+        "IMAGE_URL_HOSTS": "images.example.com",
+        "AUTO_DISPATCH": "false",
     }
 )
 

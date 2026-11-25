@@ -1,27 +1,28 @@
-"""Everything a retailer renting space on the marketplace does.
+"""Everything a retailer renting space on The Bazaar does.
 
 Every query in here is scoped by the caller's own store id, which comes from
 the database (stores.owner_id = the signed in user), never from the request.
 """
 
-import secrets
 import uuid
 from datetime import date, timedelta
 from typing import Annotated, Literal
 
 import asyncpg
 import httpx
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile
+from pydantic import TypeAdapter, ValidationError
 
 from .. import schemas as s
 from ..auth import CurrentUser, User
 from ..common import Paging, paging, slugify, unique_suffix
 from ..config import Settings, get_settings
+from .. import dispatch as dispatch_mod
 from ..db import get_conn
 from ..errors import ApiError, forbidden, not_found
 from ..geo import eta_minutes, haversine_km
-from ..realtime import publish
 from ..security import sensitive_limit
+from .. import storage
 
 router = APIRouter(prefix="/seller", tags=["seller"])
 Conn = Annotated[asyncpg.Connection, Depends(get_conn)]
@@ -257,7 +258,11 @@ async def _seller_product(conn: asyncpg.Connection, store_id: uuid.UUID, product
         product_id,
     )
     images = await conn.fetch("select id, url, alt from product_images where product_id = $1 order by sort", product_id)
-    return {**dict(p), "variants": [dict(v) for v in variants], "images": [dict(i) for i in images]}
+    video = await conn.fetchrow(
+        "select id, url, poster_url, content_type, duration_s::float, caption from product_videos where product_id = $1", product_id
+    )
+    return {**dict(p), "variants": [dict(v) for v in variants], "images": [dict(i) for i in images],
+            "video": dict(video) if video else None}
 
 
 async def _insert_variant(conn: asyncpg.Connection, product_id: uuid.UUID, v: s.VariantIn):
@@ -270,6 +275,13 @@ async def _insert_variant(conn: asyncpg.Connection, product_id: uuid.UUID, v: s.
         product_id, v.sku, v.title, v.options, v.price_cents, v.compare_at_cents, v.stock,
         v.min_order_qty, tiers, v.weight_grams, v.is_active,
     )
+
+
+def _check_image_urls(settings: Settings, store_id: uuid.UUID, images: list[s.ImageIn] | None):
+    for img in images or []:
+        if not storage.url_allowed(settings, store_id, img.url):
+            raise ApiError(422, "image_not_allowed",
+                           "Images have to be uploaded to your store first (POST /seller/products/{id}/images).")
 
 
 async def _replace_images(conn: asyncpg.Connection, product_id: uuid.UUID, images: list[s.ImageIn]):
@@ -310,7 +322,8 @@ async def my_products(
 
 
 @router.post("/products", response_model=s.SellerProduct, status_code=201)
-async def create_product(body: s.ProductIn, ctx: Seller, conn: Conn):
+async def create_product(body: s.ProductIn, ctx: Seller, conn: Conn, settings: Cfg):
+    _check_image_urls(settings, ctx.store_id, body.images)
     if body.status == "active" and not ctx.active:
         raise ApiError(403, "store_not_approved", "You can save drafts now and publish once your store is approved.")
     skus = [v.sku for v in body.variants]
@@ -341,8 +354,11 @@ async def get_my_product(product_id: uuid.UUID, ctx: Seller, conn: Conn):
 
 
 @router.patch("/products/{product_id}", response_model=s.SellerProduct)
-async def update_product(product_id: uuid.UUID, body: s.ProductUpdate, ctx: Seller, conn: Conn):
+async def update_product(product_id: uuid.UUID, body: s.ProductUpdate, ctx: Seller, conn: Conn, settings: Cfg):
     data = body.model_dump(exclude_unset=True)
+    _check_image_urls(settings, ctx.store_id, body.images)
+    dropped: list[str] = []
+    dropped_video: list[str] = []
     async with conn.transaction():
         current = await conn.fetchrow(
             "select status from products where id = $1 and store_id = $2 for update", product_id, ctx.store_id
@@ -364,6 +380,14 @@ async def update_product(product_id: uuid.UUID, body: s.ProductUpdate, ctx: Sell
             await _check_category(conn, data["category_id"])
 
         images = data.pop("images", None)
+        if "video" in data:
+            data.pop("video")
+            gone = await conn.fetchrow(
+                "delete from product_videos where product_id = $1 returning url, poster_url", product_id
+            )
+            if gone:
+                dropped_video = [gone["url"]]
+                dropped.extend([gone["poster_url"]] if gone["poster_url"] else [])
         fields = {k: v for k, v in data.items() if k in ("title", "description", "brand", "category_id",
                                                           "status", "attributes", "tags")}
         if fields:
@@ -378,7 +402,12 @@ async def update_product(product_id: uuid.UUID, body: s.ProductUpdate, ctx: Sell
                 product_id, ctx.store_id, *[fields[c] for c in cols],
             )
         if images is not None:
+            keep = {img.url for img in body.images or []}
+            old = await conn.fetch("select url from product_images where product_id = $1", product_id)
+            dropped = [r["url"] for r in old if r["url"] not in keep]
             await _replace_images(conn, product_id, body.images or [])
+    await _forget_files(settings, ctx.store_id, dropped)
+    await _forget_files(settings, ctx.store_id, dropped_video, bucket=settings.video_bucket)
     return await _seller_product(conn, ctx.store_id, product_id)
 
 
@@ -405,7 +434,7 @@ async def delete_product(product_id: uuid.UUID, ctx: Seller, conn: Conn):
 
 async def _own_variant(conn: asyncpg.Connection, store_id: uuid.UUID, variant_id: uuid.UUID) -> asyncpg.Record:
     v = await conn.fetchrow(
-        """select v.id, v.product_id, v.price_cents, v.compare_at_cents, v.tier_prices
+        """select v.id, v.product_id, v.price_cents, v.compare_at_cents, v.tier_prices, v.stock
              from product_variants v join products p on p.id = v.product_id
             where v.id = $1 and p.store_id = $2 for update of v""",
         variant_id,
@@ -438,6 +467,8 @@ async def update_variant(variant_id: uuid.UUID, body: s.VariantUpdate, ctx: Sell
     data = body.model_dump(exclude_unset=True)
     async with conn.transaction():
         v = await _own_variant(conn, ctx.store_id, variant_id)
+        if data.get("stock") is not None and data["stock"] != v["stock"]:
+            await _log_stock(conn, ctx, [(variant_id, v["stock"], data["stock"], None)])
         if "tier_prices" in data and data["tier_prices"] is None:
             data["tier_prices"] = []
         for required in ("title", "options", "price_cents", "stock", "min_order_qty", "is_active"):
@@ -473,19 +504,239 @@ async def delete_variant(variant_id: uuid.UUID, ctx: Seller, conn: Conn):
 
 
 # ---------------------------------------------------------------------------
+# Product images
+# ---------------------------------------------------------------------------
+#
+# The vendor sends the file itself (multipart/form-data, field "file"). The
+# API checks it really is an image, strips its metadata, resizes it, stores
+# it under the store's own folder and records it on the product. See
+# app/storage.py for the checks.
+
+MAX_IMAGES = 12
+_alt = TypeAdapter(s.ShortText | None)
+
+
+def _clean_alt(alt: str | None) -> str | None:
+    try:
+        return _alt.validate_python(alt) or None
+    except ValidationError:
+        raise ApiError(422, "invalid_alt", "Keep the description under 120 characters.") from None
+
+
+async def _editable_product(conn: asyncpg.Connection, store_id: uuid.UUID, product_id: uuid.UUID, lock: bool = False):
+    status = await conn.fetchval(
+        "select status from products where id = $1 and store_id = $2" + (" for update" if lock else ""),
+        product_id, store_id,
+    )
+    if status is None:
+        raise not_found("product")
+    if status == "blocked":
+        raise ApiError(403, "product_blocked", "This product was taken down by The Bazaar.")
+
+
+async def _read_file(file: UploadFile, settings: Settings) -> bytes:
+    data = await file.read(settings.max_image_bytes + 1)
+    if len(data) > settings.max_image_bytes:
+        raise ApiError(413, "image_too_large", f"Images can be up to {settings.max_image_bytes // 1_000_000} MB.")
+    return data
+
+
+async def _forget_files(settings: Settings, store_id: uuid.UUID, urls: list[str], bucket: str | None = None):
+    paths = [p for p in (storage.path_in_store(settings, store_id, u, bucket) for u in urls) if p]
+    await storage.delete_objects(settings, paths, bucket)
+
+
+ImageFile = Annotated[UploadFile, File(description="JPEG, PNG, WebP or AVIF. Stored as WebP.")]
+AltField = Annotated[str | None, Form(max_length=200, description="What the picture shows, for screen readers")]
+
+
+@router.post("/products/{product_id}/images", response_model=s.SellerProduct, status_code=201,
+             dependencies=[sensitive_limit("upload")])
+async def add_image(product_id: uuid.UUID, file: ImageFile, ctx: Seller, conn: Conn, settings: Cfg,
+                    alt: AltField = None):
+    """Add a picture to the end of the product's gallery (12 at most)."""
+    alt = _clean_alt(alt)
+    await _editable_product(conn, ctx.store_id, product_id)
+    if await conn.fetchval("select count(*) from product_images where product_id = $1", product_id) >= MAX_IMAGES:
+        raise ApiError(409, "too_many_images", f"A product can have {MAX_IMAGES} pictures.")
+    url = await storage.store_image(settings, ctx.store_id, await _read_file(file, settings))
+    try:
+        async with conn.transaction():
+            await _editable_product(conn, ctx.store_id, product_id, lock=True)
+            count = await conn.fetchval("select count(*) from product_images where product_id = $1", product_id)
+            if count >= MAX_IMAGES:
+                raise ApiError(409, "too_many_images", f"A product can have {MAX_IMAGES} pictures.")
+            await conn.execute(
+                """insert into product_images (product_id, url, alt, sort)
+                   values ($1, $2, $3, coalesce((select max(sort) + 1 from product_images where product_id = $1), 0))""",
+                product_id, url, alt,
+            )
+    except BaseException:
+        await _forget_files(settings, ctx.store_id, [url])
+        raise
+    return await _seller_product(conn, ctx.store_id, product_id)
+
+
+@router.put("/products/{product_id}/images/{image_id}", response_model=s.SellerProduct,
+            dependencies=[sensitive_limit("upload")])
+async def replace_image(product_id: uuid.UUID, image_id: uuid.UUID, file: ImageFile, ctx: Seller, conn: Conn,
+                        settings: Cfg, alt: AltField = None):
+    """Swap one picture for a new file, keeping its place in the gallery."""
+    alt = _clean_alt(alt)
+    await _editable_product(conn, ctx.store_id, product_id)
+    if not await conn.fetchval("select 1 from product_images where id = $1 and product_id = $2", image_id, product_id):
+        raise not_found("image")
+    url = await storage.store_image(settings, ctx.store_id, await _read_file(file, settings))
+    try:
+        async with conn.transaction():
+            await _editable_product(conn, ctx.store_id, product_id, lock=True)
+            old = await conn.fetchval(
+                "select url from product_images where id = $1 and product_id = $2 for update", image_id, product_id
+            )
+            if old is None:
+                raise not_found("image")
+            await conn.execute(
+                "update product_images set url = $3, alt = coalesce($4, alt) where id = $1 and product_id = $2",
+                image_id, product_id, url, alt,
+            )
+    except BaseException:
+        await _forget_files(settings, ctx.store_id, [url])
+        raise
+    await _forget_files(settings, ctx.store_id, [old])
+    return await _seller_product(conn, ctx.store_id, product_id)
+
+
+@router.patch("/products/{product_id}/images/{image_id}", response_model=s.SellerProduct)
+async def update_image(product_id: uuid.UUID, image_id: uuid.UUID, body: s.ImageAltIn, ctx: Seller, conn: Conn):
+    """Change a picture's description."""
+    async with conn.transaction():
+        await _editable_product(conn, ctx.store_id, product_id, lock=True)
+        done = await conn.execute(
+            "update product_images set alt = $3 where id = $1 and product_id = $2", image_id, product_id, body.alt
+        )
+        if done.endswith(" 0"):
+            raise not_found("image")
+    return await _seller_product(conn, ctx.store_id, product_id)
+
+
+@router.delete("/products/{product_id}/images/{image_id}", response_model=s.SellerProduct)
+async def delete_image(product_id: uuid.UUID, image_id: uuid.UUID, ctx: Seller, conn: Conn, settings: Cfg):
+    async with conn.transaction():
+        await _editable_product(conn, ctx.store_id, product_id, lock=True)
+        url = await conn.fetchval(
+            "delete from product_images where id = $1 and product_id = $2 returning url", image_id, product_id
+        )
+        if url is None:
+            raise not_found("image")
+        await conn.execute(
+            """update product_images i set sort = o.n - 1
+                 from (select id, row_number() over (order by sort, id) as n
+                         from product_images where product_id = $1) o
+                where i.id = o.id""",
+            product_id,
+        )
+    await _forget_files(settings, ctx.store_id, [url])
+    return await _seller_product(conn, ctx.store_id, product_id)
+
+
+@router.put("/products/{product_id}/image-order", response_model=s.SellerProduct)
+async def reorder_images(product_id: uuid.UUID, body: s.ImageOrderIn, ctx: Seller, conn: Conn):
+    """Send every image id of the product in the order to show them. The
+    first one is the cover picture."""
+    async with conn.transaction():
+        await _editable_product(conn, ctx.store_id, product_id, lock=True)
+        current = {r["id"] for r in await conn.fetch("select id from product_images where product_id = $1", product_id)}
+        if len(body.image_ids) != len(set(body.image_ids)) or set(body.image_ids) != current:
+            raise ApiError(422, "image_order_mismatch", "List each of the product's images exactly once.")
+        await conn.execute(
+            """update product_images i set sort = o.n - 1
+                 from unnest($2::uuid[]) with ordinality as o(id, n)
+                where i.id = o.id and i.product_id = $1""",
+            product_id, body.image_ids,
+        )
+    return await _seller_product(conn, ctx.store_id, product_id)
+
+
+# ---------------------------------------------------------------------------
+# Product video
+# ---------------------------------------------------------------------------
+
+VideoFile = Annotated[UploadFile, File(description="MP4, MOV or WebM, up to 50 MB and 3 minutes")]
+PosterFile = Annotated[UploadFile | None, File(description="Optional still shown before the video plays")]
+CaptionField = Annotated[str | None, Form(max_length=200)]
+
+
+@router.put("/products/{product_id}/video", response_model=s.SellerProduct, dependencies=[sensitive_limit("upload")])
+async def set_video(product_id: uuid.UUID, file: VideoFile, ctx: Seller, conn: Conn, settings: Cfg,
+                    poster: PosterFile = None, caption: CaptionField = None):
+    """Add the product's video, or replace the one it has. Each product has
+    one video next to its photos."""
+    caption = _clean_alt(caption)
+    await _editable_product(conn, ctx.store_id, product_id)
+    data = await file.read(settings.max_video_bytes + 1)
+    size = len(data)
+    url, content_type, duration = await storage.store_video(settings, ctx.store_id, data)
+    del data
+    poster_url = None
+    try:
+        if poster is not None and poster.filename:
+            poster_url = await storage.store_image(settings, ctx.store_id, await _read_file(poster, settings))
+        async with conn.transaction():
+            await _editable_product(conn, ctx.store_id, product_id, lock=True)
+            old = await conn.fetchrow(
+                "select url, poster_url from product_videos where product_id = $1 for update", product_id
+            )
+            await conn.execute(
+                """insert into product_videos (product_id, url, poster_url, content_type, size_bytes, duration_s, caption)
+                   values ($1, $2, $3, $4, $5, $6, $7)
+                   on conflict (product_id) do update
+                      set url = excluded.url, poster_url = excluded.poster_url, content_type = excluded.content_type,
+                          size_bytes = excluded.size_bytes, duration_s = excluded.duration_s,
+                          caption = excluded.caption, updated_at = now()""",
+                product_id, url, poster_url, content_type, size, duration, caption,
+            )
+    except BaseException:
+        await _forget_files(settings, ctx.store_id, [url], bucket=settings.video_bucket)
+        if poster_url:
+            await _forget_files(settings, ctx.store_id, [poster_url])
+        raise
+    if old:
+        await _forget_files(settings, ctx.store_id, [old["url"]], bucket=settings.video_bucket)
+        if old["poster_url"]:
+            await _forget_files(settings, ctx.store_id, [old["poster_url"]])
+    return await _seller_product(conn, ctx.store_id, product_id)
+
+
+@router.delete("/products/{product_id}/video", response_model=s.SellerProduct)
+async def delete_video(product_id: uuid.UUID, ctx: Seller, conn: Conn, settings: Cfg):
+    async with conn.transaction():
+        await _editable_product(conn, ctx.store_id, product_id, lock=True)
+        gone = await conn.fetchrow("delete from product_videos where product_id = $1 returning url, poster_url",
+                                   product_id)
+        if gone is None:
+            raise not_found("video")
+    await _forget_files(settings, ctx.store_id, [gone["url"]], bucket=settings.video_bucket)
+    if gone["poster_url"]:
+        await _forget_files(settings, ctx.store_id, [gone["poster_url"]])
+    return await _seller_product(conn, ctx.store_id, product_id)
+
+
+# ---------------------------------------------------------------------------
 # Image uploads (Supabase Storage signed upload URLs)
 # ---------------------------------------------------------------------------
 
 
-@router.post("/uploads", response_model=s.UploadOut, dependencies=[sensitive_limit("upload")])
+@router.post("/uploads", response_model=s.UploadOut, dependencies=[sensitive_limit("upload")], deprecated=True)
 async def create_upload(body: s.UploadIn, ctx: Seller, settings: Cfg):
-    if not (settings.supabase_url and settings.supabase_service_role_key):
+    """Older direct-to-Storage upload. The bucket only takes images up to
+    5 MB, but the file isn't cleaned. Use POST /seller/products/{id}/images."""
+    if not storage.configured(settings):
         raise ApiError(503, "uploads_disabled", "Image uploads are not configured on this server.")
     ext = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/avif": "avif"}[body.content_type]
     # The path is ours, not the client's: no traversal, no overwriting
     # someone else's file, one folder per store.
     path = f"stores/{ctx.store_id}/{uuid.uuid4().hex}.{ext}"
-    base = settings.supabase_url.rstrip("/")
+    base = (settings.storage_url or settings.supabase_url).rstrip("/")
     async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.post(
             f"{base}/storage/v1/object/upload/sign/{settings.storage_bucket}/{path}",
@@ -526,7 +777,7 @@ _NEXT_STATUS = {
 STORE_DELIVERY_SELECT = """
     select d.id, d.status, split_part(r.full_name, ' ', 1) as rider_name, r.vehicle as rider_vehicle,
            d.assigned_at, d.picked_up_at, d.delivered_at, d.note, d.pickup, d.dropoff,
-           o.number as order_number, r.last_lat, r.last_lng, r.last_seen_at
+           o.number as order_number, r.last_lat, r.last_lng, r.last_heading, r.last_seen_at
       from deliveries d
       join riders r on r.id = d.rider_id
       join store_orders so on so.id = d.store_order_id
@@ -548,7 +799,8 @@ def _store_delivery(r: asyncpg.Record) -> dict:
                              "delivered_at", "note", "order_number")},
         "pickup": _map_point(r["pickup"]),
         "dropoff": _map_point(r["dropoff"]) if accepted else None,
-        "rider_position": {"lat": r["last_lat"], "lng": r["last_lng"], "at": r["last_seen_at"]}
+        "rider_position": {"lat": r["last_lat"], "lng": r["last_lng"], "heading": r["last_heading"],
+                           "at": r["last_seen_at"]}
         if live and r["last_lat"] is not None else None,
     }
 
@@ -904,6 +1156,85 @@ async def inventory(
     return pg.wrap([dict(r) for r in recs], total)
 
 
+
+async def _log_stock(conn: asyncpg.Connection, ctx: SellerCtx, rows: list[tuple]):
+    """rows: (variant_id, before, after, reason)"""
+    await conn.executemany(
+        """insert into inventory_adjustments (store_id, variant_id, actor_id, stock_before, stock_after, reason)
+           values ($1, $2, $3, $4, $5, $6)""",
+        [(ctx.store_id, v, ctx.user.id, before, after, reason) for v, before, after, reason in rows],
+    )
+
+
+@router.patch("/inventory", response_model=s.InventoryUpdateOut, dependencies=[sensitive_limit("inventory")])
+async def update_inventory(body: s.InventoryUpdateIn, ctx: Seller, conn: Conn):
+    """Update stock for up to 200 variants at once. All or nothing: if one
+    line is wrong, nothing changes. Every change is kept in the history."""
+    ids = sorted({i.variant_id for i in body.items})
+    async with conn.transaction():
+        # Lock in a fixed order so two bulk edits can't deadlock.
+        recs = await conn.fetch(
+            """select v.id, v.product_id, v.sku, v.stock
+                 from product_variants v join products p on p.id = v.product_id
+                where v.id = any($1::uuid[]) and p.store_id = $2
+                order by v.id for update of v""",
+            ids, ctx.store_id,
+        )
+        if len(recs) != len(ids):
+            raise ApiError(404, "variant_not_found", "Some of those variants aren't in your store.")
+        current = {r["id"]: r for r in recs}
+        out, log, updates = [], [], []
+        for item in body.items:
+            r = current[item.variant_id]
+            new = item.stock if item.stock is not None else r["stock"] + item.adjust_by
+            if new < 0:
+                raise ApiError(409, "stock_negative", f"{r['sku']} only has {r['stock']} in stock.")
+            if new > 1_000_000:
+                raise ApiError(422, "stock_too_high", f"{r['sku']} can't hold more than 1,000,000.")
+            out.append({"variant_id": r["id"], "product_id": r["product_id"], "sku": r["sku"],
+                        "stock_before": r["stock"], "stock": new})
+            if new != r["stock"]:
+                updates.append((r["id"], new))
+                log.append((r["id"], r["stock"], new, item.reason))
+        if updates:
+            await conn.execute(
+                """update product_variants v set stock = u.stock
+                     from unnest($1::uuid[], $2::int[]) as u(id, stock) where v.id = u.id""",
+                [u[0] for u in updates], [u[1] for u in updates],
+            )
+            await _log_stock(conn, ctx, log)
+    return {"items": out}
+
+
+@router.get("/inventory/history", response_model=s.Page[s.InventoryAdjustment])
+async def inventory_history(
+    ctx: Seller,
+    conn: Conn,
+    pg: Annotated[Paging, Depends(paging)],
+    variant_id: uuid.UUID | None = None,
+):
+    """Who changed stock by hand, when, and why. Sales aren't listed here;
+    they're on the orders."""
+    cond, args = ["a.store_id = $1"], [ctx.store_id]
+    if variant_id:
+        args.append(variant_id)
+        cond.append(f"a.variant_id = ${len(args)}")
+    where = " and ".join(cond)
+    total = await conn.fetchval(f"select count(*) from inventory_adjustments a where {where}", *args)
+    recs = await conn.fetch(
+        f"""select a.id, a.variant_id, v.product_id, p.title as product_title, v.sku, a.stock_before,
+                   a.stock_after, a.reason, pr.full_name as by, a.created_at
+              from inventory_adjustments a
+              join product_variants v on v.id = a.variant_id
+              join products p on p.id = v.product_id
+              left join profiles pr on pr.id = a.actor_id
+             where {where} order by a.created_at desc, a.id
+             limit {pg.page_size} offset {pg.offset}""",
+        *args,
+    )
+    return pg.wrap([dict(r) for r in recs], total)
+
+
 # ---------------------------------------------------------------------------
 # Payment confirmation (cash on delivery, bank transfer to the store)
 # ---------------------------------------------------------------------------
@@ -911,7 +1242,7 @@ async def inventory(
 
 @router.post("/orders/{store_order_id}/confirm-payment", response_model=s.StoreOrder,
              dependencies=[sensitive_limit("confirm-payment")])
-async def confirm_payment(store_order_id: uuid.UUID, ctx: ActiveSeller, conn: Conn):
+async def confirm_payment(store_order_id: uuid.UUID, ctx: ActiveSeller, conn: Conn, settings: Cfg):
     async with conn.transaction():
         so = await conn.fetchrow(
             """select so.payment_status, o.payment_method from store_orders so join orders o on o.id = so.order_id
@@ -925,6 +1256,7 @@ async def confirm_payment(store_order_id: uuid.UUID, ctx: ActiveSeller, conn: Co
         if so["payment_status"] == "paid":
             raise ApiError(409, "already_paid", "This order is already marked paid.")
         await conn.execute("select mark_store_order_paid($1, 'store', 0)", store_order_id)
+    await dispatch_mod.try_assign(conn, [store_order_id], settings)
     return await _store_order(conn, ctx.store_id, store_order_id)
 
 
@@ -962,52 +1294,128 @@ async def available_riders(ctx: ActiveSeller, conn: Conn):
     return out[:25]
 
 
+_STORE_RIDERS = f"""
+    with jobs as (
+        select d.rider_id,
+               bool_or(d.status in ('assigned', 'accepted', 'picked_up')) as on_job,
+               bool_or(d.status in ('accepted', 'picked_up')) as en_route,
+               count(*) filter (where d.status = 'delivered')::int as completed
+          from deliveries d
+         where d.store_id = $1
+           and (d.status in ('assigned', 'accepted', 'picked_up') or d.assigned_at > now() - interval '30 days')
+         group by d.rider_id
+    )
+    select r.id, r.full_name, r.phone, r.vehicle, r.status, r.is_online, r.last_lat, r.last_lng, r.last_heading,
+           r.last_seen_at, coalesce(j.on_job, false) as on_job, coalesce(j.en_route, false) as en_route,
+           coalesce(j.completed, 0) as completed, j.rider_id is not null as worked,
+           (select count(*) from deliveries d2 where d2.rider_id = r.id
+              and d2.status in ('assigned', 'accepted', 'picked_up'))::int as active_deliveries,
+           ({dispatch_mod.AVAILABLE}) as free
+      from riders r
+      join profiles p on p.id = r.id
+      left join jobs j on j.rider_id = r.id
+     where ((j.rider_id is not null and (j.on_job or j.completed > 0))
+            or ({dispatch_mod.AVAILABLE}))
+"""
+
+
+async def _store_riders(conn: asyncpg.Connection, store_id: uuid.UUID, settings: Settings,
+                        rider_id: uuid.UUID | None = None, job_limit: int = 5) -> list[dict]:
+    store = await conn.fetchrow("select pickup_lat, pickup_lng from stores where id = $1", store_id)
+    sql = _STORE_RIDERS + (" and r.id = $2" if rider_id else "")
+    recs = await conn.fetch(sql, store_id, *([rider_id] if rider_id else []))
+    has_pickup = store["pickup_lat"] is not None
+    out = []
+    for r in recs:
+        km = None
+        if has_pickup and r["last_lat"] is not None:
+            km = round(haversine_km(store["pickup_lat"], store["pickup_lng"], r["last_lat"], r["last_lng"]), 2)
+        relation = "on_job" if r["on_job"] else "recent" if r["worked"] else "nearby"
+        if relation == "nearby" and (km is None or km > settings.dispatch_radius_km):
+            continue
+        works_here = relation != "nearby"
+        jobs = []
+        if works_here:
+            jobs = [dict(j) for j in await conn.fetch(
+                """select d.id as delivery_id, o.number as order_number, d.status, d.assigned_at, d.delivered_at
+                     from deliveries d join store_orders so on so.id = d.store_order_id
+                     join orders o on o.id = so.order_id
+                    where d.rider_id = $1 and d.store_id = $2
+                    order by (d.status in ('assigned', 'accepted', 'picked_up')) desc, d.assigned_at desc
+                    limit $3""",
+                r["id"], store_id, job_limit,
+            )]
+        show_position = r["en_route"]
+        out.append({
+            "id": r["id"],
+            "relation": relation,
+            "name": r["full_name"] if works_here else r["full_name"].split()[0],
+            "phone": r["phone"] if works_here else None,
+            "vehicle": r["vehicle"],
+            "status": r["status"],
+            "on_shift": r["is_online"],
+            "lat": r["last_lat"] if show_position else None,
+            "lng": r["last_lng"] if show_position else None,
+            "heading": r["last_heading"] if show_position else None,
+            "last_seen_at": r["last_seen_at"],
+            "distance_km": km if r["free"] or r["on_job"] else None,
+            "eta_to_store_minutes": eta_minutes(km, r["vehicle"]) if km is not None else None,
+            "active_deliveries": r["active_deliveries"],
+            "completed_deliveries": r["completed"],
+            "jobs": jobs,
+        })
+    order = {"on_job": 0, "nearby": 1, "recent": 2}
+    out.sort(key=lambda x: (order[x["relation"]], x["distance_km"] if x["distance_km"] is not None else 1e9))
+    return out
+
+
+@router.get("/riders", response_model=list[s.StoreRider])
+async def store_riders(ctx: Seller, conn: Conn, settings: Cfg):
+    """Riders on the store's jobs, riders who delivered for it lately, and
+    free riders close to the shop, closest first within each group. Each row
+    carries what the expandable panel shows: contact, vehicle, live position
+    and recent jobs for this store."""
+    return (await _store_riders(conn, ctx.store_id, settings))[:100]
+
+
+@router.get("/riders/{rider_id}", response_model=s.StoreRider)
+async def store_rider(rider_id: uuid.UUID, ctx: Seller, conn: Conn, settings: Cfg):
+    rows = await _store_riders(conn, ctx.store_id, settings, rider_id=rider_id, job_limit=20)
+    if not rows:
+        raise not_found("rider")
+    return rows[0]
+
+
 @router.post("/orders/{store_order_id}/dispatch", response_model=s.StoreOrder, status_code=201,
              dependencies=[sensitive_limit("dispatch")])
 async def dispatch(store_order_id: uuid.UUID, body: s.DispatchIn, ctx: ActiveSeller, conn: Conn, settings: Cfg):
+    """Send a rider for the order. Leave rider_id out to send the closest
+    free rider to the shop (409 "no_riders" if nobody is on shift nearby;
+    the order then stays on automatic dispatch and goes to the first rider
+    who frees up). Orders are normally dispatched automatically as soon as
+    they're ready, so this is for re-sending after a failed attempt, or for
+    choosing a particular rider."""
     async with conn.transaction():
-        so = await conn.fetchrow(
-            """select so.status, o.shipping_address, o.currency from store_orders so join orders o on o.id = so.order_id
-                where so.id = $1 and so.store_id = $2 for update of so""",
-            store_order_id, ctx.store_id,
-        )
+        if body.rider_id is None:
+            await dispatch_mod.assign_nearest(conn, store_order_id, settings, store_id=ctx.store_id, manual=True)
+            return await _store_order(conn, ctx.store_id, store_order_id)
+        so = await dispatch_mod.ready_order(conn, store_order_id, ctx.store_id)
         if so is None:
             raise not_found("order")
         if so["status"] != "processing":
             raise ApiError(409, "not_ready", "Only orders being prepared can be dispatched.")
-        if await conn.fetchval(
-            "select 1 from deliveries where store_order_id = $1 and status in ('assigned', 'accepted', 'picked_up')",
-            store_order_id,
-        ):
+        if so["has_rider"]:
             raise ApiError(409, "already_dispatched", "A rider is already on this order.")
-        store = await conn.fetchrow(
-            "select name, pickup_lat, pickup_lng, pickup_address from stores where id = $1", ctx.store_id
-        )
-        if store["pickup_lat"] is None:
+        if so["pickup_lat"] is None:
             raise ApiError(422, "pickup_missing", "Set your store's pickup location before dispatching riders.")
         rider = await conn.fetchrow(
-            """select r.id from riders r join profiles p on p.id = r.id
-                where r.id = $1 and r.status = 'active' and p.role = 'rider' and r.is_online
-                  and r.last_seen_at > now() - interval '10 minutes' for update of r""",
+            f"""select r.id from riders r join profiles p on p.id = r.id
+                 where r.id = $1 and {dispatch_mod.AVAILABLE} for update of r""",
             body.rider_id,
         )
         if rider is None:
             raise ApiError(409, "rider_unavailable", "That rider isn't available right now.")
-
-        addr = so["shipping_address"] or {}
-        label = (store["pickup_address"] or {}).get("label") or store["name"]
-        pickup = {"lat": store["pickup_lat"], "lng": store["pickup_lng"], "label": label}
-        dropoff = {"label": ", ".join(x for x in (addr.get("line1"), addr.get("city")) if x)}
-        if isinstance(addr.get("lat"), (int, float)) and isinstance(addr.get("lng"), (int, float)):
-            dropoff.update(lat=addr["lat"], lng=addr["lng"])
-        delivery_id = await conn.fetchval(
-            """insert into deliveries (store_order_id, store_id, rider_id, pickup, dropoff, handover_code,
-                                       fee_cents, currency, note)
-               values ($1, $2, $3, $4::jsonb, $5::jsonb, $6, $7, $8, $9) returning id""",
-            store_order_id, ctx.store_id, rider["id"], pickup, dropoff,
-            f"{secrets.randbelow(1_000_000):06d}", settings.rider_fee_cents, so["currency"], body.note,
-        )
-        await publish(conn, {"type": "status", "delivery_id": str(delivery_id), "status": "assigned"})
+        await dispatch_mod.create_delivery(conn, so, rider["id"], settings, body.note)
     return await _store_order(conn, ctx.store_id, store_order_id)
 
 
@@ -1029,14 +1437,17 @@ async def store_deliveries(
 
 @router.post("/deliveries/{delivery_id}/cancel", response_model=s.Message)
 async def cancel_delivery(delivery_id: uuid.UUID, ctx: ActiveSeller, conn: Conn):
-    """Pull a job back from a rider who hasn't collected it yet."""
+    """Pull a job back from a rider who hasn't collected it yet. The order
+    comes off automatic dispatch, so it waits for the store to choose the
+    next rider (or to dispatch again with no rider to go back to automatic)."""
     async with conn.transaction():
-        done = await conn.execute(
+        so_id = await conn.fetchval(
             """update deliveries set status = 'canceled', ended_at = now()
-                where id = $1 and store_id = $2 and status in ('assigned', 'accepted')""",
+                where id = $1 and store_id = $2 and status in ('assigned', 'accepted')
+                returning store_order_id""",
             delivery_id, ctx.store_id,
         )
-        if done.endswith(" 0"):
+        if so_id is None:
             raise ApiError(409, "cannot_cancel", "That delivery can't be canceled now.")
-        await publish(conn, {"type": "status", "delivery_id": str(delivery_id), "status": "canceled"})
+        await conn.execute("update store_orders set auto_dispatch = false where id = $1", so_id)
     return {"ok": True}

@@ -1,4 +1,4 @@
-# Self hosting the marketplace backend.
+# Self hosting The Bazaar backend.
 #
 #   cp .env.example .env        # fill it in
 #   docker compose up -d --build
@@ -21,7 +21,7 @@ x-hardening: &hardening
 
 services:
   migrate:
-    image: ${IMAGE_PREFIX:-ghcr.io/s-rakim/art1}-api:${IMAGE_TAG:-latest}
+    image: ${IMAGE_PREFIX:-ghcr.io/s-rakim/bazaar}-api:${IMAGE_TAG:-latest}
     build: { context: ., dockerfile: api/Dockerfile }
     command: ["scripts/migrate.sh"]
     env_file: .env
@@ -34,7 +34,7 @@ services:
 
   api:
     <<: *hardening
-    image: ${IMAGE_PREFIX:-ghcr.io/s-rakim/art1}-api:${IMAGE_TAG:-latest}
+    image: ${IMAGE_PREFIX:-ghcr.io/s-rakim/bazaar}-api:${IMAGE_TAG:-latest}
     build: { context: ., dockerfile: api/Dockerfile }
     env_file: .env
     environment:
@@ -51,7 +51,7 @@ services:
 
   worker:
     <<: *hardening
-    image: ${IMAGE_PREFIX:-ghcr.io/s-rakim/art1}-api:${IMAGE_TAG:-latest}
+    image: ${IMAGE_PREFIX:-ghcr.io/s-rakim/bazaar}-api:${IMAGE_TAG:-latest}
     command: ["python", "-m", "app.worker"]
     env_file: .env
     healthcheck: { disable: true }
@@ -63,7 +63,7 @@ services:
 
   search:
     <<: *hardening
-    image: ${IMAGE_PREFIX:-ghcr.io/s-rakim/art1}-search:${IMAGE_TAG:-latest}
+    image: ${IMAGE_PREFIX:-ghcr.io/s-rakim/bazaar}-search:${IMAGE_TAG:-latest}
     build: { context: ., dockerfile: search/Dockerfile }
     environment:
       DATABASE_URL: ${SEARCH_DATABASE_URL:-${DATABASE_URL}}
@@ -105,12 +105,12 @@ services:
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: market
-      POSTGRES_USER: market
+      POSTGRES_DB: bazaar
+      POSTGRES_USER: bazaar
       POSTGRES_PASSWORD: ${LOCAL_DB_PASSWORD:-}  # empty refuses to start, on purpose
     volumes: ["pgdata:/var/lib/postgresql/data"]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U market -d market"]
+      test: ["CMD-SHELL", "pg_isready -U bazaar -d bazaar"]
       interval: 5s
       timeout: 3s
       retries: 20

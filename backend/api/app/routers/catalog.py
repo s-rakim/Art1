@@ -170,8 +170,12 @@ async def product_detail(slug: PathSlug, conn: Conn, response: Response):
     images = await conn.fetch(
         "select id, url, alt from product_images where product_id = $1 order by sort, id", p["id"]
     )
+    video = await conn.fetchrow(
+        "select id, url, poster_url, content_type, duration_s::float, caption from product_videos where product_id = $1", p["id"]
+    )
     response.headers["Cache-Control"] = PUBLIC_CACHE
     return {
+        "video": dict(video) if video else None,
         "id": p["id"],
         "slug": p["slug"],
         "title": p["title"],
@@ -349,11 +353,13 @@ async def store_products(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/plans", response_model=list[s.Plan])
+@router.get("/plans", response_model=list[s.PublicPlan])
 async def plans(conn: Conn, response: Response):
+    """Stall plans without prices. Rent and commission are set by the admin
+    (PATCH /admin/plans/{id}) and shown to a vendor in their own back office
+    once they're on a plan."""
     recs = await conn.fetch(
-        """select id, code, name, description, monthly_price_cents, currency, commission_rate::float,
-                  per_item_fee_cents, product_limit, featured_slots, features
+        """select id, code, name, description, product_limit, featured_slots, features
              from store_plans where is_active order by sort, monthly_price_cents"""
     )
     response.headers["Cache-Control"] = "public, max-age=300"

@@ -1,6 +1,7 @@
 """Transport level protections: body size cap, security headers, rate limits."""
 
 import logging
+import re
 import time
 from collections import defaultdict
 from typing import Annotated
@@ -8,7 +9,7 @@ from typing import Annotated
 from fastapi import Depends, Request
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from .auth import CurrentUser
+from .auth import AccountUser
 from .config import Settings, get_settings
 from .errors import ApiError
 
@@ -21,20 +22,30 @@ log = logging.getLogger("api.security")
 
 
 class BodySizeLimit:
-    """Rejects bodies over the limit, whether or not Content-Length is honest."""
+    """Rejects bodies over the limit, whether or not Content-Length is honest.
+    `larger` gives specific paths (image uploads) their own, bigger cap."""
 
-    def __init__(self, app: ASGIApp, max_bytes: int):
+    def __init__(self, app: ASGIApp, max_bytes: int, larger: list[tuple[re.Pattern, int]] | None = None):
         self.app = app
         self.max_bytes = max_bytes
+        self.larger = larger or []
+
+    def _limit(self, scope: Scope) -> int:
+        path = scope.get("path", "")
+        for pattern, limit in self.larger:
+            if pattern.fullmatch(path):
+                return limit
+        return self.max_bytes
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send):
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
+        max_bytes = self._limit(scope)
 
         for name, value in scope.get("headers", []):
             if name == b"content-length":
                 try:
-                    if int(value) > self.max_bytes:
+                    if int(value) > max_bytes:
                         return await _too_large(send)
                 except ValueError:
                     return await _too_large(send)
@@ -46,7 +57,7 @@ class BodySizeLimit:
             message = await receive()
             if message["type"] == "http.request":
                 seen += len(message.get("body", b""))
-                if seen > self.max_bytes:
+                if seen > max_bytes:
                     raise _BodyTooLarge()
             return message
 
@@ -196,7 +207,7 @@ def sensitive_limit(bucket: str):
 
     async def dependency(
         request: Request,
-        user: CurrentUser,
+        user: AccountUser,
         settings: Annotated[Settings, Depends(get_settings)],
     ):
         limit = settings.rate_limit_rider_location if bucket == "rider-location" else settings.rate_limit_sensitive

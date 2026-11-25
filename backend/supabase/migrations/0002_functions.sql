@@ -273,7 +273,7 @@ begin
 
     insert into orders (number, user_id, currency, subtotal_cents, total_cents, shipping_address, coupon_code,
                         payment_method)
-    values ('MK-' || to_char(now(), 'YYMMDD') || '-' || nextval('order_number_seq'),
+    values ('BZ-' || to_char(now(), 'YYMMDD') || '-' || nextval('order_number_seq'),
             p_user, v_currency, 0, 0, p_address, v_coupon.code, p_payment_method)
     returning id into v_order;
 

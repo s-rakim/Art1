@@ -232,7 +232,7 @@ async def test_vendor_delivery_map(actor, admin):
     did = r.json()["delivery"]["id"]
 
     job = (await seller.get(f"{API}/seller/deliveries")).json()["items"][0]
-    assert job["order_number"].startswith("MK-")
+    assert job["order_number"].startswith("BZ-")
     assert job["pickup"]["lat"] == 5.6037
     assert job["dropoff"] is None and job["rider_position"] is None  # not accepted yet
 

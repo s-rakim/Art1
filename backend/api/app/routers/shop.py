@@ -12,8 +12,10 @@ from ..auth import CurrentUser
 from ..common import Paging, paging
 from ..config import Settings, get_settings
 from ..db import get_conn
+from ..dispatch import ready_store_orders, try_assign
 from ..errors import ApiError, not_found
 from ..geo import eta_minutes, haversine_km, point
+from ..realtime import publish
 from ..payments import PaymentError, create_stripe_checkout, refund_stripe, verify_stripe_event
 from ..security import sensitive_limit
 
@@ -75,9 +77,10 @@ async def _cart(conn: asyncpg.Connection, user_id: uuid.UUID, settings: Settings
         if r["available"]:
             subtotal += line
             per_store[r["store_id"]] = per_store.get(r["store_id"], 0) + line
+    fees = await conn.fetchrow("select standard_shipping_cents, free_shipping_over_cents from app_settings")
+    free_over = fees["free_shipping_over_cents"]
     shipping = sum(
-        0 if settings.free_shipping_over_cents and sub >= settings.free_shipping_over_cents
-        else settings.shipping_standard_cents
+        0 if free_over and sub >= free_over else fees["standard_shipping_cents"]
         for sub in per_store.values()
     )
     return {
@@ -210,10 +213,15 @@ async def checkout(body: s.CheckoutIn, user: CurrentUser, conn: Conn, settings: 
     address = await _address_snapshot(conn, user.id, body)
     if body.payment_method == "card" and settings.payment_provider not in ("stripe", "test"):
         raise ApiError(422, "card_unavailable", "Card payments aren't available yet. Choose cash on delivery or bank transfer.")
+    # Fees as the admin last set them (Admin > Settings).
+    fees = await conn.fetchrow(
+        """select standard_shipping_cents, express_shipping_cents, free_shipping_over_cents, tax_rate::float
+             from app_settings"""
+    )
     if body.shipping_method == "express":
-        flat, free_over = settings.shipping_express_cents, 0
+        flat, free_over = fees["express_shipping_cents"], 0
     else:
-        flat, free_over = settings.shipping_standard_cents, settings.free_shipping_over_cents
+        flat, free_over = fees["standard_shipping_cents"], fees["free_shipping_over_cents"] or 0
 
     async with conn.transaction():
         if body.items is not None:
@@ -245,7 +253,7 @@ async def checkout(body: s.CheckoutIn, user: CurrentUser, conn: Conn, settings: 
 
         order_id = await conn.fetchval(
             "select place_order($1, $2::jsonb, $3, $4, $5, $6, $7)",
-            user.id, address, body.coupon_code, flat, free_over, settings.tax_rate, body.payment_method,
+            user.id, address, body.coupon_code, flat, free_over, fees["tax_rate"], body.payment_method,
         )
         order = dict(await conn.fetchrow(
             "select id, number, status, total_cents, currency from orders where id = $1", order_id
@@ -276,6 +284,8 @@ async def checkout(body: s.CheckoutIn, user: CurrentUser, conn: Conn, settings: 
                 "update orders set payment_provider = 'stripe', payment_ref = $2 where id = $1", order_id, session_id
             )
             out["payment_url"] = url
+    # Cash on delivery orders are ready to leave the shop now.
+    await try_assign(conn, await ready_store_orders(conn, order_id), settings)
     return out
 
 
@@ -421,6 +431,7 @@ async def stripe_webhook(request: Request, conn: Conn, settings: Cfg):
                 session.get("payment_intent"),
                 settings.payout_hold_days,
             )
+        await try_assign(conn, await ready_store_orders(conn, order_id), settings)
     elif event["type"] == "checkout.session.expired":
         session = event["data"]["object"]
         try:
@@ -464,7 +475,7 @@ async def tracking(order_id: uuid.UUID, user: CurrentUser, conn: Conn):
                   so.id as store_order_id, so.status as store_order_status, st.name as store_name,
                   d.id, d.status, d.pickup, d.dropoff, d.handover_code, d.assigned_at, d.picked_up_at,
                   d.delivered_at, r.full_name as rider_name, r.phone as rider_phone, r.vehicle,
-                  r.last_lat, r.last_lng, r.last_seen_at
+                  r.last_lat, r.last_lng, r.last_heading, r.last_seen_at
              from store_orders so
              join stores st on st.id = so.store_id
              left join deliveries d on d.store_order_id = so.id and d.status not in ('declined', 'canceled')
@@ -479,7 +490,8 @@ async def tracking(order_id: uuid.UUID, user: CurrentUser, conn: Conn):
         position = None
         eta = None
         if live and r["last_lat"] is not None:
-            position = {"lat": r["last_lat"], "lng": r["last_lng"], "at": r["last_seen_at"]}
+            position = {"lat": r["last_lat"], "lng": r["last_lng"], "heading": r["last_heading"],
+                        "at": r["last_seen_at"]}
             here = (r["last_lat"], r["last_lng"])
             pickup, dropoff = point(r["pickup"]), point(r["dropoff"])
             km = 0.0
@@ -514,3 +526,41 @@ async def tracking(order_id: uuid.UUID, user: CurrentUser, conn: Conn):
             "rider_position": None, "pickup": None, "dropoff": None, "handover_code": None}),
         "deliveries": deliveries,
     }
+
+
+@router.put("/orders/{order_id}/dropoff", response_model=s.Tracking, dependencies=[sensitive_limit("dropoff")])
+async def move_dropoff(order_id: uuid.UUID, body: s.DropoffIn, user: CurrentUser, conn: Conn):
+    """Move the drop-off pin, for example to the gate the rider should come
+    to. Works until the parcel is delivered. A rider already on the way sees
+    the new pin straight away."""
+    async with conn.transaction():
+        o = await conn.fetchrow(
+            "select status, shipping_address from orders where id = $1 and user_id = $2 for update", order_id, user.id
+        )
+        if o is None:
+            raise not_found("order")
+        if o["status"] in ("fulfilled", "canceled", "refunded"):
+            raise ApiError(409, "order_closed", "This order can't be changed any more.")
+        if await conn.fetchval(
+            "select 1 from store_orders where order_id = $1 and status = 'delivered' limit 1", order_id
+        ):
+            raise ApiError(409, "order_closed", "Part of this order is already delivered.")
+        addr = dict(o["shipping_address"] or {})
+        addr.update(lat=body.lat, lng=body.lng)
+        if body.note is not None:
+            addr["dropoff_note"] = body.note
+        await conn.execute("update orders set shipping_address = $2::jsonb where id = $1", order_id, addr)
+        label = ", ".join(x for x in (addr.get("line1"), addr.get("city")) if x)
+        live = await conn.fetch(
+            """update deliveries d set dropoff = jsonb_build_object('lat', $2::float8, 'lng', $3::float8, 'label', $4::text)
+                 from store_orders so
+                where so.id = d.store_order_id and so.order_id = $1
+                  and d.status in ('assigned', 'accepted', 'picked_up')
+                returning d.id, d.rider_id""",
+            order_id, body.lat, body.lng, label,
+        )
+        for d in live:
+            await publish(conn, [f"delivery:{d['id']}", f"rider:{d['rider_id']}", "admin"], {
+                "type": "dropoff", "delivery_id": str(d["id"]), "lat": body.lat, "lng": body.lng,
+            })
+    return await tracking(order_id, user, conn)

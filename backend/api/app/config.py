@@ -29,6 +29,18 @@ class Settings(BaseSettings):
     supabase_jwt_audience: str = "authenticated"
     supabase_service_role_key: str = ""
     storage_bucket: str = "product-images"
+    # Public base URL for Storage if it isn't served from SUPABASE_URL.
+    storage_url: str = ""
+    # Product images: biggest upload accepted, longest side kept after
+    # resizing, and any outside hosts a store may link images from (empty
+    # means only images uploaded through the API).
+    max_image_bytes: int = 8_000_000
+    image_max_side: int = 2000
+    image_url_hosts: Annotated[list[str], NoDecode] = Field(default_factory=list)
+    # Product videos: their own bucket, size and length caps.
+    video_bucket: str = "product-videos"
+    max_video_bytes: int = 50_000_000
+    max_video_seconds: int = 180
     # Admin endpoints demand a token issued after a second factor (aal2).
     admin_require_mfa: bool = False
 
@@ -42,13 +54,13 @@ class Settings(BaseSettings):
     rate_limit_rider_location: int = 30
 
     currency: str = "USD"
-    shipping_standard_cents: int = 499
-    shipping_express_cents: int = 1499
-    free_shipping_over_cents: int = 4900
-    tax_rate: float = 0.0
     payout_hold_days: int = 7
     payout_minimum_cents: int = 2000
-    rider_fee_cents: int = 300
+    # Offer ready orders to the closest free rider automatically, within this
+    # distance of the shop, and pass the job on if they don't accept in time.
+    auto_dispatch: bool = True
+    dispatch_radius_km: float = 15.0
+    dispatch_accept_seconds: int = 120
     rider_location_retention_days: int = 14
     unpaid_order_ttl_minutes: int = 60
 
@@ -59,7 +71,7 @@ class Settings(BaseSettings):
     max_body_bytes: int = 1_000_000
     expose_docs: bool = False
 
-    @field_validator("cors_origins", "trusted_hosts", mode="before")
+    @field_validator("cors_origins", "trusted_hosts", "image_url_hosts", mode="before")
     @classmethod
     def split_csv(cls, v):
         if isinstance(v, str):

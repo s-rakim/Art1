@@ -1,4 +1,5 @@
 import logging
+import re
 import time
 from contextlib import asynccontextmanager
 
@@ -81,11 +82,13 @@ def create_app() -> FastAPI:
     docs = settings.expose_docs or not settings.is_production
 
     app = FastAPI(
-        title="Marketplace API",
+        title="The Bazaar API",
         version="1.0.0",
         description=(
-            "Multi-vendor marketplace: catalogue, cart, checkout, orders, store space rental, "
-            "rider dispatch and live delivery tracking. Authenticate with a Supabase access token "
+            "The Bazaar, a multi-vendor market: catalogue, cart, checkout, orders, store space rental, "
+            "rider hiring and dispatch, and live updates over /ws/live. Everyone signs in on one page "
+            "with email and password through Supabase Auth; GET /me says which role the account has "
+            "and where to send it. Authenticate with a Supabase access token "
             "as `Authorization: Bearer <token>`. Money is integer cents with a currency code. "
             "Errors look like `{\"error\": {\"code\": \"...\", \"message\": \"...\"}}`."
         ),
@@ -125,7 +128,13 @@ def create_app() -> FastAPI:
     app.add_middleware(SecurityHeaders, hsts=settings.is_production, docs_paths=(f"{prefix}/docs",))
     if settings.trusted_hosts != ["*"]:
         app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.trusted_hosts + ["localhost", "api"])
-    app.add_middleware(BodySizeLimit, max_bytes=settings.max_body_bytes)
+    # Image uploads may be bigger than ordinary JSON bodies; nothing else is.
+    product = rf"{re.escape(prefix)}/seller/products/[0-9a-fA-F-]{{36}}"
+    image_paths = re.compile(product + r"/images(/[0-9a-fA-F-]{36})?")
+    video_path = re.compile(product + r"/video")
+    app.add_middleware(BodySizeLimit, max_bytes=settings.max_body_bytes,
+                       larger=[(image_paths, settings.max_image_bytes + 64_000),
+                               (video_path, settings.max_video_bytes + settings.max_image_bytes + 64_000)])
     return app
 
 
