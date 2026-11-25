@@ -2,7 +2,7 @@
 
 The web app in /frontend is the single source of truth for The Bazaar's look:
 its Nextcloud-derived colour tokens and component classes live in
-frontend/src/app/globals.css, the awning logo in frontend/src/components/guest-frame.tsx
+frontend/src/app/globals.css, the logo files in frontend/public/img
 and the wallpapers in frontend/public/img. Rather than keep copies that drift,
 both clients run this script at image build time and get:
 
@@ -56,18 +56,6 @@ def plain_css(source: str) -> str:
     return header + re.sub(r"\n{3,}", "\n\n", css).strip() + "\n"
 
 
-def logo(tsx: str, fill: str) -> str:
-    m = re.search(r"export function LogoMark.*?viewBox=\"([^\"]+)\".*?<path ([^>]*?)d=\"([^\"]+)\"", tsx, re.S)
-    if not m:
-        raise SystemExit("guest-frame.tsx: LogoMark not found")
-    viewbox, attrs, path = m.groups()
-    rule = ' fill-rule="evenodd"' if "evenodd" in attrs else ""
-    return (
-        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{viewbox}">'
-        f'<path fill="{fill}"{rule} d="{path}"/></svg>\n'
-    )
-
-
 def main(frontend: Path, out: Path) -> None:
     out.mkdir(parents=True, exist_ok=True)
     (out / "bazaar.css").write_text(plain_css((frontend / "src/app/globals.css").read_text()))
@@ -75,12 +63,14 @@ def main(frontend: Path, out: Path) -> None:
     for name in ("layout.css", "map.js"):
         shutil.copyfile(kit / name, out / name)
     shutil.copytree(kit / "vendor", out / "vendor", dirs_exist_ok=True)
-    tsx = (frontend / "src/components/guest-frame.tsx").read_text()
-    (out / "logo.svg").write_text(logo(tsx, "#ffffff"))
-    (out / "logo-dark.svg").write_text(logo(tsx, "#00679e"))
+    # Logo, header tile and wallpapers, exactly as the web app serves them.
     (out / "img").mkdir(exist_ok=True)
-    for f in (frontend / "public/img").glob("background*.webp"):
-        shutil.copyfile(f, out / "img" / f.name)
+    wanted = ["logo.png", "logo-tile.png", "background.webp", "background-dark.webp"]
+    for name in wanted:
+        src = frontend / "public/img" / name
+        if not src.exists():
+            raise SystemExit(f"frontend/public/img/{name} is missing")
+        shutil.copyfile(src, out / "img" / name)
     print(f"brand assets written to {out}")
 
 

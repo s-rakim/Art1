@@ -1,3 +1,4 @@
+using System.Text;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -42,7 +43,12 @@ public sealed class SupabaseAuth(HttpClient http, string supabaseUrl, string ano
 
     private HttpRequestMessage Request(string path, object body, string? bearer)
     {
-        var req = new HttpRequestMessage(HttpMethod.Post, _base + path) { Content = JsonContent.Create(body) };
+        var req = new HttpRequestMessage(HttpMethod.Post, _base + path) 
+        {
+            // Sent with a Content-Length rather than chunked, which some
+            // proxies in front of GoTrue refuse.
+            Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json"),
+        };
         req.Headers.Add("apikey", anonKey);
         if (bearer is not null) req.Headers.Authorization = new("Bearer", bearer);
         return req;

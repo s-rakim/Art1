@@ -6,19 +6,20 @@
 FROM --platform=$BUILDPLATFORM python:3.13-slim AS brand
 COPY --from=brandkit . /kit/
 COPY --from=frontend src/app/globals.css /fe/src/app/globals.css
-COPY --from=frontend src/components/guest-frame.tsx /fe/src/components/guest-frame.tsx
 COPY --from=frontend public/img /fe/public/img
 RUN python -I /kit/build_brand.py /fe /brand
 
 FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS build
-ARG TARGETARCH
 WORKDIR /src
 COPY src/Bazaar.Api/Bazaar.Api.csproj src/Bazaar.Api/
 COPY src/Bazaar.Hub/Bazaar.Hub.csproj src/Bazaar.Hub/
-RUN dotnet restore src/Bazaar.Hub/Bazaar.Hub.csproj -a $TARGETARCH
+# Framework-dependent and portable, so one build runs on amd64 and arm64.
+RUN dotnet restore src/Bazaar.Hub/Bazaar.Hub.csproj
 COPY src/ src/
+# Publish restores again on purpose: the SDK only adds the package that
+# carries blazor.web.js once it can see the .razor files.
 COPY --from=brand /brand src/Bazaar.Hub/wwwroot/brand
-RUN dotnet publish src/Bazaar.Hub/Bazaar.Hub.csproj -c Release -a $TARGETARCH --no-restore -o /out /p:UseAppHost=false
+RUN dotnet publish src/Bazaar.Hub/Bazaar.Hub.csproj -c Release -o /out /p:UseAppHost=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine
 ENV ASPNETCORE_URLS=http://+:8080 \

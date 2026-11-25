@@ -138,7 +138,9 @@ def sign_up(request: HttpRequest, email: str, password: str, full_name: str, sig
     data = _gotrue("/signup", {
         "email": email,
         "password": password,
-        "data": {"full_name": full_name, "signup_as": signup_as},
+        # The API reads requested_role when it first sees the account. It can
+        # only ever lower what the account may do (a rider applicant).
+        "data": {"full_name": full_name, "requested_role": signup_as},
     })
     if data.get("access_token"):
         request.session.cycle_key()

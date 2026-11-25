@@ -9,12 +9,28 @@ What runs where:
 | Piece | Where it lives |
 | --- | --- |
 | Web app (Next.js), API (FastAPI), background worker, search, Redis, Caddy | Your Oracle server, in Docker |
+| Portal (Django) at `/portal`, integrations hub (C#) at `/hub` | Your Oracle server, in Docker |
 | Database, sign-in, photo and video storage | A Supabase project |
 
 Caddy is the only thing listening on the internet. It gets the TLS
 certificate, sends `/api/*` (and the live updates socket at `/api/v1/ws/live`)
-to the API, and everything else to the web app. Shoppers only ever see one
-domain.
+to the API, `/portal` to the Django portal, `/hub` to the C# hub, and
+everything else to the web app. Shoppers only ever see one domain.
+
+The portal and the hub are two more front ends on the same API, with the
+same sign-in and the same look:
+
+- **Portal** (`/portal`): plain server-rendered pages for every role
+  (shopping, a stall's products, photos, stock and orders, a rider's shift
+  and jobs, the admin console with prices, hiring and the live map). It is
+  the quickest place to try a new screen before it goes into the web app.
+- **Hub** (`/hub`): for stalls and admins. Stock spreadsheet import and
+  export, order exports, the M-Pesa and bank message reader, and the
+  dispatch board.
+
+Neither has a database of its own or any server secret. They hold a
+person's sign-in on the server (Redis for the portal, memory for the hub),
+so the browser only ever gets a random session cookie.
 
 Allow about an hour the first time.
 
@@ -114,6 +130,7 @@ nano .env
 | `SUPABASE_SERVICE_ROLE_KEY` | the service role or secret key |
 | `SUPABASE_JWT_SECRET` | the legacy JWT secret, or empty (step 1.7) |
 | `MAP_CENTER` | `lat,lng` of your city |
+| `PORTAL_SECRET_KEY` | `openssl rand -hex 32`; signs the portal's cookies |
 
 Leave prices alone: there aren't any in `.env`. Shipping, tax, the rider's
 fee, stall rent and placements are all set by an admin in the console once
@@ -122,7 +139,8 @@ the site is up.
 The anon key ends up in the web app's JavaScript, which is expected; row
 level security decides what it can read and it can't write anything. The
 service role key and the database URL never leave the API, worker and
-migration containers. The web container gets no secrets at all.
+migration containers. The web, portal and hub containers get no server
+secrets; the portal only gets its own cookie signing key.
 
 ## 5. Start it
 
@@ -138,7 +156,7 @@ reuse the cache. What happens on every `up`:
 2. `api`, `worker` and `search` start once it has finished cleanly. If a
    migration fails, nothing else starts and the error is in
    `docker compose logs migrate`.
-3. `web` starts once the API is up.
+3. `web`, `portal` and `hub` start once the API is up.
 4. Caddy fetches the certificate and starts serving.
 
 Check it from your own computer:
@@ -148,7 +166,8 @@ curl https://yourdomain.com/api/v1/status
 ```
 
 That should return the site's fees and contact details as JSON, and the home
-page should load in a browser.
+page should load in a browser. `https://yourdomain.com/portal/` and
+`https://yourdomain.com/hub/` should show their sign-in pages.
 
 ### Demo data
 
@@ -247,7 +266,8 @@ docker compose build web
 docker compose up -d
 ```
 
-The web app is always built on the server, because your domain and Supabase
+The web app, portal and hub are always built on the server (`docker compose
+build web portal hub`). The web app has to be, because your domain and Supabase
 project are built into it.
 
 ## Trying it on your own computer
@@ -274,4 +294,7 @@ and uploads still go to your Supabase project.
 | Live map and order updates don't arrive | `DATABASE_URL` points at the transaction pooler (port 6543). Use the session pooler on 5432 |
 | Photo or video upload fails with `uploads_disabled` | `SUPABASE_URL` or `SUPABASE_SERVICE_ROLE_KEY` is missing from `.env` |
 | Photo or video upload fails with `upload_failed` | The service role key is wrong, or the storage buckets weren't created (check `docker compose logs migrate`) |
+| Portal shows "Sign-in isn't set up on this server yet" | `SUPABASE_URL` or `SUPABASE_ANON_KEY` is empty in `.env` |
+| Portal answers 400 Bad Request | `SITE_DOMAIN` in `.env` isn't the domain in the browser's address bar |
+| Everyone is signed out of the hub after an update | Expected: hub sign-ins live in memory and a restart clears them |
 | The web container restarts with an out of memory error during build | Give the instance more memory, or add swap: `sudo fallocate -l 4G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile` |
