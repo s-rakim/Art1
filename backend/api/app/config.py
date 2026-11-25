@@ -61,13 +61,25 @@ class Settings(BaseSettings):
     )
 
     currency: str = "USD"
-    payout_hold_days: int = 7
     payout_minimum_cents: int = 2000
-    # Offer ready orders to the closest free rider automatically, within this
-    # distance of the shop, and pass the job on if they don't accept in time.
+    # Offer ready orders to the closest free rider automatically and pass the
+    # job on if they don't accept in time. How far to look, and the batching
+    # rules, are admin settings.
     auto_dispatch: bool = True
-    dispatch_radius_km: float = 15.0
     dispatch_accept_seconds: int = 120
+
+    # Central payments. Times in till and bank messages are read in this zone.
+    payment_timezone: str = "Africa/Nairobi"
+    # Secret in the URL a phone or Daraja posts payments to. Empty turns
+    # those endpoints off; pasting messages in the console always works.
+    payment_webhook_token: str = ""
+    # Daraja (Safaricom M-Pesa API), only needed to register the C2B
+    # callback URLs with `python -m app.cli register-mpesa-urls`.
+    mpesa_env: Literal["sandbox", "production"] = "sandbox"
+    mpesa_shortcode: str = ""
+    mpesa_consumer_key: str = ""
+    mpesa_consumer_secret: str = ""
+
     rider_location_retention_days: int = 14
     unpaid_order_ttl_minutes: int = 60
 
@@ -103,6 +115,8 @@ class Settings(BaseSettings):
             problems.append("SUPABASE_JWT_SECRET is too short")
         if self.payment_provider == "stripe" and not (self.stripe_secret_key and self.stripe_webhook_secret):
             problems.append("stripe needs STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET")
+        if self.payment_webhook_token and len(self.payment_webhook_token) < 32:
+            problems.append("PAYMENT_WEBHOOK_TOKEN must be at least 32 characters")
         if "*" in self.cors_origins:
             problems.append("CORS_ORIGINS cannot be * in production")
         if problems:

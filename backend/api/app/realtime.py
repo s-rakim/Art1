@@ -138,7 +138,8 @@ async def personal_topics(conn: asyncpg.Connection, user: User, admin_ok: bool =
             topics.append(f"store:{store_id}")
     elif user.role == "rider":
         if await conn.fetchval("select 1 from riders where id = $1 and status = 'active'", user.id):
-            topics.append(f"rider:{user.id}")
+            # "riders" is the job board: open and taken jobs, no personal data.
+            topics += [f"rider:{user.id}", "riders"]
     elif user.role == "admin" and admin_ok:
         topics.append("ops")
     return topics

@@ -2,7 +2,7 @@
 shopper buys it cash on delivery, the store dispatches a rider, the rider
 delivers with the handover code, and the money lands in the right places."""
 
-from conftest import ADDRESS, API, add_product, hire_rider, open_store
+from conftest import ADDRESS, API, add_product, hire_rider, open_store, pay_at_door
 
 
 async def test_public_catalogue(client):
@@ -96,6 +96,11 @@ async def test_full_order_and_delivery(actor, admin, db, client):
 
     r = await rider.patch(f"{API}/rider/deliveries/{delivery_id}", json={"action": "picked_up"})
     assert r.status_code == 200
+    # Not until the shopper's payment is confirmed.
+    r = await rider.patch(f"{API}/rider/deliveries/{delivery_id}", json={"action": "delivered", "code": code})
+    assert r.status_code == 409 and r.json()["error"]["code"] == "payment_not_confirmed"
+    paid = await pay_at_door(admin, rider, delivery_id)
+    assert paid["due_cents"] == 0 and paid["paid_cents"] == 10000
     wrong = "000000" if code != "000000" else "111111"
     r = await rider.patch(f"{API}/rider/deliveries/{delivery_id}", json={"action": "delivered", "code": wrong})
     assert r.status_code == 422
@@ -106,16 +111,18 @@ async def test_full_order_and_delivery(actor, admin, db, client):
     assert r.json()["status"] == "fulfilled"
     assert r.json()["shipments"][0]["status"] == "delivered"
 
-    # The store collected the cash; it confirms, and owes commission.
+    # The money went to The Bazaar's till: the store is credited the sale
+    # and owes commission and the delivery charge. Stores can't confirm.
     r = await seller.post(f"{API}/seller/orders/{so['id']}/confirm-payment")
-    assert r.status_code == 200, r.text
+    assert r.status_code == 403 and r.json()["error"]["code"] == "payments_central"
+    r = await seller.get(f"{API}/seller/orders/{so['id']}")
     assert r.json()["payment_status"] == "paid"
     kinds = dict(await db.fetch(
         "select kind, sum(amount_cents) from ledger_entries where store_id = $1 group by kind", seller.store_id
     ))
     assert kinds["commission"] == -1000
     assert kinds["delivery"] == -300
-    assert "sale" not in kinds  # cash never went through the platform
+    assert kinds["sale"] == 10000
 
     r = await rider.get(f"{API}/rider/me")
     assert r.json()["earnings_cents"] == 300

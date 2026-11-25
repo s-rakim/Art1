@@ -12,7 +12,7 @@ from .. import schemas as s
 from ..auth import AdminUser
 from ..common import Paging, paging
 from ..config import Settings, get_settings
-from ..dispatch import ready_store_orders, try_assign
+from ..dispatch import hold_days, ready_store_orders, try_assign
 from ..db import get_conn
 from ..errors import ApiError, not_found
 from ..supabase_admin import sync_app_roles
@@ -39,7 +39,22 @@ class Fees(s.BaseModel):
     express_shipping_cents: int
     free_shipping_over_cents: int | None
     rider_fee_cents: int
+    # The rider's share of the delivery charge the shopper paid, on top of
+    # rider_fee_cents. 0.8 is 80%.
+    rider_commission_rate: float
     tax_rate: float
+
+
+class PaymentDetails(s.BaseModel):
+    """Where shoppers pay. Shown at checkout and when the rider arrives."""
+
+    mpesa_till: str | None
+    mpesa_paybill: str | None
+    account_name: str | None
+    bank_name: str | None
+    bank_account_name: str | None
+    bank_account_number: str | None
+    instructions: str | None
 
 
 class Contact(s.BaseModel):
@@ -55,11 +70,25 @@ class Contact(s.BaseModel):
 class SiteStatus(Fees, Contact):
     maintenance_mode: bool
     maintenance_message: str | None
+    payment: PaymentDetails
 
 
 class SiteSettings(SiteStatus):
     vendor_signups_open: bool
     rider_signups_open: bool
+    rider_pool_radius_km: float
+    rider_batch_radius_km: float
+    rider_pickup_radius_km: float
+    rider_max_batch: int
+    payout_interval_days: int
+    payment_code_ttl_hours: int
+    mpesa_till: str | None
+    mpesa_paybill: str | None
+    payment_account_name: str | None
+    bank_name: str | None
+    bank_account_name: str | None
+    bank_account_number: str | None
+    payment_instructions: str | None
     updated_at: datetime
 
 
@@ -83,12 +112,43 @@ class SiteSettingsUpdate(s.Strict):
     contact_phone: Phone | None = None
     contact_whatsapp: Phone | None = None
     contact_note: s.MediumText | None = None
+    rider_commission_rate: Annotated[float, s.Field(ge=0, le=1)] | None = None
+    rider_pool_radius_km: Annotated[float, s.Field(gt=0, le=200)] | None = None
+    rider_batch_radius_km: Annotated[float, s.Field(gt=0, le=50)] | None = None
+    rider_pickup_radius_km: Annotated[float, s.Field(ge=0, le=50)] | None = None
+    rider_max_batch: Annotated[int, s.Field(ge=1, le=10)] | None = None
+    payout_interval_days: Annotated[int, s.Field(ge=0, le=90)] | None = None
+    payment_code_ttl_hours: Annotated[int, s.Field(ge=1, le=2160)] | None = None
+    mpesa_till: Annotated[str, s.StringConstraints(pattern=r"^[0-9]{4,10}$")] | None = None
+    mpesa_paybill: Annotated[str, s.StringConstraints(pattern=r"^[0-9]{4,10}$")] | None = None
+    payment_account_name: s.ShortText | None = None
+    bank_name: s.ShortText | None = None
+    bank_account_name: s.ShortText | None = None
+    bank_account_number: Annotated[str, s.StringConstraints(pattern=r"^[0-9A-Za-z -]{4,34}$")] | None = None
+    payment_instructions: s.MediumText | None = None
 
 
 # Fields where an explicit null means something (clear it, or "never free").
 _NULLABLE = {"maintenance_message", "free_shipping_over_cents", "contact_name", "contact_email", "contact_phone",
-             "contact_whatsapp", "contact_note"}
-_SETTINGS_SELECT = "select *, tax_rate::float as tax_rate from app_settings"
+             "contact_whatsapp", "contact_note", "mpesa_till", "mpesa_paybill", "payment_account_name", "bank_name",
+             "bank_account_name", "bank_account_number", "payment_instructions"}
+_SETTINGS_SELECT = """select *, tax_rate::float as tax_rate, rider_commission_rate::float as rider_commission_rate,
+                             rider_pool_radius_km::float as rider_pool_radius_km,
+                             rider_batch_radius_km::float as rider_batch_radius_km,
+                             rider_pickup_radius_km::float as rider_pickup_radius_km
+                        from app_settings"""
+
+
+def _site(rec, settings: Settings) -> dict:
+    r = dict(rec)
+    r["currency"] = settings.currency
+    r["payment"] = {
+        "mpesa_till": r["mpesa_till"], "mpesa_paybill": r["mpesa_paybill"],
+        "account_name": r["payment_account_name"], "bank_name": r["bank_name"],
+        "bank_account_name": r["bank_account_name"], "bank_account_number": r["bank_account_number"],
+        "instructions": r["payment_instructions"],
+    }
+    return r
 
 
 @public.get("/status", response_model=SiteStatus)
@@ -97,12 +157,12 @@ async def status(conn: Conn, response: Response, settings: Cfg):
     contact the rent-a-stall page shows instead of prices."""
     rec = await conn.fetchrow(_SETTINGS_SELECT)
     response.headers["Cache-Control"] = "public, max-age=15"
-    return {**dict(rec), "currency": settings.currency}
+    return _site(rec, settings)
 
 
 @router.get("/settings", response_model=SiteSettings)
 async def get_site_settings(_: AdminUser, conn: Conn, settings: Cfg):
-    return {**dict(await conn.fetchrow(_SETTINGS_SELECT)), "currency": settings.currency}
+    return _site(await conn.fetchrow(_SETTINGS_SELECT), settings)
 
 
 @router.patch("/settings", response_model=SiteSettings)
@@ -119,7 +179,7 @@ async def update_site_settings(body: SiteSettingsUpdate, admin: AdminUser, conn:
         await conn.execute(
             f"update app_settings set {sets}, updated_at = now(), updated_by = $1", admin.id, *[data[c] for c in cols]
         )
-    return {**dict(await conn.fetchrow(_SETTINGS_SELECT)), "currency": settings.currency}
+    return _site(await conn.fetchrow(_SETTINGS_SELECT), settings)
 
 
 # ---------------------------------------------------------------------------
@@ -545,7 +605,7 @@ async def mark_paid(order_id: uuid.UUID, _: AdminUser, conn: Conn, settings: Cfg
     """For transfers made to The Bazaar's own account."""
     async with conn.transaction():
         changed = await conn.fetchval(
-            "select mark_order_paid($1, 'manual', null, $2)", order_id, settings.payout_hold_days
+            "select mark_order_paid($1, 'manual', null, $2)", order_id, await hold_days(conn)
         )
         if not changed:
             raise ApiError(409, "not_payable", "That order is already paid or canceled.")

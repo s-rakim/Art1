@@ -22,7 +22,8 @@ async def run_sweep(app):
 from app.realtime import Hub, can_watch, personal_topics
 
 import jwt as pyjwt
-from conftest import ADDRESS, API, JWT_SECRET, Actor, add_product, hire_rider, make_token, open_store
+from conftest import (ADDRESS, API, JWT_SECRET, Actor, add_product, hire_rider, make_token, open_store,
+                      till_message)
 
 # Far from the Accra fixtures the other tests use, so riders they leave on
 # shift are never the closest to these shops.
@@ -452,7 +453,8 @@ async def test_who_may_follow_a_rider(db, client, actor, admin, monkeypatch):
 
     assert set(await personal_topics(db, user(seller, "seller"))) == {f"user:{seller.id}", "catalog",
                                                                       f"store:{seller.store_id}"}
-    assert set(await personal_topics(db, user(rider, "rider"))) == {f"user:{rider.id}", "catalog", f"rider:{rider.id}"}
+    assert set(await personal_topics(db, user(rider, "rider"))) == {f"user:{rider.id}", "catalog", f"rider:{rider.id}",
+                                                                    "riders"}
     assert "ops" in await personal_topics(db, user(admin, "admin"))
     applicant = rider_signup(client)
     await applicant.get(f"{API}/me")
@@ -548,12 +550,23 @@ async def test_orders_go_to_the_closest_free_rider(app, db, actor, admin, monkey
     await far.patch(f"{API}/rider/deliveries/{d['id']}", json={"action": "decline"})
     assert await _rider_on(db, order) is None  # everyone in range said no; it waits
 
-    # A busy rider (three jobs) is skipped.
-    for _ in range(3):
-        o = await _buy(actor(), vid)
-        assert (await _rider_on(db, o))["rider_id"] == close.id
-    o = await _buy(actor(), vid)
-    assert (await _rider_on(db, o))["rider_id"] == middle.id
+    # One offer at a time: with an offer waiting, a rider gets no second one.
+    o1 = await _buy(actor(), vid)
+    d1 = await _rider_on(db, o1)
+    assert d1["rider_id"] == close.id
+    o2 = await _buy(actor(), vid)
+    assert (await _rider_on(db, o2))["rider_id"] == middle.id
+    r = await close.patch(f"{API}/rider/deliveries/{d1['id']}", json={"action": "accept"})
+    assert r.status_code == 200, r.text
+
+    # Idle riders come first; a rider on a run only gets jobs that batch
+    # with it (same shop, same part of town).
+    o3 = await _buy(actor(), vid)
+    d3 = await _rider_on(db, o3)
+    assert d3["rider_id"] == far.id
+    await far.patch(f"{API}/rider/deliveries/{d3['id']}", json={"action": "decline"})
+    d3 = await _rider_on(db, o3)
+    assert d3["rider_id"] == close.id
 
 
 async def test_orders_wait_for_a_rider_and_transfers_wait_for_payment(app, db, actor, admin, monkeypatch):
@@ -570,13 +583,25 @@ async def test_orders_wait_for_a_rider_and_transfers_wait_for_payment(app, db, a
     transfer = await _buy(actor(), vid, payment="bank_transfer")
     rider = await hire_rider(actor, admin, **near(shop, 2))
     await run_sweep(app)
-    assert (await _rider_on(db, cod))["rider_id"] == rider.id
+    cod_job = await _rider_on(db, cod)
+    assert cod_job["rider_id"] == rider.id
+    r = await rider.patch(f"{API}/rider/deliveries/{cod_job['id']}", json={"action": "accept"})
+    assert r.status_code == 200, r.text
     assert await _rider_on(db, transfer) is None  # not paid yet
 
+    # The shopper pays the till ahead; once an admin applies the payment
+    # the order goes out.
     t_so = await db.fetchval("select id from store_orders where order_id = $1", uuid.UUID(transfer))
     r = await seller.post(f"{API}/seller/orders/{t_so}/confirm-payment")
-    assert r.status_code == 200
-    assert (await _rider_on(db, transfer))["rider_id"] == rider.id
+    assert r.status_code == 403
+    total = await db.fetchval("select total_cents from orders where id = $1", uuid.UUID(transfer))
+    number = await db.fetchval("select number from orders where id = $1", uuid.UUID(transfer))
+    code = await till_message(admin, total, number)
+    receipt = await db.fetchval("select id from payment_receipts where code = $1", code)
+    r = await admin.patch(f"{API}/admin/payments/{receipt}", json={"order_number": number})
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "confirmed" and r.json()["order_number"] == number
+    assert (await _rider_on(db, transfer))["rider_id"] == rider.id  # batched onto the same run
 
 
 async def test_store_can_take_over_dispatch(app, db, actor, admin, monkeypatch):

@@ -406,7 +406,11 @@ class CheckoutLine(Strict):
 
 
 class CheckoutIn(Strict):
+    # What to buy. Leave both out to buy the whole cart. `items` names
+    # variants and quantities; `cart_item_ids` picks lines from the cart as
+    # they are. Either way, cart lines not bought stay in the cart.
     items: Annotated[list[CheckoutLine], Field(min_length=1, max_length=100)] | None = None
+    cart_item_ids: Annotated[list[uuid.UUID], Field(min_length=1, max_length=100)] | None = None
     address_id: uuid.UUID | None = None
     shipping_address: AddressIn | None = None
     shipping_method: Literal["standard", "express"] = "standard"
@@ -417,6 +421,8 @@ class CheckoutIn(Strict):
     def one_address(self):
         if (self.address_id is None) == (self.shipping_address is None):
             raise ValueError("send exactly one of address_id or shipping_address")
+        if self.items is not None and self.cart_item_ids is not None:
+            raise ValueError("send items or cart_item_ids, not both")
         return self
 
 

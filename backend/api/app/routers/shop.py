@@ -12,7 +12,7 @@ from ..auth import CurrentUser
 from ..common import Paging, paging
 from ..config import Settings, get_settings
 from ..db import get_conn
-from ..dispatch import ready_store_orders, try_assign
+from ..dispatch import hold_days, ready_store_orders, try_assign
 from ..errors import ApiError, not_found
 from ..geo import eta_minutes, haversine_km, point
 from ..realtime import publish
@@ -174,6 +174,25 @@ async def remove_cart_item(item_id: uuid.UUID, user: CurrentUser, conn: Conn, se
     return await _cart(conn, user.id, settings)
 
 
+@router.post("/cart/items/{item_id}/save-for-later", response_model=s.Cart)
+async def save_for_later(item_id: uuid.UUID, user: CurrentUser, conn: Conn, settings: Cfg):
+    """Move a cart line to the wishlist."""
+    async with conn.transaction():
+        product_id = await conn.fetchval(
+            """delete from cart_items ci using carts c, product_variants v
+                where ci.id = $1 and ci.cart_id = c.id and c.user_id = $2 and v.id = ci.variant_id
+                returning v.product_id""",
+            item_id, user.id,
+        )
+        if product_id is None:
+            raise not_found("cart item")
+        await conn.execute(
+            "insert into wishlist_items (user_id, product_id) values ($1, $2) on conflict do nothing",
+            user.id, product_id,
+        )
+    return await _cart(conn, user.id, settings)
+
+
 @router.delete("/cart", response_model=s.Cart)
 async def clear_cart(user: CurrentUser, conn: Conn, settings: Cfg):
     await conn.execute(
@@ -224,19 +243,36 @@ async def checkout(body: s.CheckoutIn, user: CurrentUser, conn: Conn, settings: 
         flat, free_over = fees["standard_shipping_cents"], fees["free_shipping_over_cents"] or 0
 
     async with conn.transaction():
-        if body.items is not None:
-            # The client sent the basket explicitly; make the server cart match.
+        # place_order() buys whatever is in the cart. For a selection, set
+        # the rest aside, buy, then put back what wasn't bought.
+        kept: list[tuple] = []
+        if body.items is not None or body.cart_item_ids is not None:
             cart_id = await _cart_id(conn, user.id)
-            await conn.execute("delete from cart_items where cart_id = $1", cart_id)
+            current = await conn.fetch(
+                "select id, variant_id, quantity, added_at from cart_items where cart_id = $1 for update", cart_id
+            )
             merged: dict[uuid.UUID, int] = {}
-            for line in body.items:
-                merged[line.variant_id] = min(merged.get(line.variant_id, 0) + line.quantity, 999)
+            if body.cart_item_ids is not None:
+                by_id = {r["id"]: r for r in current}
+                for item_id in body.cart_item_ids:
+                    line = by_id.get(item_id)
+                    if line is None:
+                        raise not_found("cart item")
+                    merged[line["variant_id"]] = line["quantity"]
+            else:
+                for line in body.items:
+                    merged[line.variant_id] = min(merged.get(line.variant_id, 0) + line.quantity, 999)
+            await conn.execute("delete from cart_items where cart_id = $1", cart_id)
             for variant_id, qty in merged.items():
                 await _purchasable_variant(conn, variant_id)
                 await conn.execute(
                     "insert into cart_items (cart_id, variant_id, quantity) values ($1, $2, $3)",
                     cart_id, variant_id, qty,
                 )
+            for r in current:
+                left = r["quantity"] - merged.get(r["variant_id"], 0)
+                if left > 0:
+                    kept.append((r["variant_id"], left, r["added_at"]))
 
         # Buying from your own store would let a seller farm "verified" reviews
         # and sales rank for the cost of the commission.
@@ -258,6 +294,11 @@ async def checkout(body: s.CheckoutIn, user: CurrentUser, conn: Conn, settings: 
         order = dict(await conn.fetchrow(
             "select id, number, status, total_cents, currency from orders where id = $1", order_id
         ))
+        if kept:
+            await conn.executemany(
+                "insert into cart_items (cart_id, variant_id, quantity, added_at) values ($1, $2, $3, $4)",
+                [(cart_id, v, q, a) for v, q, a in kept],
+            )
 
         out = {
             "order_id": order["id"],
@@ -268,10 +309,12 @@ async def checkout(body: s.CheckoutIn, user: CurrentUser, conn: Conn, settings: 
         }
 
         if body.payment_method != "card":
-            # Cash on delivery or transfer: the store confirms it got paid.
+            # Paid into The Bazaar's till or bank account: on arrival ("cod")
+            # or ahead ("bank_transfer"). The rider or an admin confirms it
+            # by the transaction code.
             await conn.execute("update orders set payment_provider = 'manual' where id = $1", order_id)
         elif settings.payment_provider == "test":
-            await conn.execute("select mark_order_paid($1, 'test', null, $2)", order_id, settings.payout_hold_days)
+            await conn.execute("select mark_order_paid($1, 'test', null, $2)", order_id, await hold_days(conn))
             out["status"] = "paid"
         elif settings.payment_provider == "stripe":
             # Created inside the transaction: if Stripe is down, the order and
@@ -429,7 +472,7 @@ async def stripe_webhook(request: Request, conn: Conn, settings: Cfg):
                 "select mark_order_paid($1, 'stripe', $2, $3)",
                 order_id,
                 session.get("payment_intent"),
-                settings.payout_hold_days,
+                await hold_days(conn),
             )
         await try_assign(conn, await ready_store_orders(conn, order_id), settings)
     elif event["type"] == "checkout.session.expired":
