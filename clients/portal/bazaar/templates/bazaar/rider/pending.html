@@ -1,0 +1,30 @@
+{% extends "bazaar/base.html" %}
+{% block title %}Rider application{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1 class="heading">Deliver for {{ store_name }}</h1><p>Riders are hired by the market office. You can start taking jobs once you're approved.</p></div></div>
+{% if application %}
+  {% if application.status == "rejected" %}
+  <p class="note note-error">We can't take you on right now.{% if application.review_note %} {{ application.review_note }}{% endif %}</p>
+  {% elif application.status == "suspended" %}
+  <p class="note note-warning">Your rider account is paused.{% if application.review_note %} {{ application.review_note }}{% endif %} Contact the market office.</p>
+  {% else %}
+  <div class="card panel-pad stack-sm">
+    <strong>Application received</strong>
+    <p class="muted">{{ application.full_name }} · {{ application.vehicle|title }} · {{ application.city }}</p>
+    <p>An admin will look at it soon. This page updates when you're hired, so check back, or sign in again later.</p>
+  </div>
+  {% endif %}
+{% else %}
+<form class="form" method="post" novalidate>
+  {% csrf_token %}
+  {% include "bazaar/_field.html" with name="full_name" label="Your full name" value=values.full_name|default:me.full_name required=1 error=errors.full_name %}
+  <div class="grid-2">
+    {% include "bazaar/_field.html" with name="phone" label="Phone" type="tel" value=values.phone required=1 error=errors.phone %}
+    {% include "bazaar/_field.html" with name="city" label="City" value=values.city required=1 error=errors.city %}
+  </div>
+  <div class="field-wrap"><label class="label" for="vehicle">Vehicle</label><select class="field" id="vehicle" name="vehicle">{% for v, l in vehicles %}<option value="{{ v }}"{% if values.vehicle == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select></div>
+  {% include "bazaar/_field.html" with name="licence_number" label="Licence number (if you drive)" value=values.licence_number %}
+  <div><button class="btn btn-primary" type="submit">Send application</button></div>
+</form>
+{% endif %}
+{% endblock %}

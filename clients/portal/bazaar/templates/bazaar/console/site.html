@@ -1,0 +1,27 @@
+{% extends "bazaar/base.html" %}
+{% block title %}Site settings{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1 class="heading">Site settings</h1><p>Who shoppers and would-be vendors contact, and who can sign up.</p></div></div>
+<form class="form" method="post" novalidate>
+  {% csrf_token %}
+  <fieldset class="stack-sm"><legend>Market office contact</legend>
+    <p class="small muted">Shown on stall pages instead of rent prices.</p>
+    <div class="grid-2">
+      {% include "bazaar/_field.html" with name="contact_name" label="Name" value=settings.contact_name %}
+      {% include "bazaar/_field.html" with name="contact_email" label="Email" type="email" value=settings.contact_email %}
+      {% include "bazaar/_field.html" with name="contact_phone" label="Phone" type="tel" value=settings.contact_phone %}
+      {% include "bazaar/_field.html" with name="contact_whatsapp" label="WhatsApp" type="tel" value=settings.contact_whatsapp %}
+    </div>
+    <div class="field-wrap"><label class="label" for="f-note">Note</label><textarea class="field" id="f-note" name="contact_note" rows="2">{{ settings.contact_note|default:'' }}</textarea></div>
+  </fieldset>
+  <fieldset class="stack-sm"><legend>Sign-ups</legend>
+    <label class="check"><input type="checkbox" name="vendor_signups_open" {% if settings.vendor_signups_open %}checked{% endif %}>Accept new stall applications</label>
+    <label class="check"><input type="checkbox" name="rider_signups_open" {% if settings.rider_signups_open %}checked{% endif %}>Accept new rider applications</label>
+  </fieldset>
+  <fieldset class="stack-sm"><legend>Maintenance</legend>
+    <label class="check"><input type="checkbox" name="maintenance_mode" {% if settings.maintenance_mode %}checked{% endif %}>Close the shop for maintenance</label>
+    <div class="field-wrap"><label class="label" for="f-mm">Message shoppers see</label><input class="field" id="f-mm" name="maintenance_message" value="{{ settings.maintenance_message|default:'' }}"></div>
+  </fieldset>
+  <div><button class="btn btn-primary" type="submit">Save settings</button></div>
+</form>
+{% endblock %}

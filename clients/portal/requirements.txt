@@ -1,0 +1,5 @@
+django==6.0.10
+httpx==0.28.1
+redis==8.2.0
+gunicorn==27.0.1
+whitenoise==6.12.0

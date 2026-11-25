@@ -1,0 +1,57 @@
+{% extends "bazaar/base.html" %}
+{% load bazaar %}
+{% block title %}Prices and fees{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1 class="heading">Prices and fees</h1><p>Every amount the market charges lives here. Nothing is fixed in the code. Amounts are in {{ settings.currency }}.</p></div></div>
+
+<section class="card panel-pad stack" aria-labelledby="fees-title">
+  <h2 class="heading section-title" id="fees-title">Delivery and tax</h2>
+  <form class="form form-wide" method="post" novalidate>
+    {% csrf_token %}<input type="hidden" name="section" value="fees">
+    <div class="grid-3">
+      {% include "bazaar/_field.html" with name="standard_shipping" label="Standard delivery" value=settings.standard_shipping_cents|major inputmode="decimal" error=errors.standard_shipping %}
+      {% include "bazaar/_field.html" with name="express_shipping" label="Express delivery" value=settings.express_shipping_cents|major inputmode="decimal" error=errors.express_shipping %}
+      {% include "bazaar/_field.html" with name="free_shipping_over" label="Free delivery over" value=settings.free_shipping_over_cents|major inputmode="decimal" hint="Leave empty for never." %}
+      {% include "bazaar/_field.html" with name="rider_fee" label="Rider's fee per delivery" value=settings.rider_fee_cents|major inputmode="decimal" error=errors.rider_fee %}
+      {% include "bazaar/_field.html" with name="tax_rate" label="Tax rate (%)" value=settings.tax_rate|percent inputmode="decimal" error=errors.tax_rate %}
+    </div>
+    <div><button class="btn btn-primary" type="submit">Save delivery and tax</button></div>
+  </form>
+</section>
+
+<section class="stack section-gap" aria-labelledby="plans-title">
+  <h2 class="heading section-title" id="plans-title">Stall plans (monthly rent and commission)</h2>
+  <div class="order-grid">
+  {% for p in plans %}
+  <form class="card panel-pad stack-sm" method="post" novalidate>
+    {% csrf_token %}<input type="hidden" name="section" value="plan"><input type="hidden" name="plan_id" value="{{ p.id }}">
+    <div class="row-between"><strong>{{ p.name }}</strong><span class="chip mono">{{ p.code }}</span></div>
+    <div class="grid-2">
+      <div class="field-wrap"><label class="label" for="mp-{{ p.id }}">Monthly rent</label><input class="field num" id="mp-{{ p.id }}" name="monthly_price" value="{{ p.monthly_price_cents|major }}" inputmode="decimal"></div>
+      <div class="field-wrap"><label class="label" for="cr-{{ p.id }}">Commission (%)</label><input class="field num" id="cr-{{ p.id }}" name="commission_rate" value="{{ p.commission_rate|percent }}" inputmode="decimal"></div>
+      <div class="field-wrap"><label class="label" for="pf-{{ p.id }}">Fee per item sold</label><input class="field num" id="pf-{{ p.id }}" name="per_item_fee" value="{{ p.per_item_fee_cents|major }}" inputmode="decimal"></div>
+      <div class="field-wrap"><label class="label" for="pl-{{ p.id }}">Product limit</label><input class="field num" id="pl-{{ p.id }}" name="product_limit" type="number" min="0" value="{{ p.product_limit|default_if_none:'' }}" placeholder="No limit"></div>
+    </div>
+    <div><button class="btn btn-sm" type="submit">Save {{ p.name }}</button></div>
+  </form>
+  {% endfor %}
+  </div>
+</section>
+
+<section class="stack section-gap" aria-labelledby="slots-title">
+  <h2 class="heading section-title" id="slots-title">Featured placements (daily price)</h2>
+  {% if slots %}
+  <div class="table-wrap"><table class="table">
+    <thead><tr><th>Placement</th><th>Where</th><th>Price per day</th><th>Spaces</th><th>On sale</th><th><span class="sr-only">Save</span></th></tr></thead>
+    <tbody>{% for s in slots %}
+    <tr><td><strong>{{ s.name }}</strong><div class="small muted mono">{{ s.code }}</div></td><td class="small">{{ s.location|humanize }}</td>
+      <td colspan="4"><form class="row" method="post" novalidate>{% csrf_token %}<input type="hidden" name="section" value="slot"><input type="hidden" name="slot_id" value="{{ s.id }}">
+        <label class="sr-only" for="dp-{{ s.id }}">Daily price for {{ s.name }}</label><input class="field num price-input" id="dp-{{ s.id }}" name="daily_price" value="{{ s.daily_price_cents|major }}" inputmode="decimal">
+        <label class="sr-only" for="cap-{{ s.id }}">Spaces for {{ s.name }}</label><input class="field num stock-input" id="cap-{{ s.id }}" name="capacity" type="number" min="0" max="100" value="{{ s.capacity }}">
+        <label class="check"><input type="checkbox" name="is_active" checked>On sale</label>
+        <button class="btn btn-sm" type="submit">Save</button></form></td></tr>
+    {% endfor %}</tbody>
+  </table></div>
+  {% else %}<p class="muted">No placements set up.</p>{% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,24 @@
+{% extends "bazaar/base.html" %}
+{% load bazaar %}
+{% block title %}Stores{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1 class="heading">Stores</h1><p>Approve new stalls, or pause ones that break the rules.</p></div>
+  <div class="chips"><a class="chip chip-link" href="?" {% if not status %}aria-current="true"{% endif %}>All</a><a class="chip chip-link" href="?status=pending" {% if status == "pending" %}aria-current="true"{% endif %}>Waiting</a><a class="chip chip-link" href="?status=active" {% if status == "active" %}aria-current="true"{% endif %}>Open</a><a class="chip chip-link" href="?status=suspended" {% if status == "suspended" %}aria-current="true"{% endif %}>Suspended</a></div></div>
+{% if stores %}
+<div class="table-wrap"><table class="table">
+  <thead><tr><th>Stall</th><th>Owner</th><th>Plan</th><th>Status</th><th class="right">Products</th><th><span class="sr-only">Actions</span></th></tr></thead>
+  <tbody>{% for s in stores %}
+  <tr><td><strong>{{ s.name }}</strong><div class="small muted">{{ s.country|default:"" }} · since {{ s.created_at|date:"d M Y" }}</div></td>
+    <td class="small">{{ s.owner_email|default:"—" }}<br>{{ s.support_email|default:"" }}</td>
+    <td class="small">{{ s.plan_code }}</td>
+    <td><span class="chip {{ s.status|status_tone }}">{{ s.status|humanize }}</span></td>
+    <td class="right num">{{ s.product_count }}</td>
+    <td><form class="row row-end" method="post" action="{% url 'console:store_action' s.id %}">{% csrf_token %}
+      {% if s.status == "pending" %}<button class="btn btn-sm btn-primary" name="status" value="active">Approve</button><button class="btn btn-sm btn-tertiary" name="status" value="rejected" data-confirm="Turn down {{ s.name }}?">Turn down</button>
+      {% elif s.status == "active" %}<button class="btn btn-sm btn-tertiary" name="status" value="suspended" data-confirm="Suspend {{ s.name }}? Its products leave the shop.">Suspend</button>
+      {% else %}<button class="btn btn-sm" name="status" value="active">Reopen</button>{% endif %}
+    </form></td></tr>
+  {% endfor %}</tbody>
+</table></div>
+{% else %}<div class="empty"><strong>No stores here</strong><p>Applications appear here as soon as someone applies.</p></div>{% endif %}
+{% endblock %}

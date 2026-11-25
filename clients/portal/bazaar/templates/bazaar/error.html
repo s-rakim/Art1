@@ -1,0 +1,9 @@
+{% extends "bazaar/base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="empty">
+  <strong>{{ title }}</strong>
+  <p>{{ message }}</p>
+  <a class="btn btn-primary" href="{% url 'shop:home' %}">Back to the shop</a>
+</div>
+{% endblock %}

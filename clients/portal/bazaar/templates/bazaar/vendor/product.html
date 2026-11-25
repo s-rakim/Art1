@@ -1,0 +1,68 @@
+{% extends "bazaar/base.html" %}
+{% load bazaar %}
+{% block title %}{{ product.title }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><a class="small link" href="{% url 'vendor:products' %}">← Products</a><h1 class="heading">{{ product.title }}</h1>
+  <p><span class="chip {{ product.status|status_tone }}">{% if product.status == "active" %}Live{% else %}{{ product.status|humanize }}{% endif %}</span> · {{ product.sold_count }} sold</p></div>
+  {% if product.status == "active" %}<a class="btn" href="{% url 'shop:product' product.slug %}">View in shop</a>{% endif %}
+</div>
+
+<div class="editor">
+  <section class="stack" aria-labelledby="media-title">
+    <h2 class="heading section-title" id="media-title">Photos and video</h2>
+    <div id="media">{% include "bazaar/vendor/_media.html" %}</div>
+  </section>
+
+  <section aria-labelledby="details-title">
+    <h2 class="heading section-title" id="details-title">Details</h2>
+    <form class="form" method="post" novalidate>
+      {% csrf_token %}
+      {% include "bazaar/_field.html" with name="title" label="Title" value=product.title required=1 error=errors.title %}
+      <div class="field-wrap"><label class="label" for="f-description">Description</label><textarea class="field" id="f-description" name="description" rows="6">{{ product.description }}</textarea></div>
+      <div class="grid-2">
+        {% include "bazaar/_field.html" with name="brand" label="Brand" value=product.brand %}
+        <div class="field-wrap"><label class="label" for="f-cat">Category</label><select class="field" id="f-cat" name="category_id"><option value="">None</option>{% for id, name in categories %}<option value="{{ id }}"{% if product.category_id == id %} selected{% endif %}>{{ name }}</option>{% endfor %}</select></div>
+      </div>
+      {% include "bazaar/_field.html" with name="tags" label="Tags" value=product.tags|join:", " hint="Separate with commas." %}
+      <fieldset class="row">
+        <legend class="label">Visibility</legend>
+        <label class="choice"><input type="radio" name="status" value="active" {% if product.status == "active" %}checked{% endif %}><span>Live in the shop</span></label>
+        <label class="choice"><input type="radio" name="status" value="draft" {% if product.status == "draft" %}checked{% endif %}><span>Draft</span></label>
+        <label class="choice"><input type="radio" name="status" value="archived" {% if product.status == "archived" %}checked{% endif %}><span>Archived</span></label>
+      </fieldset>
+      <div><button class="btn btn-primary" type="submit">Save details</button></div>
+    </form>
+
+    <h2 class="heading section-title options-title">Options, prices and stock</h2>
+    <div class="stack-sm">
+      {% for v in product.variants %}
+      <form class="card panel-pad variant" method="post" action="{% url 'vendor:variant' product.id v.id %}">
+        {% csrf_token %}
+        <div class="grid-variant">
+          <div class="field-wrap"><label class="label" for="vt-{{ v.id }}">Name</label><input class="field" id="vt-{{ v.id }}" name="title" value="{{ v.title }}" required></div>
+          <div class="field-wrap"><label class="label" for="vp-{{ v.id }}">Price</label><input class="field num" id="vp-{{ v.id }}" name="price" value="{{ v.price_cents|major }}" inputmode="decimal" required></div>
+          <div class="field-wrap"><label class="label" for="vc-{{ v.id }}">Was (optional)</label><input class="field num" id="vc-{{ v.id }}" name="compare_at" value="{{ v.compare_at_cents|major }}" inputmode="decimal"></div>
+          <div class="field-wrap"><label class="label" for="vs-{{ v.id }}">Stock</label><input class="field num" id="vs-{{ v.id }}" name="stock" type="number" min="0" value="{{ v.stock }}" inputmode="numeric" required></div>
+        </div>
+        <div class="row-between"><span class="small muted mono">{{ v.sku }}</span>
+          <span class="row"><button class="btn btn-sm btn-tertiary" name="action" value="delete" data-confirm="Remove the option “{{ v.title }}”?">{% icon "delete" 18 %}Remove</button><button class="btn btn-sm" type="submit">Save</button></span></div>
+      </form>
+      {% endfor %}
+      <details class="card panel-pad">
+        <summary>{% icon "plus" 18 %} Add another option</summary>
+        <form class="stack-sm add-variant" method="post" action="{% url 'vendor:variant_add' product.id %}">
+          {% csrf_token %}
+          <div class="grid-variant">
+            <div class="field-wrap"><label class="label" for="nv-t">Name</label><input class="field" id="nv-t" name="title" placeholder="e.g. Large / Blue" required></div>
+            <div class="field-wrap"><label class="label" for="nv-p">Price</label><input class="field" id="nv-p" name="price" inputmode="decimal" required></div>
+            <div class="field-wrap"><label class="label" for="nv-s">Stock</label><input class="field" id="nv-s" name="stock" type="number" min="0" value="0" required></div>
+            <div class="field-wrap"><label class="label" for="nv-k">SKU</label><input class="field" id="nv-k" name="sku"></div>
+          </div>
+          <div><button class="btn btn-primary btn-sm" type="submit">Add option</button></div>
+        </form>
+      </details>
+    </div>
+  </section>
+</div>
+{% endblock %}

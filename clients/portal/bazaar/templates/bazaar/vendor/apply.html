@@ -1,0 +1,24 @@
+{% extends "bazaar/base.html" %}
+{% block title %}Open a stall{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1 class="heading">Open a stall</h1><p>Tell us about your business. An admin reviews every application and will contact you about rent.</p></div></div>
+<form class="form" method="post" novalidate>
+  {% csrf_token %}
+  {% include "bazaar/_field.html" with name="store_name" label="Stall name" value=values.store_name required=1 error=errors.store_name %}
+  <div class="grid-2">
+    {% include "bazaar/_field.html" with name="legal_name" label="Registered business name" value=values.legal_name required=1 error=errors.legal_name %}
+    {% include "bazaar/_field.html" with name="country" label="Country code" value=values.country|default:"GH" required=1 error=errors.country hint="Two letters, like GH." %}
+  </div>
+  <div class="grid-2">
+    {% include "bazaar/_field.html" with name="support_email" label="Email for buyers" type="email" value=values.support_email required=1 error=errors.support_email %}
+    {% include "bazaar/_field.html" with name="phone" label="Phone (optional)" type="tel" value=values.phone %}
+  </div>
+  {% if plans %}
+  <fieldset class="stack-sm"><legend>Plan</legend>
+    {% for p in plans %}<label class="choice"><input type="radio" name="plan_code" value="{{ p.code }}" {% if values.plan_code == p.code or not values.plan_code and forloop.first %}checked{% endif %}><span><strong>{{ p.name }}</strong>{% if p.description %}<br><span class="small muted">{{ p.description }}</span>{% endif %}<br><span class="small muted">Price on request from the market office.</span></span></label>{% endfor %}
+  </fieldset>
+  {% endif %}
+  <div class="field-wrap"><label class="label" for="f-message">Anything else? (optional)</label><textarea class="field" id="f-message" name="message" rows="3">{{ values.message }}</textarea></div>
+  <div><button class="btn btn-primary" type="submit">Send application</button></div>
+</form>
+{% endblock %}

@@ -1,0 +1,23 @@
+{% extends "bazaar/base.html" %}
+{% load bazaar static %}
+{% block title %}Riders{% endblock %}
+{% block head %}<link rel="stylesheet" href="{% static 'portal/vendor/leaflet-1.9.4/leaflet.css' %}">{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1 class="heading">Riders and live map</h1><p>Ready orders go to the closest free rider. Here's who is around and who is carrying your orders.</p></div></div>
+<div class="map" data-src="{% url 'vendor:live_json' %}" data-poll="5" data-center="{{ map_center }}" data-tiles="{{ map_tiles }}" data-attribution="{{ map_attribution }}" role="region" aria-label="Map of riders near your stall"></div>
+<div class="row-between map-foot"><p class="small muted" id="map-status" aria-live="polite">Loading the map…</p>
+<div class="legend"><span><span class="pin pin-store"></span>Your stall</span><span><span class="pin pin-rider"></span>Rider</span><span><span class="pin pin-home"></span>Drop-off</span></div></div>
+
+<h2 class="heading section-title">Your riders</h2>
+{% if riders %}
+<div class="table-wrap"><table class="table">
+  <thead><tr><th>Rider</th><th>Phone</th><th>Vehicle</th><th>Status</th><th class="right">Distance</th><th class="right">Jobs done</th><th>Last seen</th></tr></thead>
+  <tbody>{% for r in riders %}
+  <tr><td><strong>{{ r.name }}</strong><div class="small muted">{{ r.relation|humanize }}</div></td><td>{% if r.phone %}<a class="link" href="tel:{{ r.phone }}">{{ r.phone }}</a>{% else %}—{% endif %}</td><td>{{ r.vehicle|humanize }}</td>
+  <td><span class="dot {% if r.on_shift %}dot-on{% endif %}"></span> {% if r.active_deliveries %}On a job{% elif r.on_shift %}Free{% else %}Off shift{% endif %}</td>
+  <td class="right num">{% if r.distance_km != None %}{{ r.distance_km|floatformat:1 }} km{% else %}—{% endif %}</td><td class="right num">{{ r.completed_deliveries }}</td><td class="small">{{ r.last_seen_at|when }}</td></tr>
+  {% endfor %}</tbody>
+</table></div>
+{% else %}<div class="empty">{% icon "moped" 48 %}<strong>No riders nearby yet</strong><p>Riders show up here once they're on shift near your pickup point.</p></div>{% endif %}
+{% endblock %}
+{% block scripts %}<script src="{% static 'portal/vendor/leaflet-1.9.4/leaflet.js' %}" defer></script><script src="{% static 'portal/map.js' %}" defer></script>{% endblock %}

@@ -1,0 +1,23 @@
+{% extends "bazaar/base.html" %}
+{% load bazaar %}
+{% block title %}Products{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1 class="heading">Products</h1><p>{{ total }} product{{ total|pluralize }}</p></div>
+  <a class="btn btn-primary" href="{% url 'vendor:product_new' %}">{% icon "plus" %}New product</a>
+</div>
+<form class="row filter-row" hx-get="{% url 'vendor:products' %}" hx-target="#rows" hx-trigger="input changed delay:300ms from:#pq, change from:#ps, submit" hx-push-url="true">
+  <label class="sr-only" for="pq">Search your products</label>
+  <input class="field grow" id="pq" type="search" name="q" value="{{ q }}" placeholder="Search your products">
+  <label class="sr-only" for="ps">Status</label>
+  <select class="field sort-select" id="ps" name="status"><option value="">Any status</option>
+    <option value="active"{% if status == "active" %} selected{% endif %}>Live</option>
+    <option value="draft"{% if status == "draft" %} selected{% endif %}>Draft</option>
+    <option value="archived"{% if status == "archived" %} selected{% endif %}>Archived</option>
+  </select>
+</form>
+<div class="table-wrap"><table class="table">
+  <thead><tr><th>Product</th><th>Status</th><th class="right">Price</th><th class="right">Stock</th><th class="right">Sold</th><th>Updated</th></tr></thead>
+  <tbody id="rows">{% include "bazaar/vendor/_product_rows.html" %}</tbody>
+</table></div>
+{% endblock %}

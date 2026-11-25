@@ -1,0 +1,25 @@
+{% extends "bazaar/base.html" %}
+{% load bazaar static %}
+{% block title %}Shift{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1 class="heading">{% greeting me %}</h1><p>{{ rider.completed_deliveries }} deliveries done · {{ rider.unpaid_earnings_cents|money:rider.currency }} waiting to be paid</p></div></div>
+
+<section class="card shift-card" aria-label="Shift">
+  <div class="stack-sm">
+    <strong><span class="dot {% if rider.is_online %}dot-on{% endif %}"></span> {% if rider.is_online %}You're on shift{% else %}You're off shift{% endif %}</strong>
+    {% if rider.is_online %}
+    <p class="small muted" data-share-location="{% url 'rider:location' %}"><span data-location-status>Keep this page open so shops can find you.</span></p>
+    {% else %}
+    <p class="small muted">Go on shift to get offered jobs near you.</p>
+    {% endif %}
+  </div>
+  <form method="post" action="{% url 'rider:shift' %}">{% csrf_token %}
+    {% if rider.is_online %}<input type="hidden" name="online" value="false"><button class="btn">End shift</button>
+    {% else %}<input type="hidden" name="online" value="true"><button class="btn btn-primary btn-lg">Start shift</button>{% endif %}
+  </form>
+</section>
+
+<h2 class="heading section-title jobs-title">Your jobs</h2>
+<div id="jobs" hx-get="{% url 'rider:dashboard' %}" hx-trigger="every 15s" hx-swap="innerHTML">{% include "bazaar/rider/_jobs.html" %}</div>
+{% endblock %}
+{% block scripts %}{% if rider.is_online %}<script src="{% static 'portal/rider.js' %}" defer></script>{% endif %}{% endblock %}
