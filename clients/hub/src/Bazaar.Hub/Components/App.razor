@@ -1,21 +1,26 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <base href="/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <base href="@BaseHref" />
     <ResourcePreloader />
-    <link rel="stylesheet" href="@Assets["app.css"]" />
-    <link rel="stylesheet" href="@Assets["Bazaar.Hub.styles.css"]" />
-    <ImportMap />
+    <link rel="icon" href="@Assets["brand/logo-dark.svg"]" type="image/svg+xml" />
+    <link rel="stylesheet" href="@Assets["brand/bazaar.css"]" />
+    <link rel="stylesheet" href="@Assets["brand/layout.css"]" />
+    <link rel="stylesheet" href="@Assets["hub.css"]" />
     <HeadOutlet />
 </head>
-
 <body>
     <Routes />
     <ReconnectModal />
+    <script src="@Assets["hub.js"]"></script>
     <script src="@Assets["_framework/blazor.web.js"]"></script>
 </body>
-
 </html>
+
+@code {
+    [CascadingParameter] private HttpContext? HttpContext { get; set; }
+    // Behind Caddy the hub lives under /hub; links resolve against this.
+    private string BaseHref => (HttpContext?.Request.PathBase.Value ?? "") + "/";
+}

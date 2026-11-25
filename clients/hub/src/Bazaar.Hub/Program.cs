@@ -69,6 +69,7 @@ builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddAntiforgery(o =>
 {
     o.Cookie.Name = "bazaar_hub_af";
+    o.SuppressXFrameOptionsHeader = true; // SecurityHeaders sends DENY
     o.Cookie.SecurePolicy = builder.Environment.IsDevelopment() ? CookieSecurePolicy.SameAsRequest : CookieSecurePolicy.Always;
 });
 
@@ -100,6 +101,8 @@ var app = builder.Build();
 
 app.UseForwardedHeaders();
 if (!string.IsNullOrEmpty(hub.PathBase) && hub.PathBase != "/") app.UsePathBase(hub.PathBase);
+// Routing has to run after the path base is stripped, so it is placed explicitly.
+app.UseRouting();
 app.UseMiddleware<SecurityHeaders>();
 if (!app.Environment.IsDevelopment()) app.UseExceptionHandler("/error", createScopeForErrors: true);
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
@@ -112,6 +115,7 @@ app.UseAntiforgery();
 app.MapGet("/healthz", () => Results.Text("ok")).AllowAnonymous();
 app.MapAccountEndpoints();
 app.MapExportEndpoints();
+app.MapDispatchFeed();
 app.MapStaticAssets();
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 

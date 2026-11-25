@@ -2,10 +2,11 @@
 {% if cart.items %}
 <div class="table-wrap">
 <table class="table">
-  <thead><tr><th>Item</th><th>Stall</th><th class="right">Price</th><th>Quantity</th><th class="right">Total</th><th><span class="sr-only">Remove</span></th></tr></thead>
+  <thead><tr><th><span class="sr-only">Buy now</span></th><th>Item</th><th>Stall</th><th class="right">Price</th><th>Quantity</th><th class="right">Total</th><th><span class="sr-only">Remove</span></th></tr></thead>
   <tbody>
   {% for i in cart.items %}
   <tr>
+    <td><input type="checkbox" name="pick" value="{{ i.id }}" form="pick-form" checked {% if not i.available %}disabled{% endif %} aria-label="Buy {{ i.title }} now"></td>
     <td><div class="row">{% if i.image_url %}<img class="mini" src="{{ i.image_url }}" alt="">{% endif %}<div><a class="link" href="{% url 'shop:product' i.product_slug %}">{{ i.title }}</a><div class="small muted">{{ i.variant_title }}{% if not i.available %} · <span class="chip chip-error">Not available</span>{% endif %}</div></div></div></td>
     <td class="small">{{ i.store.name }}</td>
     <td class="right num">{{ i.unit_price_cents|money:cart.currency }}</td>
@@ -18,12 +19,16 @@
       </form>
     </td>
     <td class="right num">{{ i.line_total_cents|money:cart.currency }}</td>
-    <td>
+    <td><div class="row-end">
+      <form method="post" action="{% url 'shop:wishlist_toggle' %}" hx-post="{% url 'shop:wishlist_toggle' %}" hx-target="#cart">
+        {% csrf_token %}<input type="hidden" name="product_id" value="{{ i.product_id }}"><input type="hidden" name="from_cart" value="{{ i.id }}">
+        <button class="btn btn-tertiary btn-sm" type="submit">Save for later</button>
+      </form>
       <form method="post" action="{% url 'shop:cart_item' i.id %}" hx-post="{% url 'shop:cart_item' i.id %}" hx-target="#cart">
         {% csrf_token %}<input type="hidden" name="remove" value="1">
         <button class="btn btn-tertiary btn-icon" type="submit" aria-label="Remove {{ i.title }}">{% icon "delete" %}</button>
       </form>
-    </td>
+    </div></td>
   </tr>
   {% endfor %}
   </tbody>
@@ -32,7 +37,11 @@
 <div class="card panel-pad totals">
   <div class="row-between"><span>Subtotal ({{ cart.item_count }} item{{ cart.item_count|pluralize }})</span><span class="num">{{ cart.subtotal_cents|money:cart.currency }}</span></div>
   <div class="row-between muted"><span>Delivery (estimate)</span><span class="num">{{ cart.shipping_estimate_cents|money:cart.currency }}</span></div>
-  <a class="btn btn-primary btn-lg btn-wide" href="{% url 'shop:checkout' %}">Go to checkout</a>
+  <form id="pick-form" method="get" action="{% url 'shop:checkout' %}" class="stack-sm">
+    <input type="hidden" name="picking" value="1">
+    <p class="small muted">Untick anything you'd rather leave in the bag. Only ticked items are bought; the rest stay here.</p>
+    <button class="btn btn-primary btn-lg btn-wide" type="submit">Check out ticked items</button>
+  </form>
 </div>
 {% else %}
 <div class="empty">{% icon "bag" 48 %}<strong>Your bag is empty</strong><p>Find something you like and add it here.</p><a class="btn btn-primary" href="{% url 'shop:home' %}">Browse the market</a></div>

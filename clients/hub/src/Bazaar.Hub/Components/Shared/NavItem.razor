@@ -1,0 +1,8 @@
+@inject NavigationManager Nav
+<a class="nav-entry" href="@Href" aria-current="@(IsCurrent ? "page" : null)"><Icon Name="@IconName" />@Label</a>
+@code {
+    [Parameter, EditorRequired] public string Href { get; set; } = "";
+    [Parameter, EditorRequired] public string IconName { get; set; } = "";
+    [Parameter, EditorRequired] public string Label { get; set; } = "";
+    private bool IsCurrent => Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0].TrimEnd('/') == Href.TrimEnd('/');
+}

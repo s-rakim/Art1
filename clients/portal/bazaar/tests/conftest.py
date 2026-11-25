@@ -25,6 +25,7 @@ class FakeBackend:
         self.role = "customer"
         self.calls: list[tuple[str, str, dict | None]] = []
         self.password = "correct horse"
+        self.cart_lines = [1, 2, 3]
         self.settings = {
             "currency": "GHS", "standard_shipping_cents": 1500, "express_shipping_cents": 3000,
             "free_shipping_over_cents": None, "rider_fee_cents": 1000, "tax_rate": 0.125,
@@ -68,6 +69,24 @@ class FakeBackend:
                 "category_slug": None, "sponsored": False}], "total": 1, "page": 1, "page_size": 24, "facets": {}})
         if path == "/categories":
             return httpx.Response(200, json=[])
+        if path == "/cart" and request.method == "GET":
+            items = [{"id": f"l{n}", "variant_id": f"v{n}", "product_id": f"p{n}", "product_slug": f"thing-{n}",
+                      "title": f"Thing {n}", "variant_title": "Default", "image_url": None, "quantity": n,
+                      "unit_price_cents": 1000, "line_total_cents": 1000 * n, "available": True, "stock": 9,
+                      "store": {"slug": "osu", "name": "Osu Weavers"}} for n in self.cart_lines]
+            return httpx.Response(200, json={"id": "c1", "items": items, "item_count": sum(self.cart_lines),
+                                             "subtotal_cents": 1000 * sum(self.cart_lines),
+                                             "shipping_estimate_cents": 1500, "currency": "GHS"})
+        if path == "/me/addresses":
+            return httpx.Response(200, json=[{"id": "a1", "full_name": "Ama Owusu", "line1": "1 Oxford St",
+                                              "line2": None, "city": "Accra", "country": "GH", "phone": "024",
+                                              "is_default": True}])
+        if path == "/checkout":
+            return httpx.Response(201, json={"order_id": "o1", "order_number": "BZ-1001"})
+        if path == "/wishlist" and request.method == "GET":
+            return httpx.Response(200, json={"items": [], "total": 0, "page": 1, "page_size": 48})
+        if path.startswith("/wishlist") or (path.startswith("/cart/items/") and request.method == "DELETE"):
+            return httpx.Response(204)
         if path == "/cart/items" and request.method == "POST":
             return httpx.Response(201, json={"id": "c1", "items": [], "item_count": body["quantity"],
                                              "subtotal_cents": 0, "shipping_estimate_cents": 0, "currency": "GHS"})

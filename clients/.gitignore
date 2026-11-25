@@ -4,3 +4,4 @@
 portal/staticfiles/
 portal/brand/
 hub/src/Bazaar.Hub/keys/
+hub/src/Bazaar.Hub/wwwroot/brand/

@@ -1,7 +1,7 @@
 {% extends "bazaar/base.html" %}
 {% load bazaar static %}
 {% block title %}Riders{% endblock %}
-{% block head %}<link rel="stylesheet" href="{% static 'portal/vendor/leaflet-1.9.4/leaflet.css' %}">{% endblock %}
+{% block head %}<link rel="stylesheet" href="{% static 'vendor/leaflet-1.9.4/leaflet.css' %}">{% endblock %}
 {% block content %}
 <div class="page-head"><div><h1 class="heading">Riders and live map</h1><p>Ready orders go to the closest free rider. Here's who is around and who is carrying your orders.</p></div></div>
 <div class="map" data-src="{% url 'vendor:live_json' %}" data-poll="5" data-center="{{ map_center }}" data-tiles="{{ map_tiles }}" data-attribution="{{ map_attribution }}" role="region" aria-label="Map of riders near your stall"></div>
@@ -20,4 +20,4 @@
 </table></div>
 {% else %}<div class="empty">{% icon "moped" 48 %}<strong>No riders nearby yet</strong><p>Riders show up here once they're on shift near your pickup point.</p></div>{% endif %}
 {% endblock %}
-{% block scripts %}<script src="{% static 'portal/vendor/leaflet-1.9.4/leaflet.js' %}" defer></script><script src="{% static 'portal/map.js' %}" defer></script>{% endblock %}
+{% block scripts %}<script src="{% static 'vendor/leaflet-1.9.4/leaflet.js' %}" defer></script><script src="{% static 'map.js' %}" defer></script>{% endblock %}

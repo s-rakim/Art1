@@ -7,6 +7,8 @@ and the wallpapers in frontend/public/img. Rather than keep copies that drift,
 both clients run this script at image build time and get:
 
     bazaar.css          tokens + component classes as plain CSS (no Tailwind)
+    map.js, vendor/     the live map (Leaflet 1.9.4, BSD-2) both clients draw
+    layout.css          the page frame (header, navigation, tables, maps) both clients share
     logo.svg            the awning mark, white, for the blue header
     logo-dark.svg       the same mark in the primary blue, for light surfaces
     img/background*.webp  the wallpapers, copied as they are
@@ -69,6 +71,10 @@ def logo(tsx: str, fill: str) -> str:
 def main(frontend: Path, out: Path) -> None:
     out.mkdir(parents=True, exist_ok=True)
     (out / "bazaar.css").write_text(plain_css((frontend / "src/app/globals.css").read_text()))
+    kit = Path(__file__).parent
+    for name in ("layout.css", "map.js"):
+        shutil.copyfile(kit / name, out / name)
+    shutil.copytree(kit / "vendor", out / "vendor", dirs_exist_ok=True)
     tsx = (frontend / "src/components/guest-frame.tsx").read_text()
     (out / "logo.svg").write_text(logo(tsx, "#ffffff"))
     (out / "logo-dark.svg").write_text(logo(tsx, "#00679e"))

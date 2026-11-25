@@ -3,7 +3,7 @@ using Bazaar.Api;
 using Bazaar.Hub.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Antiforgery;
 
 namespace Bazaar.Hub.Endpoints;
 
@@ -15,9 +15,12 @@ public static class AccountEndpoints
     public static void MapAccountEndpoints(this WebApplication app)
     {
         // Plain form posts (antiforgery-checked), so tokens are handled entirely on the server.
-        app.MapPost("/account/login", async (HttpContext ctx, [FromForm] string? email, [FromForm] string? password,
-            [FromForm] string? returnUrl, SupabaseAuth auth, SessionStore sessions, IHttpClientFactory http) =>
+        app.MapPost("/account/login", async (HttpContext ctx, IAntiforgery antiforgery, SupabaseAuth auth,
+            SessionStore sessions, IHttpClientFactory http) =>
         {
+            if (!await antiforgery.IsRequestValidAsync(ctx)) return Results.BadRequest();
+            var form = await ctx.Request.ReadFormAsync();
+            string? email = form["email"], password = form["password"], returnUrl = form["returnUrl"];
             string Back(string error) => $"{ctx.Request.PathBase}/login?error={Uri.EscapeDataString(error)}";
             if (string.IsNullOrWhiteSpace(email) || string.IsNullOrEmpty(password) || email.Length > 254 || password.Length > 200)
                 return Results.Redirect(Back("Enter your email and password."));
@@ -49,13 +52,14 @@ public static class AccountEndpoints
             await ctx.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
             var target = returnUrl is { Length: > 0 } r && r.StartsWith('/') && !r.StartsWith("//") && !r.StartsWith("/\\") ? r : "/";
             return Results.LocalRedirect("~" + target);
-        }).RequireRateLimiting("login").AllowAnonymous();
+        }).RequireRateLimiting("login").AllowAnonymous().DisableAntiforgery();
 
-        app.MapPost("/account/logout", async (HttpContext ctx, SessionStore sessions) =>
+        app.MapPost("/account/logout", async (HttpContext ctx, IAntiforgery antiforgery, SessionStore sessions) =>
         {
+            if (!await antiforgery.IsRequestValidAsync(ctx)) return Results.BadRequest();
             await sessions.RemoveAsync(ctx.User.FindFirstValue(HubClaims.Session));
             await ctx.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
             return Results.LocalRedirect("~/login");
-        });
+        }).DisableAntiforgery();
     }
 }

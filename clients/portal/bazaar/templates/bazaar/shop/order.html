@@ -1,7 +1,7 @@
 {% extends "bazaar/base.html" %}
 {% load bazaar static %}
 {% block title %}Order {{ order.number }}{% endblock %}
-{% block head %}<link rel="stylesheet" href="{% static 'portal/vendor/leaflet-1.9.4/leaflet.css' %}">{% endblock %}
+{% block head %}<link rel="stylesheet" href="{% static 'vendor/leaflet-1.9.4/leaflet.css' %}">{% endblock %}
 {% block content %}
 <div class="page-head">
   <div><h1 class="heading">Order {{ order.number }}</h1><p>Placed {{ order.created_at|when }} · <span class="chip {{ order.status|status_tone }}">{{ order.status|humanize }}</span></p></div>
@@ -36,4 +36,4 @@
 </div>
 </div>
 {% endblock %}
-{% block scripts %}<script src="{% static 'portal/vendor/leaflet-1.9.4/leaflet.js' %}" defer></script><script src="{% static 'portal/map.js' %}" defer></script>{% endblock %}
+{% block scripts %}<script src="{% static 'vendor/leaflet-1.9.4/leaflet.js' %}" defer></script><script src="{% static 'map.js' %}" defer></script>{% endblock %}

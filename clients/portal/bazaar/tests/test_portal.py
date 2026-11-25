@@ -134,3 +134,45 @@ def test_api_types_match_the_contract():
     root = Path(__file__).resolve().parents[2]
     out = subprocess.run([sys.executable, str(root / "scripts" / "gen_api_types.py"), "--check"], capture_output=True, text=True)
     assert out.returncode == 0, out.stdout + out.stderr
+
+
+def test_checkout_buys_only_ticked_lines_and_keeps_the_rest(signed_in, backend):
+    client = signed_in("customer")
+    page = client.get("/checkout?picking=1&pick=l2").content.decode()
+    assert "Thing 2" in page and "Thing 1" not in page and 'name="pick" value="l2"' in page
+    r = client.post("/checkout", {"pick": "l2", "address_id": "a1", "shipping_method": "standard",
+                                  "payment_method": "cod"})
+    assert r.status_code == 302 and r["Location"] == "/orders/o1"
+    order = [b for m, p, b in backend.calls if m == "POST" and p == "/checkout"][-1]
+    assert order["items"] == [{"variant_id": "v2", "product_id": "p2", "quantity": 2}]
+    readded = [b for m, p, b in backend.calls if m == "POST" and p == "/cart/items"]
+    assert readded == [{"variant_id": "v1", "quantity": 1}, {"variant_id": "v3", "quantity": 3}]
+
+
+def test_checkout_with_nothing_ticked_does_not_buy_everything(signed_in, backend):
+    client = signed_in("customer")
+    r = client.get("/checkout?picking=1")
+    assert r.status_code == 302 and r["Location"] == "/bag"
+
+
+def test_checkout_without_a_choice_buys_the_whole_bag(signed_in, backend):
+    client = signed_in("customer")
+    client.post("/checkout", {"address_id": "a1"})
+    order = [b for m, p, b in backend.calls if m == "POST" and p == "/checkout"][-1]
+    assert "items" not in order
+
+
+def test_save_for_later_and_move_from_bag(signed_in, backend):
+    client = signed_in("customer")
+    r = client.post("/saved/toggle", {"product_id": "p1", "saved": "0"}, HTTP_HX_REQUEST="true")
+    assert 'aria-pressed="true"' in r.content.decode()
+    r = client.post("/saved/toggle", {"product_id": "p2", "saved": "0", "from_cart": "l2"}, HTTP_HX_REQUEST="true")
+    assert ("DELETE", "/cart/items/l2", None) in backend.calls
+    assert ("POST", "/wishlist", {"product_id": "p2"}) in backend.calls
+    assert 'id="bag-count"' in r.content.decode()
+    assert client.get("/saved").status_code == 200
+
+
+def test_bag_lets_you_pick_lines(signed_in, backend):
+    html = signed_in("customer").get("/bag").content.decode()
+    assert html.count('name="pick"') == 3 and 'form="pick-form"' in html and 'name="picking"' in html

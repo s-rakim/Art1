@@ -51,6 +51,7 @@
     {% else %}
     <p class="note note-warning">This product isn't for sale right now.</p>
     {% endif %}
+    {% if me %}{% include "bazaar/shop/_save_button.html" with product_id=product.id slug=product.slug %}{% endif %}
     {% if product.description %}<div class="description">{{ product.description }}</div>{% endif %}
   </section>
 </div>

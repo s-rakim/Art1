@@ -5,6 +5,7 @@
 <div class="page-head"><div><h1 class="heading">Checkout</h1><p>You pay when your order arrives, or by bank transfer. Card payments aren't switched on yet.</p></div></div>
 <form class="checkout-layout" method="post" novalidate>
   {% csrf_token %}
+  {% if later %}{% for i in chosen %}<input type="hidden" name="pick" value="{{ i.id }}">{% endfor %}{% endif %}
   <div class="stack">
     <fieldset class="stack-sm">
       <legend>Deliver to</legend>
@@ -42,10 +43,10 @@
   </div>
   <aside class="card panel-pad stack-sm summary" aria-label="Order summary">
     <h2 class="heading section-title">Summary</h2>
-    {% for i in cart.items %}<div class="row-between small"><span>{{ i.quantity }} × {{ i.title }}</span><span class="num">{{ i.line_total_cents|money:cart.currency }}</span></div>{% endfor %}
+    {% for i in chosen %}<div class="row-between small"><span>{{ i.quantity }} × {{ i.title }}</span><span class="num">{{ i.line_total_cents|money:cart.currency }}</span></div>{% endfor %}
     <hr class="rule">
-    <div class="row-between"><span>Subtotal</span><span class="num">{{ cart.subtotal_cents|money:cart.currency }}</span></div>
-    <div class="row-between muted"><span>Delivery (estimate)</span><span class="num">{{ cart.shipping_estimate_cents|money:cart.currency }}</span></div>
+    <div class="row-between"><span>Subtotal</span><span class="num">{{ subtotal|money:cart.currency }}</span></div>
+    {% if later %}<p class="small muted">{{ later|length }} other item{{ later|length|pluralize }} stay{{ later|length|pluralize:"s," }} in your bag for later. <a class="link" href="{% url 'shop:cart' %}">Change</a></p>{% endif %}
     <p class="small muted">Tax and the final delivery charge are worked out when you place the order.</p>
     <button class="btn btn-primary btn-lg btn-wide" type="submit">Place order</button>
   </aside>

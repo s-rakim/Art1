@@ -8,7 +8,7 @@ COPY requirements.txt /tmp/requirements.txt
 RUN python -m venv /venv && /venv/bin/pip install -r /tmp/requirements.txt
 
 FROM python:3.13-slim AS brand
-COPY --from=brandkit build_brand.py /kit/build_brand.py
+COPY --from=brandkit . /kit/
 COPY --from=frontend src/app/globals.css /fe/src/app/globals.css
 COPY --from=frontend src/components/guest-frame.tsx /fe/src/components/guest-frame.tsx
 COPY --from=frontend public/img /fe/public/img

@@ -1,8 +1,8 @@
 /*
-  Layout for the Django portal. Colours, type, buttons, fields, chips, notes,
+  Layout shared by the Django portal and the C# hub. Colours, type, buttons, fields, chips, notes,
   cards and nav entries all come from bazaar.css, which is generated from the
   Next.js app's globals.css at build time, so the three front ends stay one
-  design. This file only adds the page frame and a few portal-only pieces,
+  design. This file only adds the page frame and the pieces both clients use,
   using the same tokens and Nextcloud's 4px spacing scale.
 
   z-index scale: 10 sticky header, 20 navigation drawer, 30 toasts.
@@ -271,3 +271,4 @@ a.tile:hover { border-color: var(--color-primary-element); }
 .map-tall { height: 560px; }
 @media (max-width: 600px) { .map-tall { height: 420px; } }
 .applicant { margin-bottom: 8px; }
+.product-card > a { display: grid; gap: 6px; color: inherit; }

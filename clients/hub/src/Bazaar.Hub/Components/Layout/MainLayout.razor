@@ -1,9 +1,46 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
+@inject IOptions<HubOptions> Options
 
-@Body
+<a class="sr-only" href="#main">Skip to content</a>
+<header class="header wallpaper">
+    <a class="brand" href="./"><img src="brand/logo.svg" alt="" width="28" height="28" />@Options.Value.StoreName <span class="hub-tag">Integrations</span></a>
+    <div class="header-actions">
+        <AuthorizeView>
+            <Authorized>
+                <a class="btn btn-plain" href="@Options.Value.PortalUrl">Portal</a>
+                <form method="post" action="account/logout"><AntiforgeryToken /><button class="btn btn-plain" type="submit" aria-label="Sign out"><Icon Name="logout" /></button></form>
+            </Authorized>
+        </AuthorizeView>
+    </div>
+</header>
+<div class="frame" data-enhance-nav="false">
+    <AuthorizeView>
+        <Authorized>
+            <nav class="app-nav glass" id="app-nav" aria-label="Main">
+                <NavItem Href="" IconName="home" Label="Overview" />
+                @if (context.User.IsInRole("seller"))
+                {
+                    <div class="nav-caption">Your stall</div>
+                    <NavItem Href="inventory" IconName="warehouse" Label="Stock import" />
+                }
+                @if (context.User.IsInRole("admin"))
+                {
+                    <div class="nav-caption">Market office</div>
+                    <NavItem Href="payments" IconName="cash" Label="Payment messages" />
+                }
+                <NavItem Href="dispatch" IconName="map" Label="Dispatch board" />
+                <NavItem Href="exports" IconName="download" Label="Exports" />
+                <div class="app-nav-foot">
+                    <a class="nav-entry" href="@Options.Value.ShopUrl"><Icon Name="store" />Main shop</a>
+                    <p class="small muted nav-email">@context.User.FindFirstValue(ClaimTypes.Email)</p>
+                </div>
+            </nav>
+        </Authorized>
+    </AuthorizeView>
+    <main class="app-content" id="main" tabindex="-1">@Body</main>
+</div>
+<p class="footer-note">Wallpaper “Fluid” © Nextcloud GmbH, CC BY-SA 4.0 · Map data © OpenStreetMap contributors</p>
 
-<div id="blazor-error-ui" data-nosnippet>
-    An unhandled error has occurred.
-    <a href="." class="reload">Reload</a>
-    <span class="dismiss">🗙</span>
+<div id="blazor-error-ui" class="note note-error" data-nosnippet role="alert">
+    Something went wrong on this page. <a class="link" href=".">Reload</a>
 </div>

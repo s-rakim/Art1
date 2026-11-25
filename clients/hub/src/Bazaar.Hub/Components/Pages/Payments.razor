@@ -1,0 +1,87 @@
+@page "/payments"
+@attribute [Authorize(Roles = "admin")]
+@rendermode InteractiveServer
+@inject IJSRuntime JS
+
+<PageTitle>Payment messages</PageTitle>
+<div class="page-head">
+    <div><h1 class="heading">Payment messages</h1><p>Paste M-Pesa or bank texts, or load a file exported from the till phone. Each payment's code, payer and amount are pulled out for checking against orders.</p></div>
+</div>
+
+<p class="note note-info measure"><Icon Name="alert" /><span>This reads messages only. Sending the payments to the shop, so riders can confirm a code at the door, switches on when the payments API is live. A confirmed code can then never be used again.</span></p>
+
+<section class="card panel-pad stack-sm section-gap" aria-labelledby="in-title">
+    <h2 class="heading section-title" id="in-title">Messages</h2>
+    <label class="label" for="sms">Paste one or many messages</label>
+    <textarea class="field sms" id="sms" rows="8" @bind="text" @bind:event="oninput" placeholder="RKT1AB2CD3 Confirmed. Ksh1,250.00 received from JANE WANJIRU 2547***678 on 25/11/26 at 2:05 PM…" maxlength="400000"></textarea>
+    <div class="row">
+        <button class="btn btn-primary" @onclick="Read" disabled="@string.IsNullOrWhiteSpace(text)">Read messages</button>
+        <label class="btn"><Icon Name="upload" />Load a .txt or .csv<InputFile class="sr-only" OnChange="LoadFile" accept=".txt,.csv,text/plain,text/csv" /></label>
+        <span class="small muted">Up to @PaymentMessages.MaxMessages messages at a time.</span>
+    </div>
+    @if (error is not null) { <p class="note note-error" role="alert">@error</p> }
+</section>
+
+@if (result is not null)
+{
+    <section class="stack-sm section-gap" aria-labelledby="out-title">
+        <div class="row-between">
+            <h2 class="heading section-title" id="out-title">@result.Payments.Count payment@(result.Payments.Count == 1 ? "" : "s") found</h2>
+            <div class="row small">
+                <span class="chip chip-success">@result.Payments.Sum(p => p.Amount).ToString("N2") received</span>
+                @if (result.Duplicates > 0) { <span class="chip chip-warning">@result.Duplicates repeated code@(result.Duplicates == 1 ? "" : "s") dropped</span> }
+                @if (result.Skipped.Count > 0) { <span class="chip">@result.Skipped.Count not payments</span> }
+                <button class="btn btn-sm" @onclick="Download" disabled="@(result.Payments.Count == 0)"><Icon Name="download" />CSV</button>
+            </div>
+        </div>
+        @if (result.Payments.Count > 0)
+        {
+            <div class="table-wrap"><table class="table">
+                <thead><tr><th>Code</th><th>Paid by</th><th>Phone</th><th class="right">Amount</th><th>When</th><th>From</th></tr></thead>
+                <tbody>
+                @foreach (var p in result.Payments)
+                {
+                    <tr><td class="mono">@p.Code</td><td>@(p.Payer ?? "—")</td><td class="mono small">@(p.PhoneMasked ?? "—")</td>
+                        <td class="right num">@p.Currency @p.Amount.ToString("N2")</td><td class="small">@(p.PaidAt?.ToString("dd MMM yyyy, HH:mm") ?? "—")</td><td class="small">@p.Source</td></tr>
+                }
+                </tbody>
+            </table></div>
+        }
+        @if (result.Skipped.Count > 0)
+        {
+            <details class="card panel-pad"><summary>Messages that aren't incoming payments (@result.Skipped.Count)</summary>
+                <ul class="small muted skipped">@foreach (var s in result.Skipped.Take(100)) { <li>@s</li> }</ul>
+            </details>
+        }
+    </section>
+}
+
+@code {
+    private string text = "";
+    private string? error;
+    private ParseResult? result;
+
+    private void Read()
+    {
+        error = null;
+        result = PaymentMessages.Parse(text);
+        if (result.Payments.Count == 0) error = "No incoming payments found. Paste the whole message, starting with the code.";
+    }
+
+    private async Task LoadFile(InputFileChangeEventArgs e)
+    {
+        error = null;
+        if (e.File.Size > 400_000) { error = "That file is over 400 KB. Split it up."; return; }
+        using var reader = new StreamReader(e.File.OpenReadStream(400_000));
+        text = await reader.ReadToEndAsync();
+        Read();
+    }
+
+    private async Task Download()
+    {
+        if (result is null) return;
+        var bytes = System.Text.Encoding.UTF8.GetBytes(PaymentMessages.ToCsv(result.Payments));
+        using var stream = new DotNetStreamReference(new MemoryStream(bytes));
+        await JS.InvokeVoidAsync("hubDownload", $"payments-{DateTime.UtcNow:yyyyMMdd-HHmm}.csv", stream);
+    }
+}

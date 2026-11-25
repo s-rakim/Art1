@@ -20,17 +20,18 @@ public sealed class SecurityHeaders(RequestDelegate next, IOptions<HubOptions> o
 
     public Task InvokeAsync(HttpContext ctx)
     {
-        var h = ctx.Response.Headers;
-        h.ContentSecurityPolicy = _csp;
-        h.XContentTypeOptions = "nosniff";
-        h.XFrameOptions = "DENY";
-        h["Referrer-Policy"] = "strict-origin-when-cross-origin";
-        h["Cross-Origin-Opener-Policy"] = "same-origin";
-        h["Cross-Origin-Resource-Policy"] = "same-origin";
-        h["Permissions-Policy"] = "geolocation=(), camera=(), microphone=(), payment=(), usb=()";
+        // Set as the response starts, so nothing later in the pipeline can loosen them.
         ctx.Response.OnStarting(() =>
         {
-            if (ctx.User.Identity?.IsAuthenticated == true) ctx.Response.Headers.CacheControl = "no-store";
+            var h = ctx.Response.Headers;
+            h.ContentSecurityPolicy = _csp;
+            h.XContentTypeOptions = "nosniff";
+            h.XFrameOptions = "DENY";
+            h["Referrer-Policy"] = "strict-origin-when-cross-origin";
+            h["Cross-Origin-Opener-Policy"] = "same-origin";
+            h["Cross-Origin-Resource-Policy"] = "same-origin";
+            h["Permissions-Policy"] = "geolocation=(), camera=(), microphone=(), payment=(), usb=()";
+            if (ctx.User.Identity?.IsAuthenticated == true) h.CacheControl = "no-store";
             return Task.CompletedTask;
         });
         return next(ctx);

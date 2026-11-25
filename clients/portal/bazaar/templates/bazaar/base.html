@@ -9,7 +9,7 @@
   <title>{% block title %}{{ store_name }}{% endblock %} · {{ store_name }}</title>
   <link rel="icon" href="{% static 'logo-dark.svg' %}" type="image/svg+xml">
   <link rel="stylesheet" href="{% static 'bazaar.css' %}">
-  <link rel="stylesheet" href="{% static 'portal/portal.css' %}">
+  <link rel="stylesheet" href="{% static 'layout.css' %}">
   {% block head %}{% endblock %}
   <script src="{% static 'portal/vendor/htmx-2.0.11.min.js' %}" defer></script>
   <script src="{% static 'portal/portal.js' %}" defer></script>
@@ -42,6 +42,7 @@
       {% with r=me.role path=request.path %}
       <a class="nav-entry" href="{% url 'shop:home' %}" {% if path == "/" or request.resolver_match.url_name == "home" and request.resolver_match.namespace == "shop" %}aria-current="page"{% endif %}>{% icon "store" %}Shop</a>
       <a class="nav-entry" href="{% url 'shop:orders' %}" {% if request.resolver_match.url_name == "orders" and request.resolver_match.namespace == "shop" %}aria-current="page"{% endif %}>{% icon "receipt" %}My orders</a>
+      <a class="nav-entry" href="{% url 'shop:wishlist' %}" {% if request.resolver_match.url_name == "wishlist" %}aria-current="page"{% endif %}>{% icon "heart-outline" %}Saved</a>
       {% if r == "seller" %}
         <div class="nav-caption">Your stall</div>
         {% with ns=request.resolver_match.namespace u=request.resolver_match.url_name %}

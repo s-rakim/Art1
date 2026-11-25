@@ -1,7 +1,7 @@
 {% extends "bazaar/base.html" %}
 {% load static %}
 {% block title %}Live map{% endblock %}
-{% block head %}<link rel="stylesheet" href="{% static 'portal/vendor/leaflet-1.9.4/leaflet.css' %}">{% endblock %}
+{% block head %}<link rel="stylesheet" href="{% static 'vendor/leaflet-1.9.4/leaflet.css' %}">{% endblock %}
 {% block content %}
 <div class="page-head"><div><h1 class="heading">Live map</h1><p>Every rider on shift and every delivery on the road. Updates every five seconds.</p></div></div>
 <div class="map map-tall" data-src="{% url 'console:live_json' %}" data-poll="5" data-center="{{ map_center }}" data-tiles="{{ map_tiles }}" data-attribution="{{ map_attribution }}" role="region" aria-label="Live map of riders and deliveries"></div>
@@ -9,4 +9,4 @@
 <div class="legend"><span><span class="pin pin-store"></span>Stall</span><span><span class="pin pin-rider"></span>Rider</span><span><span class="pin pin-home"></span>Drop-off</span></div></div>
 <div class="table-wrap"><table class="table" id="map-rows"><thead><tr><th>Order</th><th>Stall</th><th>Rider</th><th>Status</th></tr></thead><tbody><tr><td colspan="4" class="muted">Loading…</td></tr></tbody></table></div>
 {% endblock %}
-{% block scripts %}<script src="{% static 'portal/vendor/leaflet-1.9.4/leaflet.js' %}" defer></script><script src="{% static 'portal/map.js' %}" defer></script>{% endblock %}
+{% block scripts %}<script src="{% static 'vendor/leaflet-1.9.4/leaflet.js' %}" defer></script><script src="{% static 'map.js' %}" defer></script>{% endblock %}

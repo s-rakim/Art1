@@ -1,0 +1,39 @@
+@page "/"
+@attribute [Authorize(Policy = "staff")]
+@inject IOptions<HubOptions> Options
+
+<PageTitle>Integrations · @Options.Value.StoreName</PageTitle>
+<AuthorizeView>
+<div class="page-head">
+    <div>
+        <h1 class="heading">@Greeting(context.User)</h1>
+        <p>Tools for moving data in and out of @Options.Value.StoreName: spreadsheets, point-of-sale exports, bank and M-Pesa messages.</p>
+    </div>
+</div>
+<div class="tool-grid">
+    @if (context.User.IsInRole("seller"))
+    {
+        <a class="card tool" href="inventory"><Icon Name="warehouse" Size="28" /><strong>Stock import</strong><span class="muted">Update hundreds of stock counts from a CSV or your point-of-sale export. You see every change before it's applied.</span></a>
+    }
+    @if (context.User.IsInRole("admin"))
+    {
+        <a class="card tool" href="payments"><Icon Name="cash" Size="28" /><strong>Payment messages</strong><span class="muted">Paste M-Pesa or bank texts and get the code, payer and amount for each payment.</span></a>
+    }
+    <a class="card tool" href="dispatch"><Icon Name="map" Size="28" /><strong>Dispatch board</strong><span class="muted">Riders on shift and deliveries on the road, on a live map.</span></a>
+    <a class="card tool" href="exports"><Icon Name="download" Size="28" /><strong>Exports</strong><span class="muted">Orders@(context.User.IsInRole("seller") ? " and stock" : "") as CSV for your accounts or spreadsheet.</span></a>
+</div>
+<section class="section-gap stack-sm">
+    <h2 class="heading section-title">Build your own integration</h2>
+    <p class="muted measure">The <span class="mono">Bazaar.Api</span> library in this repository is a typed C# client for the whole API, generated from its published contract. Use it from a sync job, an ERP connector or a point-of-sale plug-in, signing in with a normal account.</p>
+</section>
+</AuthorizeView>
+
+@code {
+    private static string Greeting(ClaimsPrincipal user)
+    {
+        var hour = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TimeZoneInfo.Local).Hour;
+        var part = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+        var name = user.FindFirstValue(HubClaims.FirstName);
+        return string.IsNullOrEmpty(name) ? part : $"{part}, {name}";
+    }
+}

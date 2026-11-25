@@ -62,8 +62,14 @@ def product(request: HttpRequest, slug: str) -> HttpResponse:
             raise Http404 from None
         raise
     variants = [v for v in item["variants"]]
+    saved = False
+    if auth.current_user(request):
+        try:
+            saved = any(p["id"] == item["id"] for p in api.get("/wishlist", page_size=100)["items"])
+        except ApiError:
+            pass
     return render(request, "bazaar/shop/product.html", {
-        "product": item, "variants": variants,
+        "product": item, "variants": variants, "saved": saved,
         "default_variant": next((v for v in variants if v["in_stock"]), variants[0] if variants else None),
     })
 
@@ -123,6 +129,18 @@ def cart_item(request: HttpRequest, item_id: str) -> HttpResponse:
     return redirect("shop:cart")
 
 
+def _picked(request: HttpRequest, cart: dict) -> tuple[list[dict], list[dict]]:
+    """Splits the bag into what the shopper chose to buy now and the rest.
+    No choice at all means everything."""
+    source = request.POST if request.method == "POST" else request.GET
+    ids = set(source.getlist("pick"))
+    if not ids:
+        # Unticking every box is a choice too, and it means nothing.
+        return ([], cart["items"]) if source.get("picking") else (cart["items"], [])
+    chosen = [i for i in cart["items"] if i["id"] in ids]
+    return chosen, [i for i in cart["items"] if i["id"] not in ids]
+
+
 @require_http_methods(["GET", "POST"])
 @auth.role_required()
 def checkout(request: HttpRequest) -> HttpResponse:
@@ -131,8 +149,14 @@ def checkout(request: HttpRequest) -> HttpResponse:
     if not cart["items"]:
         messages.info(request, "Your bag is empty.")
         return redirect("shop:home")
+    chosen, later = _picked(request, cart)
+    if not chosen:
+        messages.info(request, "Tick at least one item to check out.")
+        return redirect("shop:cart")
     addresses = api.get("/me/addresses")
-    ctx: dict = {"cart": cart, "addresses": addresses, "values": request.POST, "errors": {}}
+    subtotal = sum(i["line_total_cents"] for i in chosen)
+    ctx: dict = {"cart": cart, "chosen": chosen, "later": later, "subtotal": subtotal,
+                 "addresses": addresses, "values": request.POST, "errors": {}}
     if request.method == "POST":
         try:
             body: dict = {
@@ -140,6 +164,11 @@ def checkout(request: HttpRequest) -> HttpResponse:
                 "payment_method": "bank_transfer" if request.POST.get("payment_method") == "bank_transfer" else "cod",
                 "coupon_code": text(request.POST, "coupon_code", max_len=40),
             }
+            if later:
+                # Only the ticked lines are bought. The API makes the bag match
+                # what it is sent, so the rest go back in afterwards.
+                body["items"] = [{"variant_id": i["variant_id"], "product_id": i["product_id"], "quantity": i["quantity"]}
+                                 for i in chosen]
             if request.POST.get("address_id"):
                 body["address_id"] = seg(request.POST["address_id"])
             else:
@@ -162,14 +191,63 @@ def checkout(request: HttpRequest) -> HttpResponse:
                         pass
                 body["shipping_address"] = address
             out = api.post("/checkout", body)
-            request.session["bag_count"] = 0
-            messages.success(request, f"Order {out['order_number']} placed.")
+            kept = 0
+            for i in later:
+                try:
+                    api.post("/cart/items", {"variant_id": i["variant_id"], "quantity": i["quantity"]})
+                    kept += i["quantity"]
+                except ApiError:
+                    messages.warning(request, f"{i['title']} couldn't go back in your bag (it may have sold out).")
+            request.session["bag_count"] = kept
+            messages.success(request, f"Order {out['order_number']} placed."
+                             + (f" {kept} item{'s' if kept != 1 else ''} stayed in your bag for later." if kept else ""))
             return redirect("shop:order", order_id=out["order_id"])
         except FormError as exc:
             ctx["errors"] = {exc.field: exc.message}
         except ApiError as exc:
             problem(request, exc)
     return render(request, "bazaar/shop/checkout.html", ctx)
+
+
+@require_GET
+@auth.role_required()
+def wishlist(request: HttpRequest) -> HttpResponse:
+    data = auth.api_for(request).get("/wishlist", page=page_number(request), page_size=48)
+    return render(request, "bazaar/shop/wishlist.html", {"products": data["items"], "total": data["total"]})
+
+
+@require_POST
+@auth.role_required()
+def wishlist_toggle(request: HttpRequest) -> HttpResponse:
+    api = auth.api_for(request)
+    product_id = seg(request.POST.get("product_id", ""))
+    saved = request.POST.get("saved") == "1"
+    try:
+        if saved:
+            api.delete(f"/wishlist/{product_id}")
+            messages.success(request, "Removed from your saved items.")
+        else:
+            api.post("/wishlist", {"product_id": product_id})
+            messages.success(request, "Saved for later.")
+        # Moving from the bag: take it out of the bag too.
+        if request.POST.get("from_cart"):
+            api.delete(f"/cart/items/{seg(request.POST['from_cart'])}")
+            cart = api.cart()
+            _remember_bag(request, cart)
+            if is_htmx(request):
+                return render(request, "bazaar/shop/_cart.html", {"cart": cart, "oob_messages": True})
+            return redirect("shop:cart")
+        saved = not saved
+    except ApiError as exc:
+        problem(request, exc)
+    if is_htmx(request):
+        return render(request, "bazaar/shop/_save_button.html",
+                      {"product_id": product_id, "saved": saved, "oob_messages": True,
+                       "slug": request.POST.get("slug", ""), "back": request.POST.get("back", "")})
+    if request.POST.get("back") == "wishlist":
+        return redirect("shop:wishlist")
+    slug = request.POST.get("slug")
+    return redirect("shop:product", slug=seg(slug)) if slug else redirect("shop:home")
 
 
 @require_GET
