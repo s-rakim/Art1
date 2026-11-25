@@ -38,7 +38,7 @@ ROLE_HOME = {
     "admin": "console:dashboard",
 }
 
-LOGIN_LIMIT = 8  # attempts per 10 minutes, per address and per email
+LOGIN_LIMIT = max(1, int(getattr(settings, "LOGIN_LIMIT", 8)))  # attempts per 10 minutes, per address and per email
 
 
 class AuthError(Exception):

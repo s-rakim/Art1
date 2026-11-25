@@ -72,3 +72,17 @@ def rate(data: QueryDict, name: str) -> float | None:
 
 def boolean(data: QueryDict, name: str) -> bool:
     return data.get(name) in {"on", "true", "1", "yes"}
+
+
+def km(data: QueryDict, name: str) -> float | None:
+    """A distance in kilometres, up to 100, one decimal place is plenty."""
+    raw = (data.get(name) or "").strip().replace(",", ".")
+    if not raw:
+        return None
+    try:
+        value = float(raw)
+    except ValueError:
+        raise FormError(name, "Enter a distance like 7.5.") from None
+    if not 0 < value <= 100:
+        raise FormError(name, "Use a distance between 0 and 100 km.")
+    return round(value, 1)

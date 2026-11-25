@@ -3,6 +3,24 @@
 // for permission first; nothing is sent when they're off shift.
 (function () {
   "use strict";
+  // Jobs near you: refresh the list every 20 seconds, unless the rider is
+  // in the middle of ticking jobs or typing.
+  var list = document.getElementById("open-jobs");
+  if (list && window.htmx) {
+    setInterval(function () {
+      if (document.hidden || list.querySelector("input:checked") || list.contains(document.activeElement)) return;
+      window.htmx.ajax("GET", list.getAttribute("data-refresh"), { target: list, swap: "innerHTML" });
+    }, 20000);
+    list.addEventListener("change", function () {
+      var n = list.querySelectorAll("input[name=job]:checked").length;
+      var out = list.querySelector("[data-picked-count]");
+      if (out) out.textContent = n ? n + " ticked" : "Tick jobs to take several at once.";
+    });
+  }
+})();
+
+(function () {
+  "use strict";
   var box = document.querySelector("[data-share-location]");
   if (!box || !navigator.geolocation) return;
   var out = box.querySelector("[data-location-status]");

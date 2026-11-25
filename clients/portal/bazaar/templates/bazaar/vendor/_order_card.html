@@ -2,7 +2,7 @@
 <article class="card panel-pad stack-sm">
   <div class="row-between">
     <strong>Order {{ o.order_number }}</strong>
-    <span class="row"><span class="chip {{ o.status|status_tone }}">{{ o.status|humanize }}</span><span class="chip {% if o.paid %}chip-success{% else %}chip-warning{% endif %}">{% if o.paid %}Paid{% else %}{{ o.payment_method|humanize }} · not paid{% endif %}</span></span>
+    <span class="row"><span class="chip {{ o.status|status_tone }}">{{ o.status|humanize }}</span><span class="chip {% if o.paid %}chip-success{% else %}chip-warning{% endif %}">{% if o.paid %}Paid to The Bazaar{% else %}Not paid yet{% endif %}</span></span>
   </div>
   <div class="small muted">{{ o.created_at|when }} · {{ o.ship_to.full_name|default:"" }}{% if o.ship_to.city %}, {{ o.ship_to.city }}{% endif %}</div>
   {% for i in o.items %}<div class="row-between small"><span>{{ i.quantity }} × {{ i.title }}{% if i.variant_title %} · {{ i.variant_title }}{% endif %}</span><span class="num">{{ i.line_total_cents|money:o.currency }}</span></div>{% endfor %}
@@ -11,9 +11,6 @@
   <p class="small"><span class="chip chip-info">{{ o.delivery.status|humanize }}</span> {{ o.delivery.rider_name }} · {{ o.delivery.rider_vehicle }}</p>
   {% endif %}
   <div class="row">
-    {% if not o.paid and o.payment_method == "bank_transfer" %}
-    <form method="post" action="{% url 'vendor:order_action' o.id %}" data-confirm="Confirm you've received the bank transfer for order {{ o.order_number }}?">{% csrf_token %}<input type="hidden" name="action" value="confirm_payment"><input type="hidden" name="back" value="{{ back }}"><button class="btn btn-sm btn-success">Payment received</button></form>
-    {% endif %}
     {% if o.status == "pending" %}
     <form method="post" action="{% url 'vendor:order_action' o.id %}">{% csrf_token %}<input type="hidden" name="action" value="processing"><input type="hidden" name="back" value="{{ back }}"><button class="btn btn-sm">Start packing</button></form>
     {% endif %}

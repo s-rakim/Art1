@@ -154,9 +154,13 @@ def checkout(request: HttpRequest) -> HttpResponse:
         messages.info(request, "Tick at least one item to check out.")
         return redirect("shop:cart")
     addresses = api.get("/me/addresses")
+    try:
+        pay = api.get("/status").get("payment")
+    except ApiError:
+        pay = None
     subtotal = sum(i["line_total_cents"] for i in chosen)
     ctx: dict = {"cart": cart, "chosen": chosen, "later": later, "subtotal": subtotal,
-                 "addresses": addresses, "values": request.POST, "errors": {}}
+                 "addresses": addresses, "values": request.POST, "errors": {}, "pay": pay}
     if request.method == "POST":
         try:
             body: dict = {
@@ -165,10 +169,9 @@ def checkout(request: HttpRequest) -> HttpResponse:
                 "coupon_code": text(request.POST, "coupon_code", max_len=40),
             }
             if later:
-                # Only the ticked lines are bought. The API makes the bag match
-                # what it is sent, so the rest go back in afterwards.
-                body["items"] = [{"variant_id": i["variant_id"], "product_id": i["product_id"], "quantity": i["quantity"]}
-                                 for i in chosen]
+                # Only the ticked lines are bought; the API leaves the rest
+                # in the bag as they are.
+                body["cart_item_ids"] = [i["id"] for i in chosen]
             if request.POST.get("address_id"):
                 body["address_id"] = seg(request.POST["address_id"])
             else:
@@ -186,18 +189,14 @@ def checkout(request: HttpRequest) -> HttpResponse:
                 lat, lng = request.POST.get("lat"), request.POST.get("lng")
                 if lat and lng:
                     try:
-                        address["lat"], address["lng"] = float(lat), float(lng)
+                        flat, flng = float(lat), float(lng)
+                        if -90 <= flat <= 90 and -180 <= flng <= 180:
+                            address["lat"], address["lng"] = flat, flng
                     except ValueError:
                         pass
                 body["shipping_address"] = address
             out = api.post("/checkout", body)
-            kept = 0
-            for i in later:
-                try:
-                    api.post("/cart/items", {"variant_id": i["variant_id"], "quantity": i["quantity"]})
-                    kept += i["quantity"]
-                except ApiError:
-                    messages.warning(request, f"{i['title']} couldn't go back in your bag (it may have sold out).")
+            kept = sum(i["quantity"] for i in later)
             request.session["bag_count"] = kept
             messages.success(request, f"Order {out['order_number']} placed."
                              + (f" {kept} item{'s' if kept != 1 else ''} stayed in your bag for later." if kept else ""))
@@ -223,20 +222,21 @@ def wishlist_toggle(request: HttpRequest) -> HttpResponse:
     product_id = seg(request.POST.get("product_id", ""))
     saved = request.POST.get("saved") == "1"
     try:
+        # Moving from the bag: the API takes the line out of the bag and
+        # onto the saved list in one go.
+        if request.POST.get("from_cart"):
+            cart = api.post(f"/cart/items/{seg(request.POST['from_cart'])}/save-for-later", {})
+            messages.success(request, "Moved to your saved items.")
+            _remember_bag(request, cart)
+            if is_htmx(request):
+                return render(request, "bazaar/shop/_cart.html", {"cart": cart, "oob_messages": True})
+            return redirect("shop:cart")
         if saved:
             api.delete(f"/wishlist/{product_id}")
             messages.success(request, "Removed from your saved items.")
         else:
             api.post("/wishlist", {"product_id": product_id})
             messages.success(request, "Saved for later.")
-        # Moving from the bag: take it out of the bag too.
-        if request.POST.get("from_cart"):
-            api.delete(f"/cart/items/{seg(request.POST['from_cart'])}")
-            cart = api.cart()
-            _remember_bag(request, cart)
-            if is_htmx(request):
-                return render(request, "bazaar/shop/_cart.html", {"cart": cart, "oob_messages": True})
-            return redirect("shop:cart")
         saved = not saved
     except ApiError as exc:
         problem(request, exc)
@@ -271,7 +271,13 @@ def order(request: HttpRequest, order_id: str) -> HttpResponse:
         tracking = api.get(f"/orders/{seg(order_id)}/tracking")
     except ApiError:
         tracking = None
-    return render(request, "bazaar/shop/order.html", {"order": data, "tracking": tracking})
+    pay = None
+    if not data.get("paid_at") and data.get("status") not in ("canceled", "cancelled"):
+        try:
+            pay = api.get("/status").get("payment")
+        except ApiError:
+            pay = None
+    return render(request, "bazaar/shop/order.html", {"order": data, "tracking": tracking, "pay": pay})
 
 
 @require_POST

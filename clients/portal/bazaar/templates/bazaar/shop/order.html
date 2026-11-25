@@ -10,6 +10,8 @@
   {% endif %}
 </div>
 
+{% if pay %}<div class="section-gap">{% include "bazaar/shop/_pay_box.html" %}</div>{% endif %}
+
 {% if tracking and tracking.delivery_id or tracking.deliveries %}
 <section class="stack-sm track" aria-labelledby="track-title">
   <h2 class="heading section-title" id="track-title">Live tracking</h2>

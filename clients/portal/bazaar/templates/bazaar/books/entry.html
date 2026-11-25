@@ -1,0 +1,21 @@
+{% extends "bazaar/base.html" %}
+{% load bazaar %}
+{% block title %}Entry{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1 class="heading">{{ entry.description }}</h1><p>{{ entry.entry_date }} · {{ entry.kind|humanize }} · {{ entry.reference }}</p></div>
+  <a class="btn" href="{% url 'books:entries' %}">{% icon "arrow-left" %}All entries</a></div>
+{% if entry.status == "confirmed" %}
+<p class="note note-success">Confirmed {{ entry.confirmed_at|when }}. Confirmed entries are locked; add a new entry to correct it.</p>
+{% else %}
+{% if entry.status == "rejected" %}<p class="note note-warning">Sent back: {{ entry.admin_note }}</p>{% endif %}
+<form method="post" class="card panel-pad stack-sm" novalidate>{% csrf_token %}
+  {% include "bazaar/books/_entry_form.html" with v=values %}
+  <div class="row"><button class="btn btn-primary">Save</button>
+    <button class="btn btn-tertiary" name="delete" value="1" data-confirm="Remove this entry?">{% icon "delete" %}Remove</button></div>
+</form>
+{% endif %}
+<h2 class="heading section-title section-gap">History</h2>
+{% if history %}
+<ul class="stack-sm">{% for h in history %}<li class="small"><strong>{{ h.action|humanize }}</strong> by {{ h.actor_name|default:"someone" }} · {{ h.at|when }}</li>{% endfor %}</ul>
+{% else %}<p class="small muted">No changes yet.</p>{% endif %}
+{% endblock %}

@@ -48,6 +48,8 @@ ALLOWED_HOSTS = [SITE_DOMAIN, "portal", "localhost", "127.0.0.1"] + (["testserve
 CSRF_TRUSTED_ORIGINS = [f"https://{SITE_DOMAIN}"] + (["http://localhost:8001"] if DEBUG else [])
 
 STORE_NAME = env("STORE_NAME", "The Bazaar")
+# Sign-in attempts allowed per 10 minutes, per visitor address and per email.
+LOGIN_LIMIT = int(env("PORTAL_LOGIN_LIMIT", "8"))
 # The Next.js shop on the same domain, for "back to the shop" links.
 SHOP_URL = env("SHOP_URL", "/")
 HUB_URL = env("HUB_URL", "/hub/")

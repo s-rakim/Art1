@@ -2,13 +2,14 @@
 @attribute [Authorize(Roles = "admin")]
 @rendermode InteractiveServer
 @inject IJSRuntime JS
+@inject ApiAccess Api
 
 <PageTitle>Payment messages</PageTitle>
 <div class="page-head">
     <div><h1 class="heading">Payment messages</h1><p>Paste M-Pesa or bank texts, or load a file exported from the till phone. Each payment's code, payer and amount are pulled out for checking against orders.</p></div>
 </div>
 
-<p class="note note-info measure"><Icon Name="alert" /><span>This reads messages only. Sending the payments to the shop, so riders can confirm a code at the door, switches on when the payments API is live. A confirmed code can then never be used again.</span></p>
+<p class="note note-info measure"><Icon Name="alert" /><span>Read the messages here, check them, then save them to the payments databank. Riders confirm a delivery by matching the buyer's code or name against it, and a confirmed code can never be used again.</span></p>
 
 <section class="card panel-pad stack-sm section-gap" aria-labelledby="in-title">
     <h2 class="heading section-title" id="in-title">Messages</h2>
@@ -32,8 +33,10 @@
                 @if (result.Duplicates > 0) { <span class="chip chip-warning">@result.Duplicates repeated code@(result.Duplicates == 1 ? "" : "s") dropped</span> }
                 @if (result.Skipped.Count > 0) { <span class="chip">@result.Skipped.Count not payments</span> }
                 <button class="btn btn-sm" @onclick="Download" disabled="@(result.Payments.Count == 0)"><Icon Name="download" />CSV</button>
+                <button class="btn btn-sm btn-primary" @onclick="Save" disabled="@(result.Payments.Count == 0 || saving)">@(saving ? "Saving…" : "Save to the databank")</button>
             </div>
         </div>
+        @if (saved is not null) { <p class="note note-success" role="status">@saved</p> }
         @if (result.Payments.Count > 0)
         {
             <div class="table-wrap"><table class="table">
@@ -60,10 +63,13 @@
     private string text = "";
     private string? error;
     private ParseResult? result;
+    private string? saved;
+    private bool saving;
 
     private void Read()
     {
         error = null;
+        saved = null;
         result = PaymentMessages.Parse(text);
         if (result.Payments.Count == 0) error = "No incoming payments found. Paste the whole message, starting with the code.";
     }
@@ -75,6 +81,32 @@
         using var reader = new StreamReader(e.File.OpenReadStream(400_000));
         text = await reader.ReadToEndAsync();
         Read();
+    }
+
+    /// <summary>The API reads the same text again on its side and stores each
+    /// code once; codes it already has are reported as duplicates.</summary>
+    private async Task Save()
+    {
+        if (result is null || result.Payments.Count == 0) return;
+        saving = true;
+        error = null;
+        try
+        {
+            var client = await Api.ClientAsync();
+            var outcome = await client.AdminImportPaymentsAsync(new ImportIn { Text = text, Commit = true });
+            var dupes = outcome.Rows.Count(r => r.Duplicate);
+            saved = $"{outcome.Stored} payment{(outcome.Stored == 1 ? "" : "s")} saved."
+                    + (dupes > 0 ? $" {dupes} {(dupes == 1 ? "was" : "were")} already in the databank." : "")
+                    + (outcome.Failed.Count > 0 ? $" {outcome.Failed.Count} couldn't be read by the shop." : "");
+        }
+        catch (Exception ex)
+        {
+            error = ApiAccess.Explain(ex);
+        }
+        finally
+        {
+            saving = false;
+        }
     }
 
     private async Task Download()

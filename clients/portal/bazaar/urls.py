@@ -1,6 +1,6 @@
 from django.urls import include, path
 
-from .views import account, console, rider, shop, vendor
+from .views import account, books, console, rider, shop, vendor
 
 auth_urls = ([
     path("login", account.login, name="login"),
@@ -47,7 +47,12 @@ rider_urls = ([
     path("", rider.dashboard, name="dashboard"),
     path("shift", rider.shift, name="shift"),
     path("location", rider.location, name="location"),
+    path("map.json", rider.map_json, name="map_json"),
+    path("claim", rider.claim, name="claim"),
+    path("open/<str:job_id>/skip", rider.skip, name="skip"),
     path("jobs/<str:delivery_id>", rider.job, name="job"),
+    path("jobs/<str:delivery_id>/payment", rider.payment_lookup, name="payment_lookup"),
+    path("jobs/<str:delivery_id>/payment/confirm", rider.payment_confirm, name="payment_confirm"),
     path("earnings", rider.earnings, name="earnings"),
     path("application", rider.pending, name="pending"),
 ], "rider")
@@ -62,7 +67,20 @@ console_urls = ([
     path("stores/<str:store_id>", console.store_action, name="store_action"),
     path("live", console.live, name="live"),
     path("live.json", console.live_json, name="live_json"),
+    path("payments", console.payments, name="payments"),
+    path("payments/<str:receipt_id>", console.payment_action, name="payment_action"),
+    path("payouts", console.settlements, name="settlements"),
+    path("payouts/<str:store_id>", console.settle, name="settle"),
 ], "console")
+
+books_urls = ([
+    path("vendor/books", books.vendor_sheets, name="sheets"),
+    path("vendor/entries", books.entries, name="entries"),
+    path("vendor/entries/<str:entry_id>", books.entry, name="entry"),
+    path("admin/books", books.admin_sheets, name="admin_sheets"),
+    path("admin/entries", books.admin_entries, name="admin_entries"),
+    path("admin/entries/<str:entry_id>", books.admin_entry_action, name="admin_entry_action"),
+], "books")
 
 urlpatterns = [
     path("", include(shop_urls)),
@@ -70,4 +88,5 @@ urlpatterns = [
     path("vendor/", include(vendor_urls)),
     path("rider/", include(rider_urls)),
     path("admin/", include(console_urls)),
+    path("", include(books_urls)),
 ]

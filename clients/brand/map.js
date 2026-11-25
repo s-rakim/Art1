@@ -1,16 +1,24 @@
 // Live maps. A .map element names a JSON endpoint on the portal
 // (data-src) and how often to poll it (data-poll, seconds). The endpoint
-// answers {markers: [{kind, lat, lng, label}], rows?, count?}. Tokens never
-// reach the browser: the portal calls the API on its side.
+// answers {markers: [{kind, lat, lng, label, dim?, n?, target?}], route?,
+// rows?, count?}. Tokens never reach the browser: the portal calls the API on
+// its side.
+//
+// Kinds: rider, store, home, plus open (yellow: a job up for grabs), taken
+// (red: on your run) and done (green: delivered). route is a list of
+// [lat, lng] drawn as the line to follow, in order.
 (function () {
   "use strict";
   if (!window.L) return;
 
-  function icon(kind) {
-    var letter = { rider: "R", store: "S", home: "D" }[kind] || "•";
+  var KINDS = { rider: "R", store: "S", home: "D", open: "", taken: "", done: "✓" };
+
+  function icon(m) {
+    var kind = Object.prototype.hasOwnProperty.call(KINDS, m.kind) ? m.kind : "home";
+    var letter = m.n != null ? String(Number(m.n) || "") : KINDS[kind];
     return L.divIcon({
       className: "",
-      html: '<span class="pin pin-' + kind + '" aria-hidden="true">' + letter + "</span>",
+      html: '<span class="pin pin-' + kind + (m.dim ? " pin-dim" : "") + '" aria-hidden="true">' + letter + "</span>",
       iconSize: [30, 30],
       iconAnchor: [15, 15],
     });
@@ -39,9 +47,26 @@
     function draw(data) {
       layer.clearLayers();
       var pts = [];
+      if (data.route && data.route.length > 1) {
+        L.polyline(data.route, { color: "#00679e", weight: 5, opacity: 0.85, lineJoin: "round" }).addTo(layer);
+        L.polyline(data.route, { color: "#ffffff", weight: 2, opacity: 0.9, dashArray: "6 8" }).addTo(layer);
+      }
       (data.markers || []).forEach(function (m) {
-        var mk = L.marker([m.lat, m.lng], { icon: icon(m.kind), title: m.label, alt: m.label });
-        mk.bindTooltip(m.label);
+        var mk = L.marker([m.lat, m.lng], { icon: icon(m), title: m.label, alt: m.label, zIndexOffset: m.dim ? -100 : 0 });
+        // Text only: labels hold shop and customer names.
+        var tip = document.createElement("span");
+        tip.textContent = m.label || "";
+        mk.bindTooltip(tip);
+        if (m.target) {
+          mk.on("click", function () {
+            var card = document.getElementById(m.target);
+            if (card) {
+              card.scrollIntoView({ behavior: "smooth", block: "center" });
+              card.classList.add("flash");
+              setTimeout(function () { card.classList.remove("flash"); }, 1600);
+            }
+          });
+        }
         mk.addTo(layer);
         pts.push([m.lat, m.lng]);
       });

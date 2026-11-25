@@ -51,6 +51,7 @@
         <a class="nav-entry" href="{% url 'vendor:inventory' %}" {% if ns == "vendor" and u == "inventory" %}aria-current="page"{% endif %}>{% icon "warehouse" %}Stock</a>
         <a class="nav-entry" href="{% url 'vendor:orders' %}" {% if ns == "vendor" and u == "orders" %}aria-current="page"{% endif %}>{% icon "receipt" %}Orders</a>
         <a class="nav-entry" href="{% url 'vendor:riders' %}" {% if ns == "vendor" and u == "riders" %}aria-current="page"{% endif %}>{% icon "moped" %}Riders &amp; map</a>
+        <a class="nav-entry" href="{% url 'books:sheets' %}" {% if ns == "books" %}aria-current="page"{% endif %}>{% icon "receipt" %}Books</a>
         {% endwith %}
       {% elif r == "rider" %}
         <div class="nav-caption">Deliveries</div>
@@ -69,6 +70,11 @@
         <a class="nav-entry" href="{% url 'console:riders' %}" {% if ns == "console" and u == "riders" %}aria-current="page"{% endif %}>{% icon "moped" %}Riders &amp; hiring</a>
         <a class="nav-entry" href="{% url 'console:stores' %}" {% if ns == "console" and u == "stores" %}aria-current="page"{% endif %}>{% icon "store" %}Stores</a>
         <a class="nav-entry" href="{% url 'console:live' %}" {% if ns == "console" and u == "live" %}aria-current="page"{% endif %}>{% icon "map" %}Live map</a>
+        <div class="nav-caption">Money</div>
+        <a class="nav-entry" href="{% url 'console:payments' %}" {% if ns == "console" and u == "payments" %}aria-current="page"{% endif %}>{% icon "cash" %}Payments</a>
+        <a class="nav-entry" href="{% url 'console:settlements' %}" {% if ns == "console" and u == "settlements" %}aria-current="page"{% endif %}>{% icon "store" %}Stall payouts</a>
+        <a class="nav-entry" href="{% url 'books:admin_sheets' %}" {% if ns == "books" and u == "admin_sheets" %}aria-current="page"{% endif %}>{% icon "receipt" %}The books</a>
+        <a class="nav-entry" href="{% url 'books:admin_entries' %}" {% if ns == "books" and u == "admin_entries" %}aria-current="page"{% endif %}>{% icon "check" %}Vendor entries</a>
         <a class="nav-entry" href="{% url 'console:site' %}" {% if ns == "console" and u == "site" %}aria-current="page"{% endif %}>{% icon "cog" %}Site settings</a>
         {% endwith %}
       {% elif r == "customer" %}

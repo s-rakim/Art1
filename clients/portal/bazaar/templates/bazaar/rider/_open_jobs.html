@@ -1,0 +1,30 @@
+{% load bazaar %}
+{% if not rider.is_online %}
+<div class="empty">{% icon "moped" 48 %}<strong>You're off shift</strong><p>Start a shift to see jobs near you.</p></div>
+{% elif open.items %}
+<form method="post" action="{% url 'rider:claim' %}" class="stack-sm" id="claim-form">{% csrf_token %}
+  {% for j in open.items %}
+  <article class="card job {% if not j.batchable %}job-blocked{% endif %}" id="open-{{ j.id }}" aria-labelledby="open-title-{{ j.id }}">
+    <div class="row-between">
+      <label class="job-pick"><input type="checkbox" name="job" value="{{ j.id }}" {% if not j.batchable %}disabled{% endif %}>
+        <strong id="open-title-{{ j.id }}">Order {{ j.order_number }} · {{ j.store.name }}</strong></label>
+      <span class="chip {% if j.offered %}chip-primary{% else %}chip-warning{% endif %}">{% if j.offered %}Offered to you{% else %}Open{% endif %}</span>
+    </div>
+    <div class="row small"><span>{{ j.items }} item{{ j.items|pluralize }}</span>
+      {% if j.distance_km is not None %}<span>{{ j.distance_km|floatformat:1 }} km to the shop</span>{% endif %}
+      {% if j.trip_km is not None %}<span>then {{ j.trip_km|floatformat:1 }} km{% if j.area %} to {{ j.area }}{% endif %}</span>{% endif %}
+      <span class="muted">Placed {{ j.placed_at|when }}</span>
+      <strong>You earn {{ j.earning_cents|money:j.currency }}</strong></div>
+    {% if j.blocked_text %}<p class="small muted">{{ j.blocked_text }}</p>{% endif %}
+    <div class="row">
+      {% if j.batchable %}<button class="btn btn-primary btn-sm" name="only" value="{{ j.id }}">Take this one</button>{% endif %}
+      <button class="btn btn-tertiary btn-sm" type="submit" formaction="{% url 'rider:skip' j.id %}" hx-post="{% url 'rider:skip' j.id %}" hx-target="#open-jobs">Skip</button>
+    </div>
+  </article>
+  {% endfor %}
+  <div class="card claim-bar glass"><span class="small" data-picked-count>Tick jobs to take several at once.</span><button class="btn btn-primary" type="submit">Take ticked jobs</button></div>
+</form>
+{% else %}
+<div class="empty">{% icon "map" 48 %}<strong>No jobs near you right now</strong><p>This list refreshes by itself. New jobs show up as yellow pins on the map.</p></div>
+{% endif %}
+{% if oob_messages %}{% include "bazaar/_messages.html" %}{% endif %}

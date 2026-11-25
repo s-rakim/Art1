@@ -142,6 +142,24 @@
     }
   });
 
+  // Checkout: drop a pin at the buyer's position so the rider's map has the
+  // drop-off. Only on a button press, never on page load.
+  document.querySelectorAll("[data-locate]").forEach(function (box) {
+    var btn = box.querySelector("[data-locate-button]");
+    var out = box.querySelector("[data-locate-status]");
+    if (!btn || !navigator.geolocation) { if (btn) btn.hidden = true; return; }
+    btn.addEventListener("click", function () {
+      out.textContent = "Finding you…";
+      navigator.geolocation.getCurrentPosition(function (pos) {
+        box.querySelector("input[name=lat]").value = pos.coords.latitude.toFixed(6);
+        box.querySelector("input[name=lng]").value = pos.coords.longitude.toFixed(6);
+        out.textContent = "Location pinned (within about " + Math.round(pos.coords.accuracy) + " m).";
+      }, function (err) {
+        out.textContent = err.code === 1 ? "Location is blocked. The rider will use your address." : "Couldn't get your location.";
+      }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
+    });
+  });
+
   // Flash a row green after an inline save.
   document.body.addEventListener("htmx:afterSwap", function (e) {
     if (e.target && e.target.tagName === "TR") {

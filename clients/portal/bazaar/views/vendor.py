@@ -324,10 +324,7 @@ def order_action(request: HttpRequest, store_order_id: str) -> HttpResponse:
     oid = seg(store_order_id)
     action = request.POST.get("action")
     try:
-        if action == "confirm_payment":
-            api.post(f"/seller/orders/{oid}/confirm-payment", {})
-            messages.success(request, "Payment confirmed.")
-        elif action == "processing":
+        if action == "processing":
             api.patch(f"/seller/orders/{oid}", {"status": "processing"})
             messages.success(request, "Marked as being packed.")
         elif action == "dispatch":

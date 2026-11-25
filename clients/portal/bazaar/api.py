@@ -88,7 +88,7 @@ class Api:
         return h
 
     def request(self, method: str, path: str, *, params: dict | None = None, json: Any = None,
-                files: Any = None, data: dict | None = None) -> Any:
+                files: Any = None, data: dict | None = None, raw: bool = False) -> Any:
         if not path.startswith("/") or ".." in path or "//" in path:
             raise ValueError(f"bad API path {path!r}")
         clean_params = {k: v for k, v in (params or {}).items() if v not in (None, "")}
@@ -101,12 +101,19 @@ class Api:
             log.warning("api %s %s failed: %s", method, path, type(exc).__name__)
             raise ApiError(502, "unreachable", "The shop can't be reached right now. Try again shortly.") from None
         _raise_for(resp)
+        if raw:
+            return resp
         if resp.status_code == 204 or not resp.content:
             return None
         return resp.json()
 
     def get(self, path: str, **params: Any) -> Any:
         return self.request("GET", path, params=params)
+
+    def download(self, path: str, **params: Any) -> tuple[bytes, str]:
+        """A file the API builds, such as a sheet as CSV: (bytes, content type)."""
+        resp = self.request("GET", path, params=params, raw=True)
+        return resp.content, resp.headers.get("content-type", "application/octet-stream")
 
     def post(self, path: str, json: Any = None, **kw: Any) -> Any:
         return self.request("POST", path, json=json, **kw)

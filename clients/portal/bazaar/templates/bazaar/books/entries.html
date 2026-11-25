@@ -1,0 +1,44 @@
+{% extends "bazaar/base.html" %}
+{% load bazaar %}
+{% block title %}Your entries{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1 class="heading">Your entries</h1>
+  <p>Your own sheet: sales off the app, expenses, stock in and out. The market office checks each one against its code or reference, then it moves into your read-only books and can't be changed.</p></div>
+  <a class="btn" href="{% url 'books:sheets' %}">{% icon "receipt" %}Your books</a></div>
+
+<details class="card panel-pad" {% if errors %}open{% endif %}>
+  <summary><strong>Add an entry</strong></summary>
+  <form method="post" class="stack-sm section-gap" novalidate>{% csrf_token %}
+    {% include "bazaar/books/_entry_form.html" with v=values %}
+    <div><button class="btn btn-primary">Add</button></div>
+  </form>
+</details>
+
+<nav class="sheet-tabs section-gap" aria-label="Filter">
+  <a class="chip chip-link" href="?" {% if not status %}aria-current="true"{% endif %}>All</a>
+  <a class="chip chip-link" href="?status=pending" {% if status == "pending" %}aria-current="true"{% endif %}>Waiting</a>
+  <a class="chip chip-link" href="?status=confirmed" {% if status == "confirmed" %}aria-current="true"{% endif %}>Confirmed</a>
+  <a class="chip chip-link" href="?status=rejected" {% if status == "rejected" %}aria-current="true"{% endif %}>Sent back</a>
+</nav>
+
+{% if entries %}
+<div class="table-wrap section-gap">
+<table class="table sheet-table">
+  <thead><tr><th scope="col">Date</th><th scope="col">Kind</th><th scope="col">What happened</th><th scope="col" class="num">Qty</th><th scope="col" class="num">Amount</th><th scope="col">Reference</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Edit</span></th></tr></thead>
+  <tbody>
+  {% for e in entries %}
+  <tr {% if e.status == "confirmed" %}class="entry-locked"{% endif %}>
+    <td>{{ e.entry_date }}</td><td>{{ e.kind|humanize }}</td><td>{{ e.description }}{% if e.admin_note %}<br><span class="small muted">Office: {{ e.admin_note }}</span>{% endif %}</td>
+    <td class="num">{{ e.quantity|default_if_none:"" }}</td><td class="num">{% if e.amount_cents is not None %}{{ e.amount_cents|money }}{% endif %}</td>
+    <td>{{ e.reference }}</td>
+    <td><span class="chip {% if e.status == 'confirmed' %}chip-success{% elif e.status == 'rejected' %}chip-error{% else %}chip-warning{% endif %}">{% if e.status == "pending" %}Waiting{% elif e.status == "rejected" %}Sent back{% else %}Confirmed{% endif %}</span></td>
+    <td>{% if e.status != "confirmed" %}<a class="link" href="{% url 'books:entry' e.id %}">Edit</a>{% else %}<a class="link" href="{% url 'books:entry' e.id %}">History</a>{% endif %}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<div class="empty">{% icon "receipt" 48 %}<strong>No entries yet</strong><p>Add one above.</p></div>
+{% endif %}
+{% endblock %}

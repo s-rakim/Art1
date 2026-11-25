@@ -1,16 +1,35 @@
 {% extends "bazaar/base.html" %}
 {% load bazaar static %}
 {% block title %}Shift{% endblock %}
+{% block head %}<link rel="stylesheet" href="{% static 'vendor/leaflet-1.9.4/leaflet.css' %}">{% endblock %}
 {% block content %}
-<div class="page-head"><div><h1 class="heading">{% greeting me %}</h1><p>{{ rider.completed_deliveries }} deliveries done · {{ rider.unpaid_earnings_cents|money:rider.currency }} waiting to be paid</p></div></div>
+<div class="page-head"><div><h1 class="heading">{% greeting me %}</h1>
+  <p>{% if open.ride_status == "delivering" %}You're on a run.{% elif open.ride_status == "idle" %}On shift and free for a job.{% else %}Off shift.{% endif %}</p></div></div>
+
+<section aria-labelledby="map-title">
+  <h2 class="sr-only" id="map-title">Map</h2>
+  <div class="map map-tall" data-src="{% url 'rider:map_json' %}" data-poll="10" data-center="{{ map_center }}" data-tiles="{{ map_tiles }}" data-attribution="{{ map_attribution }}" role="region" aria-label="Your position, your drops and jobs near you"></div>
+  <div class="row-between map-foot">
+    <div class="legend" aria-hidden="true"><span><span class="pin pin-rider"></span>You</span><span><span class="pin pin-store"></span>Shop to pick up</span><span><span class="pin pin-open"></span>Up for grabs</span><span><span class="pin pin-taken"></span>Your drops, in order</span><span><span class="pin pin-done"></span>Delivered today</span></div>
+    <span class="small muted" id="map-status" aria-live="polite"></span>
+  </div>
+</section>
+
+<div class="tiles tiles-gap">
+  <div class="card tile tile-lead"><span class="label">Deliveries done</span><span class="value">{{ rider.completed_deliveries }}</span></div>
+  <div class="card tile"><span class="label">Earned</span><span class="value">{{ rider.earnings_cents|money:rider.currency }}</span></div>
+  <div class="card tile"><span class="label">Waiting to be paid</span><span class="value">{{ rider.unpaid_earnings_cents|money:rider.currency }}</span></div>
+  <div class="card tile"><span class="label">Your cut</span><span class="value">{{ rider.rules.commission_rate|percent }}%</span><span class="small muted block">of the delivery fee, set by the market</span></div>
+  <div class="card tile"><span class="label">Status</span><span class="value"><span class="chip {% if open.ride_status == 'delivering' %}chip-error{% elif open.ride_status == 'idle' %}chip-success{% else %}chip-secondary{% endif %}">{% if open.ride_status == "delivering" %}Delivering{% elif open.ride_status == "idle" %}Free{% else %}Off shift{% endif %}</span></span></div>
+</div>
 
 <section class="card shift-card" aria-label="Shift">
   <div class="stack-sm">
     <strong><span class="dot {% if rider.is_online %}dot-on{% endif %}"></span> {% if rider.is_online %}You're on shift{% else %}You're off shift{% endif %}</strong>
     {% if rider.is_online %}
-    <p class="small muted" data-share-location="{% url 'rider:location' %}"><span data-location-status>Keep this page open so shops can find you.</span></p>
+    <p class="small muted" data-share-location="{% url 'rider:location' %}"><span data-location-status>Keep this page open so the map follows you.</span></p>
     {% else %}
-    <p class="small muted">Go on shift to get offered jobs near you.</p>
+    <p class="small muted">Go on shift to see jobs near you.</p>
     {% endif %}
   </div>
   <form method="post" action="{% url 'rider:shift' %}">{% csrf_token %}
@@ -19,7 +38,27 @@
   </form>
 </section>
 
-<h2 class="heading section-title jobs-title">Your jobs</h2>
-<div id="jobs" hx-get="{% url 'rider:dashboard' %}" hx-trigger="every 15s" hx-swap="innerHTML">{% include "bazaar/rider/_jobs.html" %}</div>
+
+<section class="section-gap" aria-labelledby="run-title">
+  <h2 class="heading section-title" id="run-title">Your run</h2>
+  {% if run.error %}<p class="note note-warning">Your run couldn't load: {{ run.error }}</p>{% endif %}
+  {% if run.stops %}
+  <p class="small muted">In the order the orders came in. The blue line on the map is the way to go.</p>
+  <div class="stack-sm">{% for j in run.stops %}{% include "bazaar/rider/_stop.html" with n=forloop.counter %}{% endfor %}</div>
+  {% else %}
+  <div class="empty">{% icon "moped" 48 %}<strong>Nothing on your run</strong><p>Pick jobs from the list below. Their pins turn red when they're yours.</p></div>
+  {% endif %}
+</section>
+
+<section class="section-gap" aria-labelledby="open-title">
+  <div class="row-between"><h2 class="heading section-title" id="open-title">Jobs near you</h2>
+    <button class="btn btn-tertiary btn-sm" type="button" hx-get="{% url 'rider:dashboard' %}" hx-target="#open-jobs">Refresh</button></div>
+  <p class="small muted">On a run you can add jobs whose shop and drop are within {{ open.rules.batch_radius_km|floatformat:"-1" }} km of the ones you have, up to {{ open.rules.max_batch }} at once. The rest fade out until you're free.</p>
+  <div id="open-jobs" data-refresh="{% url 'rider:dashboard' %}">{% include "bazaar/rider/_open_jobs.html" %}</div>
+</section>
 {% endblock %}
-{% block scripts %}{% if rider.is_online %}<script src="{% static 'portal/rider.js' %}" defer></script>{% endif %}{% endblock %}
+{% block scripts %}
+<script src="{% static 'vendor/leaflet-1.9.4/leaflet.js' %}" defer></script>
+<script src="{% static 'map.js' %}" defer></script>
+<script src="{% static 'portal/rider.js' %}" defer></script>
+{% endblock %}

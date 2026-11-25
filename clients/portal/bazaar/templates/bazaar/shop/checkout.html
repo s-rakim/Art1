@@ -2,7 +2,7 @@
 {% load bazaar %}
 {% block title %}Checkout{% endblock %}
 {% block content %}
-<div class="page-head"><div><h1 class="heading">Checkout</h1><p>You pay when your order arrives, or by bank transfer. Card payments aren't switched on yet.</p></div></div>
+<div class="page-head"><div><h1 class="heading">Checkout</h1><p>Every payment goes to The Bazaar, never to a stall directly. Card payments aren't switched on yet.</p></div></div>
 <form class="checkout-layout" method="post" novalidate>
   {% csrf_token %}
   {% if later %}{% for i in chosen %}<input type="hidden" name="pick" value="{{ i.id }}">{% endfor %}{% endif %}
@@ -26,6 +26,11 @@
           {% include "bazaar/_field.html" with name="region" label="Region (optional)" value=values.region auto="address-level1" %}
           {% include "bazaar/_field.html" with name="country" label="Country code" value=values.country|default:"GH" auto="country" error=errors.country hint="Two letters, like GH." %}
         </div>
+        <div class="row" data-locate>
+          <input type="hidden" name="lat" value="{{ values.lat }}"><input type="hidden" name="lng" value="{{ values.lng }}">
+          <button class="btn btn-sm" type="button" data-locate-button>{% icon "map" 18 %}Pin where I am</button>
+          <span class="small muted" data-locate-status aria-live="polite">{% if values.lat %}Location pinned.{% else %}Helps the rider find you. Only used for this delivery.{% endif %}</span>
+        </div>
       </div>
     </fieldset>
     <fieldset class="stack-sm">
@@ -36,8 +41,9 @@
     </fieldset>
     <fieldset class="stack-sm">
       <legend>Payment</legend>
-      <label class="choice"><input type="radio" name="payment_method" value="cod" {% if values.payment_method != "bank_transfer" %}checked{% endif %}><span><strong>Pay on delivery</strong><br><span class="small muted">Cash or mobile money to the rider.</span></span></label>
-      <label class="choice"><input type="radio" name="payment_method" value="bank_transfer" {% if values.payment_method == "bank_transfer" %}checked{% endif %}><span><strong>Bank transfer</strong><br><span class="small muted">Each stall confirms your payment before packing.</span></span></label>
+      <label class="choice"><input type="radio" name="payment_method" value="cod" {% if values.payment_method != "bank_transfer" %}checked{% endif %}><span><strong>Pay when it arrives</strong><br><span class="small muted">M-Pesa or bank into The Bazaar's till, with your order number as the reference. The rider confirms it at the door.</span></span></label>
+      <label class="choice"><input type="radio" name="payment_method" value="bank_transfer" {% if values.payment_method == "bank_transfer" %}checked{% endif %}><span><strong>Pay now by bank transfer</strong><br><span class="small muted">To The Bazaar's account. Your order is packed once it lands.</span></span></label>
+      {% include "bazaar/shop/_pay_box.html" %}
     </fieldset>
     {% include "bazaar/_field.html" with name="coupon_code" label="Coupon (optional)" value=values.coupon_code %}
   </div>

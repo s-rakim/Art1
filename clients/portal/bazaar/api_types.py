@@ -183,6 +183,19 @@ class ApplicationDecision(TypedDict):
     note: NotRequired[str | None]
 
 
+class AuditRow(TypedDict):
+    id: int
+    entity: str
+    entity_id: str
+    store_id: str | None
+    action: str
+    actor_id: str | None
+    actor_name: str | None
+    before: dict[str, Any] | None
+    after: dict[str, Any] | None
+    at: str
+
+
 class AvailableRider(TypedDict):
     id: str
     name: str
@@ -298,6 +311,7 @@ class CategoryUpdate(TypedDict):
 
 class CheckoutIn(TypedDict):
     items: NotRequired[list["CheckoutLine"] | None]
+    cart_item_ids: NotRequired[list[str] | None]
     address_id: NotRequired[str | None]
     shipping_address: NotRequired["AddressIn" | None]
     shipping_method: NotRequired[Literal["standard", "express"]]
@@ -319,6 +333,17 @@ class CheckoutOut(TypedDict):
     currency: str
     payment_url: NotRequired[str | None]
     client_secret: NotRequired[str | None]
+
+
+class Column(TypedDict):
+    key: str
+    label: str
+    type: Literal["text", "date", "money", "number"]
+
+
+class ConfirmIn(TypedDict):
+    key: str
+    note: NotRequired[str | None]
 
 
 class Coupon(TypedDict):
@@ -389,6 +414,41 @@ class Earning(TypedDict):
     created_at: str
 
 
+class Entry(TypedDict):
+    id: str
+    store_id: str
+    store_name: NotRequired[str | None]
+    entry_date: str
+    kind: str
+    description: str
+    quantity: int | None
+    amount_cents: int | None
+    reference: str | None
+    status: Literal["pending", "confirmed", "rejected"]
+    admin_note: str | None
+    created_at: str
+    updated_at: str
+    confirmed_at: str | None
+
+
+class EntryIn(TypedDict):
+    entry_date: str
+    kind: Literal["sale", "expense", "stock_in", "stock_out", "payment", "other"]
+    description: str
+    quantity: NotRequired[int | None]
+    amount_cents: NotRequired[int | None]
+    reference: str
+
+
+class EntryUpdate(TypedDict):
+    entry_date: NotRequired[str | None]
+    kind: NotRequired[Literal["sale", "expense", "stock_in", "stock_out", "payment", "other"] | None]
+    description: NotRequired[str | None]
+    quantity: NotRequired[int | None]
+    amount_cents: NotRequired[int | None]
+    reference: NotRequired[str | None]
+
+
 class Facet(TypedDict):
     value: str
     label: str
@@ -416,6 +476,31 @@ class ImageIn(TypedDict):
 
 class ImageOrderIn(TypedDict):
     image_ids: list[str]
+
+
+class ImportIn(TypedDict):
+    text: str
+    commit: NotRequired[bool]
+
+
+class ImportOut(TypedDict):
+    rows: list["ImportedRow"]
+    stored: int
+    failed: list[str]
+
+
+class ImportedRow(TypedDict):
+    id: str | None
+    provider: Literal["mpesa", "bank"]
+    code: str
+    payer_name: str | None
+    payer_phone: str | None
+    amount_cents: int
+    currency: str
+    received_at: str
+    account_ref: str | None
+    matched_order_number: str | None
+    duplicate: bool
 
 
 class Income(TypedDict):
@@ -557,6 +642,33 @@ class MyStoreRef(TypedDict):
     status: str
 
 
+class OpenJob(TypedDict):
+    id: str
+    delivery_id: NotRequired[str | None]
+    offered: bool
+    offer_expires_at: str | None
+    order_number: str
+    placed_at: str
+    store: "RiderStore"
+    pickup: "Point"
+    dropoff: "Point" | None
+    area: str | None
+    earning_cents: int
+    amount_due_cents: int
+    currency: str
+    items: int
+    distance_km: float | None
+    trip_km: float | None
+    batchable: bool
+    blocked_reason: Literal["batch_full", "pickup_far", "on_run_far"] | None
+
+
+class OpenJobs(TypedDict):
+    items: list["OpenJob"]
+    ride_status: Literal["offline", "idle", "delivering"]
+    rules: "RiderRules"
+
+
 class Order(TypedDict):
     id: str
     number: str
@@ -627,8 +739,22 @@ class Page_AdminStore_(TypedDict):
     page_size: int
 
 
+class Page_AuditRow_(TypedDict):
+    items: list["AuditRow"]
+    total: int
+    page: int
+    page_size: int
+
+
 class Page_Earning_(TypedDict):
     items: list["Earning"]
+    total: int
+    page: int
+    page_size: int
+
+
+class Page_Entry_(TypedDict):
+    items: list["Entry"]
     total: int
     page: int
     page_size: int
@@ -657,6 +783,13 @@ class Page_LedgerEntry_(TypedDict):
 
 class Page_OrderSummary_(TypedDict):
     items: list["OrderSummary"]
+    total: int
+    page: int
+    page_size: int
+
+
+class Page_PaymentReceipt_(TypedDict):
+    items: list["PaymentReceipt"]
     total: int
     page: int
     page_size: int
@@ -723,6 +856,70 @@ class Page_Store_(TypedDict):
     total: int
     page: int
     page_size: int
+
+
+class PaymentCheck(TypedDict):
+    due_cents: int
+    paid_cents: int
+    payment_confirmed: bool
+    currency: str
+    matches: NotRequired[list["PaymentMatch"]]
+
+
+class PaymentDetails(TypedDict):
+    """Where shoppers pay. Shown at checkout and when the rider arrives."""
+    mpesa_till: str | None
+    mpesa_paybill: str | None
+    account_name: str | None
+    bank_name: str | None
+    bank_account_name: str | None
+    bank_account_number: str | None
+    instructions: str | None
+
+
+class PaymentIn(TypedDict):
+    code: NotRequired[str | None]
+    receipt_id: NotRequired[str | None]
+
+
+class PaymentMatch(TypedDict):
+    receipt_id: str
+    code: str
+    payer_name: str | None
+    amount_cents: int | None
+    currency: str | None
+    received_at: str | None
+    used: bool
+    enough: bool
+
+
+class PaymentReceipt(TypedDict):
+    id: str
+    provider: str
+    source: str
+    code: str
+    amount_cents: int
+    currency: str
+    payer_name: str | None
+    payer_phone: str | None
+    account_ref: str | None
+    received_at: str
+    status: Literal["unconfirmed", "confirmed", "expired", "void"]
+    expires_at: str
+    order_id: str | None
+    order_number: str | None
+    confirmed_at: str | None
+    confirmed_by_name: str | None
+    confirmed_role: str | None
+    note: str | None
+    created_at: str
+
+
+class PaymentUpdate(TypedDict):
+    order_id: NotRequired[str | None]
+    order_number: NotRequired[str | None]
+    status: NotRequired[Literal["void"] | None]
+    note: NotRequired[str | None]
 
 
 class Payout(TypedDict):
@@ -933,6 +1130,10 @@ class PublicPlan(TypedDict):
     price_on_request: NotRequired[bool]
 
 
+class RejectIn(TypedDict):
+    note: str
+
+
 class RentInvoice(TypedDict):
     id: str
     period_start: str
@@ -972,19 +1173,26 @@ class RiderDelivery(TypedDict):
     id: str
     status: str
     order_number: str
-    store: "StoreRef"
+    placed_at: str
+    store: "RiderStore"
     pickup: "Point" | None
     dropoff: "Point" | None
     dropoff_address: dict[str, Any] | None
     customer_name: str | None
     customer_phone: str | None
+    customer_note: str | None
+    amount_due_cents: int
     cash_to_collect_cents: int
+    payment_confirmed: bool
+    earning_cents: int
     fee_cents: int
     currency: str
     items: int
+    run_id: str | None
     assigned_at: str
     accepted_at: str | None
     picked_up_at: str | None
+    arrived_at: str | None
     delivered_at: str | None
 
 
@@ -1012,6 +1220,8 @@ class RiderMe(TypedDict):
     earnings_cents: int
     unpaid_earnings_cents: int
     currency: str
+    ride_status: Literal["offline", "idle", "delivering"]
+    rules: "RiderRules"
 
 
 class RiderPayoutOut(TypedDict):
@@ -1030,6 +1240,28 @@ class RiderPublic(TypedDict):
     name: str
     phone_masked: str | None
     vehicle: str
+
+
+class RiderRules(TypedDict):
+    """The admin's rules for riders, so the app can explain what's locked."""
+    pool_radius_km: float
+    batch_radius_km: float
+    pickup_radius_km: float
+    max_batch: int
+    commission_rate: float
+    rider_fee_cents: int
+
+
+class RiderRun(TypedDict):
+    run_id: str | None
+    stops: list["RiderDelivery"]
+    route: list["Waypoint"]
+
+
+class RiderStore(TypedDict):
+    id: str
+    slug: str
+    name: str
 
 
 class SellerMe(TypedDict):
@@ -1128,6 +1360,42 @@ class SellerVariant(TypedDict):
     weight_grams: int | None
 
 
+class SettleIn(TypedDict):
+    amount_cents: NotRequired[int | None]
+    reference: str
+    note: NotRequired[str | None]
+    force: NotRequired[bool]
+
+
+class Settlement(TypedDict):
+    store_id: str
+    store_name: str
+    store_slug: str
+    currency: str
+    owed_cents: int
+    held_cents: int
+    sales_cents: int
+    commission_cents: int
+    fees_cents: int
+    delivery_cents: int
+    rent_cents: int
+    paid_out_cents: int
+    net_cents: int
+    books_balanced: bool
+    blockers: list[str]
+    last_payout_at: str | None
+    next_payout_at: str
+
+
+class SheetOut(TypedDict):
+    sheet: str
+    columns: list["Column"]
+    rows: list[dict[str, Any]]
+    total: int
+    page: int
+    page_size: int
+
+
 class ShiftIn(TypedDict):
     online: bool
 
@@ -1157,11 +1425,26 @@ class SiteSettings(TypedDict):
     express_shipping_cents: int
     free_shipping_over_cents: int | None
     rider_fee_cents: int
+    rider_commission_rate: float
     tax_rate: float
     maintenance_mode: bool
     maintenance_message: str | None
+    payment: "PaymentDetails"
     vendor_signups_open: bool
     rider_signups_open: bool
+    rider_pool_radius_km: float
+    rider_batch_radius_km: float
+    rider_pickup_radius_km: float
+    rider_max_batch: int
+    payout_interval_days: int
+    payment_code_ttl_hours: int
+    mpesa_till: str | None
+    mpesa_paybill: str | None
+    payment_account_name: str | None
+    bank_name: str | None
+    bank_account_name: str | None
+    bank_account_number: str | None
+    payment_instructions: str | None
     updated_at: str
 
 
@@ -1180,6 +1463,20 @@ class SiteSettingsUpdate(TypedDict):
     contact_phone: NotRequired[str | None]
     contact_whatsapp: NotRequired[str | None]
     contact_note: NotRequired[str | None]
+    rider_commission_rate: NotRequired[float | None]
+    rider_pool_radius_km: NotRequired[float | None]
+    rider_batch_radius_km: NotRequired[float | None]
+    rider_pickup_radius_km: NotRequired[float | None]
+    rider_max_batch: NotRequired[int | None]
+    payout_interval_days: NotRequired[int | None]
+    payment_code_ttl_hours: NotRequired[int | None]
+    mpesa_till: NotRequired[str | None]
+    mpesa_paybill: NotRequired[str | None]
+    payment_account_name: NotRequired[str | None]
+    bank_name: NotRequired[str | None]
+    bank_account_name: NotRequired[str | None]
+    bank_account_number: NotRequired[str | None]
+    payment_instructions: NotRequired[str | None]
 
 
 class SiteStatus(TypedDict):
@@ -1193,15 +1490,23 @@ class SiteStatus(TypedDict):
     express_shipping_cents: int
     free_shipping_over_cents: int | None
     rider_fee_cents: int
+    rider_commission_rate: float
     tax_rate: float
     maintenance_mode: bool
     maintenance_message: str | None
+    payment: "PaymentDetails"
 
 
 class SlotUpdate(TypedDict):
     daily_price_cents: NotRequired[int | None]
     capacity: NotRequired[int | None]
     is_active: NotRequired[bool | None]
+
+
+class SmsIn(TypedDict):
+    text: NotRequired[str | None]
+    message: NotRequired[str | None]
+    body: NotRequired[str | None]
 
 
 class StockChange(TypedDict):
@@ -1447,6 +1752,14 @@ class Video(TypedDict):
     caption: str | None
 
 
+class Waypoint(TypedDict):
+    kind: Literal["rider", "pickup", "dropoff"]
+    lat: float
+    lng: float
+    label: str | None
+    delivery_ids: list[str]
+
+
 class WishlistIn(TypedDict):
     product_id: str
 
@@ -1461,13 +1774,16 @@ OPERATIONS = (
     "DELETE /api/v1/seller/products/{product_id}",
     "DELETE /api/v1/seller/products/{product_id}/images/{image_id}",
     "DELETE /api/v1/seller/products/{product_id}/video",
+    "DELETE /api/v1/seller/sheet-entries/{entry_id}",
     "DELETE /api/v1/seller/variants/{variant_id}",
     "DELETE /api/v1/wishlist/{product_id}",
+    "GET /api/v1/admin/audit",
     "GET /api/v1/admin/coupons",
     "GET /api/v1/admin/deliveries",
     "GET /api/v1/admin/income",
     "GET /api/v1/admin/orders",
     "GET /api/v1/admin/orders/{order_id}",
+    "GET /api/v1/admin/payments",
     "GET /api/v1/admin/payouts",
     "GET /api/v1/admin/placement-slots",
     "GET /api/v1/admin/plans",
@@ -1475,6 +1791,9 @@ OPERATIONS = (
     "GET /api/v1/admin/riders",
     "GET /api/v1/admin/riders/{rider_id}",
     "GET /api/v1/admin/settings",
+    "GET /api/v1/admin/settlements",
+    "GET /api/v1/admin/sheet-entries",
+    "GET /api/v1/admin/sheets/{sheet}",
     "GET /api/v1/admin/stats",
     "GET /api/v1/admin/stores",
     "GET /api/v1/admin/stores/{store_id}",
@@ -1493,8 +1812,11 @@ OPERATIONS = (
     "GET /api/v1/products/{slug}/reviews",
     "GET /api/v1/rider/deliveries",
     "GET /api/v1/rider/deliveries/{delivery_id}",
+    "GET /api/v1/rider/deliveries/{delivery_id}/payment",
     "GET /api/v1/rider/earnings",
     "GET /api/v1/rider/me",
+    "GET /api/v1/rider/open-jobs",
+    "GET /api/v1/rider/run",
     "GET /api/v1/search/suggest",
     "GET /api/v1/seller/deliveries",
     "GET /api/v1/seller/inventory",
@@ -1511,6 +1833,9 @@ OPERATIONS = (
     "GET /api/v1/seller/riders",
     "GET /api/v1/seller/riders/available",
     "GET /api/v1/seller/riders/{rider_id}",
+    "GET /api/v1/seller/sheet-entries",
+    "GET /api/v1/seller/sheet-entries/{entry_id}/history",
+    "GET /api/v1/seller/sheets/{sheet}",
     "GET /api/v1/seller/stats",
     "GET /api/v1/status",
     "GET /api/v1/stores",
@@ -1518,6 +1843,7 @@ OPERATIONS = (
     "GET /api/v1/stores/{slug}/products",
     "GET /api/v1/wishlist",
     "PATCH /api/v1/admin/categories/{category_id}",
+    "PATCH /api/v1/admin/payments/{receipt_id}",
     "PATCH /api/v1/admin/payouts/{payout_id}",
     "PATCH /api/v1/admin/placement-slots/{slot_id}",
     "PATCH /api/v1/admin/plans/{plan_id}",
@@ -1535,24 +1861,35 @@ OPERATIONS = (
     "PATCH /api/v1/seller/orders/{store_order_id}",
     "PATCH /api/v1/seller/products/{product_id}",
     "PATCH /api/v1/seller/products/{product_id}/images/{image_id}",
+    "PATCH /api/v1/seller/sheet-entries/{entry_id}",
     "PATCH /api/v1/seller/variants/{variant_id}",
     "POST /api/v1/admin/billing/run",
     "POST /api/v1/admin/categories",
     "POST /api/v1/admin/coupons",
     "POST /api/v1/admin/orders/{order_id}/cancel",
     "POST /api/v1/admin/orders/{order_id}/mark-paid",
+    "POST /api/v1/admin/payments/import",
     "POST /api/v1/admin/plans",
     "POST /api/v1/admin/rider-applications/{rider_id}/approve",
     "POST /api/v1/admin/rider-applications/{rider_id}/reject",
     "POST /api/v1/admin/riders/{rider_id}/settle",
+    "POST /api/v1/admin/settlements/{store_id}",
+    "POST /api/v1/admin/sheet-entries/{entry_id}/confirm",
+    "POST /api/v1/admin/sheet-entries/{entry_id}/reject",
     "POST /api/v1/cart",
     "POST /api/v1/cart/items",
+    "POST /api/v1/cart/items/{item_id}/save-for-later",
     "POST /api/v1/checkout",
     "POST /api/v1/me/addresses",
     "POST /api/v1/orders/{order_id}/cancel",
+    "POST /api/v1/payments/sms/{token}",
     "POST /api/v1/products/{slug}/reviews",
     "POST /api/v1/rider/applications",
+    "POST /api/v1/rider/deliveries/{delivery_id}/arrived",
+    "POST /api/v1/rider/deliveries/{delivery_id}/payment",
     "POST /api/v1/rider/location",
+    "POST /api/v1/rider/open-jobs/{store_order_id}/claim",
+    "POST /api/v1/rider/open-jobs/{store_order_id}/skip",
     "POST /api/v1/rider/shift",
     "POST /api/v1/seller/applications",
     "POST /api/v1/seller/deliveries/{delivery_id}/cancel",
@@ -1564,6 +1901,7 @@ OPERATIONS = (
     "POST /api/v1/seller/products",
     "POST /api/v1/seller/products/{product_id}/images",
     "POST /api/v1/seller/products/{product_id}/variants",
+    "POST /api/v1/seller/sheet-entries",
     "POST /api/v1/seller/uploads",
     "POST /api/v1/wishlist",
     "PUT /api/v1/orders/{order_id}/dropoff",

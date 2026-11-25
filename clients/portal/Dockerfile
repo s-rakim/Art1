@@ -33,4 +33,4 @@ USER 10001:10001
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD python -c "import urllib.request,sys; r=urllib.request.Request('http://127.0.0.1:8000/healthz', headers={'Host': 'portal'}); sys.exit(0 if urllib.request.urlopen(r, timeout=3).status == 200 else 1)"
-CMD ["sh", "-c", "exec gunicorn portal.wsgi --bind 0.0.0.0:8000 --workers ${PORTAL_WORKERS:-2} --threads 4 --worker-tmp-dir /tmp --timeout 120 --graceful-timeout 20 --max-requests 2000 --max-requests-jitter 200 --access-logfile - --limit-request-line 4094"]
+CMD ["sh", "-c", "exec gunicorn portal.wsgi --no-control-socket --bind 0.0.0.0:8000 --workers ${PORTAL_WORKERS:-2} --threads 4 --worker-tmp-dir /tmp --timeout 120 --graceful-timeout 20 --max-requests 2000 --max-requests-jitter 200 --access-logfile - --limit-request-line 4094"]
