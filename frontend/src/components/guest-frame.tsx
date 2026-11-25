@@ -1,12 +1,16 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
+import { STORE_NAME } from "@/lib/config";
 import { WallpaperCredit } from "./footer";
 
-/** Nextcloud's guest pages (login, errors, maintenance): a single box centred on the wallpaper. */
+/** Nextcloud's guest pages (login, errors, maintenance): a single white box centred on the wallpaper, with the logo on top. */
 export function GuestFrame({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
   return (
-    <div className="flex min-h-dvh flex-col items-center px-4 py-10 text-background-plain-text">
-      <GuestLogo />
-      <main id="main" className={`mt-8 w-full ${wide ? "max-w-[560px]" : "max-w-[420px]"} rounded-large bg-main-background p-5 text-main-text shadow-modal sm:p-7`}>
+    <div className="flex min-h-dvh flex-col items-center px-4 py-8 text-background-plain-text sm:py-12">
+      <main id="main" className={`w-full ${wide ? "max-w-[560px]" : "max-w-[420px]"} rounded-large bg-main-background p-5 text-main-text shadow-modal sm:p-7`}>
+        <Link href="/" className="mx-auto mb-4 block w-fit" aria-label={`${STORE_NAME} home`}>
+          <Logo width={190} />
+        </Link>
         {children}
       </main>
       <div className="mt-auto pt-10 text-center [text-shadow:0_1px_3px_rgb(0_0_0/0.45)]">
@@ -17,18 +21,14 @@ export function GuestFrame({ children, wide = false }: { children: ReactNode; wi
   );
 }
 
-function GuestLogo() {
-  return (
-    <a href="/" className="flex flex-col items-center gap-2" aria-label="Back to the shop">
-      <LogoMark size={64} />
-    </a>
-  );
+/** The full logo: awning, bag and the name. Drawn on white, so keep it on a light surface. */
+export function Logo({ width = 190 }: { width?: number }) {
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src="/img/logo.png" alt={STORE_NAME} width={width} height={Math.round((width * 278) / 480)} className="block h-auto" />;
 }
 
-export function LogoMark({ size = 28 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden>
-      <path fill="currentColor" fillRule="evenodd" d="M5 12.5 7.4 6h17.2l2.4 6.5zM5 13.5h22v1.2a3.3 3.3 0 0 1-5.5 2.4 3.3 3.3 0 0 1-5.5 0 3.3 3.3 0 0 1-5.5 0A3.3 3.3 0 0 1 5 14.7zM7 18.6c1.4.5 2.9.4 4.2-.3 1.5.8 3.3.8 4.8 0 1.5.8 3.3.8 4.8 0 1.3.7 2.8.8 4.2.3V26H7zm6.5 2.4V26h5v-5z" />
-    </svg>
-  );
+/** The awning-and-bag mark on a white rounded tile, used in the header like an app icon. */
+export function LogoTile({ size = 30 }: { size?: number }) {
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src="/img/logo-tile.png" alt="" width={size} height={size} className="block shrink-0" />;
 }

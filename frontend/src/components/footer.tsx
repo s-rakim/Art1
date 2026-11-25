@@ -3,7 +3,7 @@ import { STORE_NAME } from "@/lib/config";
 
 const cols: Array<[string, Array<[string, string]>]> = [
   ["Shop", [["Today's deals", "/deals"], ["New in", "/search?sort=newest"], ["All stores", "/stores"], ["Wholesale", "/wholesale"]]],
-  ["Work with us", [["Rent a stall", "/sell"], ["Plans and fees", "/sell#plans"], ["Vendor sign in", "/login?as=vendor"], ["Ride with us", "/signup?as=rider"], ["Rider sign in", "/login?as=rider"], ["Staff sign in", "/login?as=admin"]]],
+  ["Work with us", [["Rent a stall", "/sell"], ["Talk to the market team", "/sell#contact"], ["Apply to ride", "/rider/apply"], ["Log in", "/login"]]],
   ["Help", [["Your orders", "/orders"], ["Returns", "/help/returns"], ["Shipping", "/help/shipping"], ["Buyer protection", "/help/protection"]]],
 ];
 

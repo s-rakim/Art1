@@ -5,7 +5,6 @@ import { useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { COUNTRIES } from "@/lib/countries";
-import { money } from "@/lib/format";
 import type { Plan } from "@/lib/types";
 import { AlertCircle, Check, CheckCircle } from "./icons";
 import { DemoNotice } from "./ui";
@@ -194,14 +193,17 @@ export function VendorApplication({ plans, demo }: { plans: Plan[]; demo: boolea
                 <span className="flex-1">
                   <span className="block font-semibold">{p.name}</span>
                   <span className="text-[13px] text-maxcontrast">
-                    {p.product_limit ? `Up to ${p.product_limit.toLocaleString("en-US")} listings` : "Unlimited listings"} · {(p.commission_rate * 100).toFixed(p.commission_rate * 100 % 1 ? 1 : 0)}% commission
-                    {p.per_item_fee_cents ? ` + ${money(p.per_item_fee_cents)} per unit` : ""}
+                    {p.product_limit ? `Up to ${p.product_limit.toLocaleString("en-US")} listings` : "Unlimited listings"}
+                    {p.featured_slots ? ` · ${p.featured_slots} featured spot${p.featured_slots > 1 ? "s" : ""}` : ""}
                   </span>
                 </span>
-                <span className="price text-[20px]">{p.monthly_price_cents ? money(p.monthly_price_cents) : "Free"}<span className="text-[12px] text-maxcontrast">{p.monthly_price_cents ? "/mo" : ""}</span></span>
+                <span className="text-[13px] font-semibold text-primary-element">Price on request</span>
               </label>
             ))}
-            <p className="text-[13px] text-maxcontrast">Nothing is charged until you&apos;re approved. You can switch plans any month.</p>
+            <p className="text-[13px] text-maxcontrast text-pretty">
+              The market team confirms your rent and commission before anything is charged. Nothing is billed until you&apos;re
+              approved, and you can switch plans any month. <a href="/sell#contact" className="link-u">Talk to the team</a>
+            </p>
           </div>
         )}
 

@@ -3,7 +3,9 @@ import { useState } from "react";
 import { ErrorLine, PageTitle } from "@/components/dash";
 import { api, ApiError } from "@/lib/api";
 import { useApi } from "@/lib/use-api";
+import { currencySign } from "@/lib/format";
 
+const sign = currencySign();
 const dollars = (s: string) => Math.round(parseFloat(s) * 100);
 const num = (s: string) => (s.trim() === "" ? null : parseInt(s, 10));
 
@@ -20,8 +22,8 @@ export default function AdminSpace() {
   async function savePlan(id: string) {
     const p = plans.data?.find((x) => x.id === id);
     if (!p) return;
-    const price = dollars(field(id, "price", (p.monthly_price_cents / 100).toFixed(2)));
-    const rate = parseFloat(field(id, "rate", (p.commission_rate * 100).toFixed(1))) / 100;
+    const price = dollars(field(id, "price", ((p.monthly_price_cents ?? 0) / 100).toFixed(2)));
+    const rate = parseFloat(field(id, "rate", ((p.commission_rate ?? 0) * 100).toFixed(1))) / 100;
     const fee = dollars(field(id, "fee", ((p.per_item_fee_cents ?? 0) / 100).toFixed(2)));
     const limit = num(field(id, "limit", p.product_limit ? String(p.product_limit) : ""));
     const days = num(field(id, "days", String(p.featured_slots ?? 0))) ?? 0;
@@ -81,9 +83,9 @@ export default function AdminSpace() {
             <p className="heading text-[20px]">{p.name}</p>
             <p className="tabular-nums text-[12px] text-maxcontrast">{p.code}</p>
             <div className="mt-3 grid grid-cols-2 gap-2">
-              <label className="text-[12px]"><span className="label">Rent / month ($)</span><input className="field mt-1 tabular-nums" inputMode="decimal" value={field(p.id, "price", (p.monthly_price_cents / 100).toFixed(2))} onChange={(e) => set(p.id, "price", e.target.value.replace(/[^\d.]/g, ""))} /></label>
-              <label className="text-[12px]"><span className="label">Commission %</span><input className="field mt-1 tabular-nums" inputMode="decimal" value={field(p.id, "rate", (p.commission_rate * 100).toFixed(1))} onChange={(e) => set(p.id, "rate", e.target.value.replace(/[^\d.]/g, ""))} /></label>
-              <label className="text-[12px]"><span className="label">Fee per unit ($)</span><input className="field mt-1 tabular-nums" inputMode="decimal" value={field(p.id, "fee", ((p.per_item_fee_cents ?? 0) / 100).toFixed(2))} onChange={(e) => set(p.id, "fee", e.target.value.replace(/[^\d.]/g, ""))} /></label>
+              <label className="text-[12px]"><span className="label">Rent / month ({sign})</span><input className="field mt-1 tabular-nums" inputMode="decimal" value={field(p.id, "price", ((p.monthly_price_cents ?? 0) / 100).toFixed(2))} onChange={(e) => set(p.id, "price", e.target.value.replace(/[^\d.]/g, ""))} /></label>
+              <label className="text-[12px]"><span className="label">Commission %</span><input className="field mt-1 tabular-nums" inputMode="decimal" value={field(p.id, "rate", ((p.commission_rate ?? 0) * 100).toFixed(1))} onChange={(e) => set(p.id, "rate", e.target.value.replace(/[^\d.]/g, ""))} /></label>
+              <label className="text-[12px]"><span className="label">Fee per unit ({sign})</span><input className="field mt-1 tabular-nums" inputMode="decimal" value={field(p.id, "fee", ((p.per_item_fee_cents ?? 0) / 100).toFixed(2))} onChange={(e) => set(p.id, "fee", e.target.value.replace(/[^\d.]/g, ""))} /></label>
               <label className="text-[12px]"><span className="label">Product limit</span><input className="field mt-1 tabular-nums" inputMode="numeric" placeholder="No limit" value={field(p.id, "limit", p.product_limit ? String(p.product_limit) : "")} onChange={(e) => set(p.id, "limit", e.target.value.replace(/\D/g, ""))} /></label>
               <label className="col-span-2 text-[12px]"><span className="label">Free promo days a month</span><input className="field mt-1 tabular-nums" inputMode="numeric" value={field(p.id, "days", String(p.featured_slots ?? 0))} onChange={(e) => set(p.id, "days", e.target.value.replace(/\D/g, "").slice(0, 2))} /></label>
             </div>
@@ -104,7 +106,7 @@ export default function AdminSpace() {
               </div>
               {s.description && <p className="mt-1 text-[13px] text-maxcontrast">{s.description}</p>}
               <div className="mt-3 grid grid-cols-2 gap-2">
-                <label className="text-[12px]"><span className="label">Price / day ($)</span><input className="field mt-1 tabular-nums" inputMode="decimal" value={field(s.id, "price", (s.daily_price_cents / 100).toFixed(2))} onChange={(e) => set(s.id, "price", e.target.value.replace(/[^\d.]/g, ""))} /></label>
+                <label className="text-[12px]"><span className="label">Price / day ({sign})</span><input className="field mt-1 tabular-nums" inputMode="decimal" value={field(s.id, "price", (s.daily_price_cents / 100).toFixed(2))} onChange={(e) => set(s.id, "price", e.target.value.replace(/[^\d.]/g, ""))} /></label>
                 <label className="text-[12px]"><span className="label">Shops at once</span><input className="field mt-1 tabular-nums" inputMode="numeric" value={field(s.id, "cap", String(s.capacity))} onChange={(e) => set(s.id, "cap", e.target.value.replace(/\D/g, "").slice(0, 3))} /></label>
               </div>
               <div className="mt-3 flex gap-2">

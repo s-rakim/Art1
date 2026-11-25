@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Breadcrumbs } from "@/components/ui";
+import { api, EMPTY_SITE } from "@/lib/api";
 import { STORE_NAME } from "@/lib/config";
+import { money } from "@/lib/format";
 
 const topics: Record<string, { title: string; body: string[] }> = {
   returns: {
@@ -17,7 +19,7 @@ const topics: Record<string, { title: string; body: string[] }> = {
     body: [
       "Every store ships its own orders, so a bag with items from three stores arrives in up to three parcels.",
       "Local orders are often delivered by a market rider. You can follow them on a live map from your order page.",
-      "Shipping is free from any single store once your items from that store pass $50.",
+      "{free_shipping}",
     ],
   },
   protection: {
@@ -36,11 +38,16 @@ export async function generateMetadata({ params }: { params: Promise<{ topic: st
 export default async function HelpPage({ params }: { params: Promise<{ topic: string }> }) {
   const t = topics[(await params).topic];
   if (!t) notFound();
+  // The free-shipping line follows the admin's setting, or drops out when there isn't one.
+  const site = await api.status().catch(() => EMPTY_SITE);
+  const body = t.body
+    .map((p) => (p === "{free_shipping}" ? (site.free_shipping_over_cents != null ? `Standard shipping is free from any single store once your items from that store pass ${money(site.free_shipping_over_cents, site.currency)}.` : "") : p))
+    .filter(Boolean);
   return (
     <div className="mx-auto max-w-2xl px-4 py-5 md:px-6">
       <Breadcrumbs items={[["Home", "/"], ["Help"], [t.title]]} />
       <h1 className="heading mb-6 text-[22px]">{t.title}</h1>
-      <div className="space-y-4 text-[16px] leading-relaxed text-maxcontrast">{t.body.map((p) => <p key={p}>{p}</p>)}</div>
+      <div className="space-y-4 text-[16px] leading-relaxed text-maxcontrast">{body.map((p) => <p key={p}>{p}</p>)}</div>
     </div>
   );
 }

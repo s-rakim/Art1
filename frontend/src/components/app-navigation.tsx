@@ -1,23 +1,18 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, type ReactNode } from "react";
+import { useEffect } from "react";
 import { create } from "zustand";
+import { isActive, type NavSection } from "@/lib/nav";
+import { RandomLetterSwap } from "./ui/random-letter-swap";
 
-export type NavItem = { href: string; label: string; icon?: ReactNode; count?: number; exact?: boolean };
-export type NavSection = { caption?: string; items: NavItem[] };
+export type { NavItem, NavSection } from "@/lib/nav";
 
 // One drawer flag shared by the header toggle and the navigation column.
 export const useNavDrawer = create<{ open: boolean; set: (open: boolean) => void }>()((set) => ({
   open: false,
   set: (open) => set({ open }),
 }));
-
-function isActive(path: string, item: NavItem) {
-  if (item.href.includes("?")) return false;
-  if (item.exact) return path === item.href;
-  return path === item.href || path.startsWith(`${item.href}/`);
-}
 
 /**
  * Nextcloud's app navigation: a 300px column on the left of the body container.
@@ -46,7 +41,9 @@ export function AppNavigation({ sections, footer, label }: { sections: NavSectio
             <li key={item.href + item.label}>
               <Link href={item.href} aria-current={on ? "page" : undefined} className="nav-entry">
                 {item.icon ?? <span className="w-[34px] shrink-0" aria-hidden />}
-                <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                <span className="min-w-0 flex-1 truncate">
+                  <RandomLetterSwap label={item.label} staggerDuration={0.025} transition={{ duration: 0.6, type: "spring" }} />
+                </span>
                 {item.count ? <span className={`counter ${on ? "counter-highlighted" : ""}`}>{item.count > 99 ? "99+" : item.count}</span> : null}
               </Link>
             </li>

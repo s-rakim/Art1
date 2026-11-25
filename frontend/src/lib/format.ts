@@ -11,6 +11,12 @@ export function money(cents: number, currency = CURRENCY) {
   return f.format(cents / 100);
 }
 
+/** The market currency's sign on its own ("$", "GH₵", "₦"), for labels on money inputs. */
+export function currencySign(currency = CURRENCY) {
+  const part = new Intl.NumberFormat("en-US", { style: "currency", currency, currencyDisplay: "narrowSymbol" }).formatToParts(0).find((x) => x.type === "currency");
+  return part?.value ?? currency;
+}
+
 export function compact(n: number) {
   return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(n);
 }

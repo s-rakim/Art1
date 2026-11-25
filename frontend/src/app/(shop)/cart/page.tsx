@@ -1,16 +1,16 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import { Minus, Plus } from "@/components/icons";
-import { ProductImage } from "@/components/product-art";
+import { ProductImage } from "@/components/product-image";
 import { Empty } from "@/components/ui";
-import { FREE_SHIPPING_CENTS } from "@/lib/config";
+import { useSite } from "@/components/site-context";
 import { money } from "@/lib/format";
 import { cartSubtotal, useCart } from "@/store/cart";
+import { useHydrated } from "@/lib/hooks";
 
 export default function CartPage() {
-  const [h, setH] = useState(false);
-  useEffect(() => setH(true), []);
+  const h = useHydrated();
+  const freeOver = useSite().free_shipping_over_cents;
   const { lines, saved, setQty, remove, saveForLater, moveToCart } = useCart();
   if (!h) return <div className="min-h-[50vh] px-4 py-5 md:px-6" />;
 
@@ -34,9 +34,11 @@ export default function CartPage() {
                 <section key={store} className="card">
                   <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-main-background px-4 py-3">
                     <Link href={`/s/${items[0].store_slug}`} className="font-semibold hover:underline">Shipped by {store}</Link>
-                    <span className="text-[12px] text-maxcontrast">
-                      {storeTotal >= FREE_SHIPPING_CENTS ? "Free shipping from this store" : `${money(FREE_SHIPPING_CENTS - storeTotal)} more from this store for free shipping`}
-                    </span>
+                    {freeOver != null && (
+                      <span className="text-[12px] text-maxcontrast">
+                        {storeTotal >= freeOver ? "Free shipping from this store" : `${money(freeOver - storeTotal)} more from this store for free shipping`}
+                      </span>
+                    )}
                   </header>
                   <ul className="divide-y divide-border">
                     {items.map((l) => (

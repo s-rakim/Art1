@@ -1,45 +1,55 @@
 "use client";
 import { useEffect, useState } from "react";
 import { ErrorLine, PageTitle } from "@/components/dash";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { api, ApiError } from "@/lib/api";
 import { apiBase, AUTH_ENABLED } from "@/lib/config";
 import type { Settings } from "@/lib/types";
+import { useDraft } from "@/lib/hooks";
 import { useApi } from "@/lib/use-api";
 
 type Check = { name: string; ok: boolean | null; detail: string };
 
+/** The quick health checks at the top of the page: API, sign-in keys, HTTPS. */
+async function healthChecks(): Promise<Check[]> {
+  const out: Check[] = [];
+  const t0 = performance.now();
+  try {
+    const r = await fetch(`${apiBase()}/status`, { cache: "no-store", signal: AbortSignal.timeout(5000) });
+    out.push({ name: "API", ok: r.ok, detail: `${r.status} in ${Math.round(performance.now() - t0)} ms` });
+  } catch {
+    out.push({ name: "API", ok: false, detail: "Unreachable" });
+  }
+  out.push({ name: "Sign-in (Supabase)", ok: AUTH_ENABLED, detail: AUTH_ENABLED ? "Configured" : "Keys missing, running in demo mode" });
+  out.push({ name: "Secure connection", ok: window.location.protocol === "https:", detail: window.location.protocol === "https:" ? "HTTPS" : "Plain HTTP. Put the site behind TLS before launch." });
+  return out;
+}
+
 export default function Maintenance() {
   const { data, setData, error, token } = useApi((t) => api.adminSettings(t));
-  const [draft, setDraft] = useState<Settings | null>(null);
+  const [draft, setDraft] = useDraft<Settings, Settings>(data, (d) => d);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [checks, setChecks] = useState<Check[]>([]);
-
-  useEffect(() => {
-    if (data) setDraft(data);
-  }, [data]);
+  const [asking, setAsking] = useState(false);
 
   async function runChecks() {
-    const out: Check[] = [];
-    const t0 = performance.now();
-    try {
-      const r = await fetch(`${apiBase()}/status`, { cache: "no-store", signal: AbortSignal.timeout(5000) });
-      out.push({ name: "API", ok: r.ok, detail: `${r.status} in ${Math.round(performance.now() - t0)} ms` });
-    } catch {
-      out.push({ name: "API", ok: false, detail: "Unreachable" });
-    }
-    out.push({ name: "Sign-in (Supabase)", ok: AUTH_ENABLED, detail: AUTH_ENABLED ? "Configured" : "Keys missing, running in demo mode" });
-    out.push({ name: "Secure connection", ok: window.location.protocol === "https:", detail: window.location.protocol === "https:" ? "HTTPS" : "Plain HTTP. Put the site behind TLS before launch." });
-    setChecks(out);
+    setChecks(await healthChecks());
   }
 
   useEffect(() => {
-    runChecks();
+    let alive = true;
+    healthChecks().then((c) => alive && setChecks(c));
+    return () => {
+      alive = false;
+    };
   }, []);
 
-  async function save() {
+  async function save(confirmed = false) {
     if (!draft) return;
-    if (draft.maintenance_mode && !data?.maintenance_mode && !window.confirm("Turn on maintenance mode? Shoppers, vendors and riders will see the maintenance page until you turn it off.")) return;
+    // Switching the whole site off gets a second look first.
+    if (draft.maintenance_mode && !data?.maintenance_mode && !confirmed) return setAsking(true);
+    setAsking(false);
     setBusy(true);
     setMsg(null);
     try {
@@ -74,9 +84,12 @@ export default function Maintenance() {
           {toggle("vendor_signups_open", "Vendor applications open", "Let new shops apply for a stall.")}
           {toggle("rider_signups_open", "Rider applications open", "Let new riders apply. Turn off when you have enough crew.")}
           {msg && <p role="status" className={`mt-3 border-l-2 pl-3 text-[13px] ${msg.ok ? "border-element-success text-text-success" : "border-element-error text-text-error"}`}>{msg.text}</p>}
-          <button disabled={busy} onClick={save} className="btn btn-primary mt-4">{busy ? "Saving…" : "Save settings"}</button>
+          <button disabled={busy} onClick={() => save()} className="btn btn-primary mt-4">{busy ? "Saving…" : "Save settings"}</button>
         </div>
       )}
+      <ConfirmDialog open={asking} title="Turn on maintenance mode?" confirm="Turn it on" busy={busy} onConfirm={() => save(true)} onClose={() => setAsking(false)}>
+        Shoppers, vendors and riders will see the maintenance page until you turn it off. The admin area and sign-in stay open.
+      </ConfirmDialog>
       <div className="mt-8">
         <div className="mb-2 flex items-center justify-between"><p className="label">Health checks</p><button onClick={runChecks} className="link-u text-[13px]">Run again</button></div>
         <ul className="rounded-element divide-y divide-border border border-border-dark bg-main-background">

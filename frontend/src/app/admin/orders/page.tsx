@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { ErrorLine, PageTitle, Table } from "@/components/dash";
 import { StatusTag } from "@/components/status-tag";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { api, ApiError } from "@/lib/api";
 import { money, shortDate } from "@/lib/format";
 import type { AdminOrder } from "@/lib/types";
@@ -66,27 +67,20 @@ export default function AdminOrders() {
         {data && items.length === 0 && <tr><td colSpan={8} className="px-3 py-8 text-center text-maxcontrast">No orders here.</td></tr>}
       </Table>
 
-      {confirm && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center" role="dialog" aria-modal="true" aria-label="Confirm">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setConfirm(null)} />
-          <div className="modal relative w-full max-w-md overflow-hidden">
-            <div className="border-b border-border p-4">
-              <p className="heading text-[20px]">{confirm.action === "paid" ? "Mark" : "Cancel"} {confirm.order.number}{confirm.action === "paid" ? " as paid" : ""}?</p>
-            </div>
-            <p className="p-4 text-[14px]">
-              {confirm.action === "paid"
-                ? `Only do this once ${money(confirm.order.total_cents, confirm.order.currency)} has actually reached the market. Every store on the order is told it can ship.`
-                : "Stock goes back on the shelf and every store on the order is told. Card payments are refunded automatically; cash and transfers you refund by hand."}
-            </p>
-            <div className="flex justify-end gap-2 border-t border-border p-4">
-              <button onClick={() => setConfirm(null)} className="btn btn-tertiary">Back</button>
-              <button disabled={busy === confirm.order.id} onClick={() => run(confirm.order, confirm.action)} className={`btn ${confirm.action === "paid" ? "btn-primary" : "btn-primary"}`}>
-                {confirm.action === "paid" ? "Mark paid" : "Cancel order"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={!!confirm}
+        title={confirm ? `${confirm.action === "paid" ? "Mark" : "Cancel"} ${confirm.order.number}${confirm.action === "paid" ? " as paid" : ""}?` : ""}
+        confirm={confirm?.action === "paid" ? "Mark paid" : "Cancel order"}
+        cancel="Back"
+        tone={confirm?.action === "paid" ? "primary" : "error"}
+        busy={!!confirm && busy === confirm.order.id}
+        onConfirm={() => confirm && run(confirm.order, confirm.action)}
+        onClose={() => setConfirm(null)}
+      >
+        {confirm?.action === "paid"
+          ? `Only do this once ${money(confirm.order.total_cents, confirm.order.currency)} has actually reached the market. Every store on the order is told it can ship.`
+          : "Stock goes back on the shelf and every store on the order is told. Card payments are refunded automatically; cash and transfers you refund by hand."}
+      </ConfirmDialog>
     </>
   );
 }

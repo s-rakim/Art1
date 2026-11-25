@@ -47,7 +47,7 @@ export const useCart = create<CartState>()(
       clear: () => set({ lines: [] }),
       setOpen: (open) => set({ open }),
     }),
-    { name: "stallrow-cart", partialize: (s) => ({ lines: s.lines, saved: s.saved }) },
+    { name: "bazaar-cart", partialize: (s) => ({ lines: s.lines, saved: s.saved }) },
   ),
 );
 
@@ -62,7 +62,7 @@ export const useWishlist = create<WishState>()(
       toggle: (id) => set((s) => ({ ids: s.ids.includes(id) ? s.ids.filter((x) => x !== id) : [...s.ids, id] })),
       merge: (more) => set((s) => ({ ids: Array.from(new Set([...s.ids, ...more])).slice(-500) })),
     }),
-    { name: "stallrow-wishlist" },
+    { name: "bazaar-wishlist" },
   ),
 );
 
@@ -73,6 +73,6 @@ export const useRecent = create<RecentState>()(
       slugs: [],
       push: (slug) => set((s) => ({ slugs: [slug, ...s.slugs.filter((x) => x !== slug)].slice(0, 12) })),
     }),
-    { name: "stallrow-recent" },
+    { name: "bazaar-recent" },
   ),
 );

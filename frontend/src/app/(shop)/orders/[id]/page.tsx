@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Check } from "@/components/icons";
-import { ProductImage } from "@/components/product-art";
+import { ProductImage } from "@/components/product-image";
 import { StatusTag } from "@/components/status-tag";
 import { OrderTracking } from "@/components/order-tracking";
 import { Breadcrumbs, DemoNotice } from "@/components/ui";
@@ -10,6 +10,7 @@ import { api } from "@/lib/api";
 import { money, shortDate } from "@/lib/format";
 import { requireUser, serverToken } from "@/lib/guard";
 import { CancelOrder } from "@/components/cancel-order";
+import { LiveRefresh } from "@/components/live-refresh";
 
 export const metadata: Metadata = { title: "Order details", robots: { index: false } };
 
@@ -45,6 +46,7 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
       <Breadcrumbs items={[["Orders", "/orders"], [order.number]]} />
       <div className="flex flex-wrap items-end justify-between gap-4">
         <h1 className="heading text-[20px]">Order {order.number}</h1>
+        {!user.demo && <LiveRefresh kinds={["order", "job"]} label={false} />}
         <StatusTag status={order.status} />
       </div>
       <p className="mt-1 text-maxcontrast">Placed {shortDate(order.created_at)}</p>

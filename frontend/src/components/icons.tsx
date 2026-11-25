@@ -78,3 +78,17 @@ export const Heart = ({ filled, ...p }: P & { filled?: boolean }) => icon(filled
 const star = "M12,17.27L18.18,21L16.54,13.97L22,9.24L14.81,8.62L12,2L9.19,8.62L2,9.24L7.45,13.97L5.82,21L12,17.27Z";
 const starOutline = "M12,15.39L8.24,17.66L9.23,13.38L5.91,10.5L10.29,10.13L12,6.09L13.71,10.13L18.09,10.5L14.77,13.38L15.76,17.66M22,9.24L14.81,8.63L12,2L9.19,8.63L2,9.24L7.45,13.97L5.82,21L12,17.27L18.18,21L16.54,13.97L22,9.24Z";
 export const Star = ({ filled = true, ...p }: P & { filled?: boolean }) => icon(filled ? star : starOutline)(p);
+export const Phone = icon("M6.62,10.79C8.06,13.62 10.38,15.94 13.21,17.38L15.41,15.18C15.69,14.9 16.08,14.82 16.43,14.93C17.55,15.3 18.75,15.5 20,15.5A1,1 0 0,1 21,16.5V20A1,1 0 0,1 20,21A17,17 0 0,1 3,4A1,1 0 0,1 4,3H7.5A1,1 0 0,1 8.5,4C8.5,5.25 8.7,6.45 9.07,7.57C9.18,7.92 9.1,8.31 8.82,8.59L6.62,10.79Z"); // Phone
+export const Email = icon("M20,8L12,13L4,8V6L12,11L20,6M20,4H4C2.89,4 2,4.89 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V6C22,4.89 21.1,4 20,4Z"); // Email
+export const Copy = icon("M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z"); // ContentCopy
+export const Video = icon("M17,10.5V7A1,1 0 0,0 16,6H4A1,1 0 0,0 3,7V17A1,1 0 0,0 4,18H16A1,1 0 0,0 17,17V13.5L21,17.5V6.5L17,10.5Z"); // Video
+export const Play = icon("M8,5.14V19.14L19,12.14L8,5.14Z"); // Play
+export const ImageIcon = icon("M8.5,13.5L11,16.5L14.5,12L19,18H5M21,19V5C21,3.89 20.1,3 19,3H5A2,2 0 0,0 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19Z"); // Image
+export const Upload = icon("M9,16V10H5L12,3L19,10H15V16H9M5,20V18H19V20H5Z"); // Upload
+export const Swap = icon("M21,9L17,5V8H10V10H17V13M7,11L3,15L7,19V16H14V14H7V11Z"); // SwapHorizontal
+export const Delete = icon("M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"); // Delete
+export const Pencil = icon("M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z"); // Pencil
+export const Download = icon("M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z"); // Download
+export const ArrowUpRight = icon("M5,17.59L15.59,7H9V5H19V15H17V8.41L6.41,19L5,17.59Z"); // ArrowTopRight
+export const ArrowDownRight = icon("M5,6.41L6.41,5L17,15.59V9H19V19H9V17H15.59L5,6.41Z"); // ArrowBottomRight
+export const Dashboard = icon("M13,3V9H21V3M13,21H21V11H13M3,21H11V15H3M3,13H11V3H3V13Z"); // ViewDashboard

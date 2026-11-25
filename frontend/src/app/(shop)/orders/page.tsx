@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Receipt } from "@/components/icons";
-import { ProductImage } from "@/components/product-art";
+import { ProductImage } from "@/components/product-image";
 import { DemoNotice, Empty } from "@/components/ui";
 import { api } from "@/lib/api";
 import { money, shortDate } from "@/lib/format";
 import { requireUser, serverToken } from "@/lib/guard";
 import { StatusTag } from "@/components/status-tag";
+import { LiveRefresh } from "@/components/live-refresh";
 
 export const metadata: Metadata = { title: "Your orders", robots: { index: false } };
 
@@ -16,7 +17,10 @@ export default async function OrdersPage() {
   return (
     <div className="mx-auto max-w-5xl px-4 py-5 md:px-6">
       {user.demo && <DemoNotice what="sample orders" />}
-      <h1 className="heading mb-4 text-[22px]">Your orders</h1>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <h1 className="heading text-[22px]">Your orders</h1>
+        {!user.demo && <LiveRefresh kinds={["order", "job"]} />}
+      </div>
       {orders.items.length === 0 ? (
         <Empty icon={<Receipt />} title="No orders yet" action={<Link href="/" className="btn btn-primary">Start shopping</Link>} />
       ) : (

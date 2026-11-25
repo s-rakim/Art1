@@ -1,36 +1,79 @@
 "use client";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
-import { AUTH_ENABLED } from "@/lib/config";
-import { safeNext } from "@/lib/safe";
+import { useEffect, useRef, useState } from "react";
+import { landingFor } from "@/lib/after-login";
+import { AUTH_ENABLED, STORE_NAME } from "@/lib/config";
 import { supabase } from "@/lib/supabase/client";
-import type { Role } from "@/lib/types";
+import { AlertCircle, CheckCircle, Info } from "./icons";
 
-const roles: Array<{ id: Role; label: string; home: string; blurb: string; signup?: string }> = [
-  { id: "customer", label: "Shopper", home: "/account", blurb: "Track orders, save items and check out faster.", signup: "One account for every store in the market." },
-  { id: "vendor", label: "Vendor", home: "/seller", blurb: "Manage your stall: sales, stock, payments and dispatch.", signup: "Create your login, then tell us about your shop. We review new stalls within two working days." },
-  { id: "rider", label: "Rider", home: "/rider", blurb: "See your deliveries and go on shift.", signup: "Create your login, then apply to ride. Approved riders are hired by the market team." },
-  { id: "admin", label: "Admin", home: "/admin", blurb: "Market operations. Admin accounts are created by invitation only." },
-];
+type Msg = { kind: "error" | "ok" | "info"; text: string };
 
-function isRole(v: string | null): v is Role {
-  return v === "customer" || v === "vendor" || v === "rider" || v === "admin";
+function Note({ msg }: { msg: Msg }) {
+  const cls = msg.kind === "error" ? "note-error" : msg.kind === "ok" ? "note-success" : "note-info";
+  const Icon = msg.kind === "error" ? AlertCircle : msg.kind === "ok" ? CheckCircle : Info;
+  return (
+    <p role={msg.kind === "error" ? "alert" : "status"} className={`note ${cls} text-[14px]`}>
+      <Icon size={18} />
+      <span>{msg.text}</span>
+    </p>
+  );
 }
 
-export function AuthForm({ mode }: { mode: "login" | "signup" }) {
+function DemoNote() {
+  return (
+    <p className="note note-info text-[14px]">
+      <Info size={18} />
+      <span>
+        Sign-in isn&apos;t switched on for this server yet, so the store runs on sample data. You can still look around the{" "}
+        <Link className="underline" href="/">shop</Link>, the <Link className="underline" href="/seller">vendor dashboard</Link>, the{" "}
+        <Link className="underline" href="/rider">rider app</Link> and the <Link className="underline" href="/admin">admin console</Link>.
+      </span>
+    </p>
+  );
+}
+
+/**
+ * The one login page. Everyone signs in here with an email address and password; the account
+ * itself decides whether they land in the shop, the vendor dashboard, the rider app or the admin console.
+ */
+export function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const asParam = params.get("as");
-  const [role, setRole] = useState<Role>(isRole(asParam) && !(mode === "signup" && asParam === "admin") ? asParam : "customer");
-  const current = roles.find((r) => r.id === role)!;
-  const nextParam = params.get("next");
-  const next = nextParam ? safeNext(nextParam, current.home) : current.home;
-  const [email, setEmail] = useState("");
+  const next = params.get("next");
+  const [email, setEmail] = useState(params.get("email")?.slice(0, 254) ?? "");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<{ kind: "error" | "ok"; text: string } | null>(null);
-  const tabs = mode === "signup" ? roles.filter((r) => r.signup) : roles;
+  const [msg, setMsg] = useState<Msg | null>(() => {
+    if (params.get("created")) return { kind: "ok", text: "Your account is ready. Log in to start shopping." };
+    if (params.get("applied") === "rider") return { kind: "info", text: "Email confirmed. Log in once to send your application to the market team." };
+    return null;
+  });
+  const checked = useRef(false);
+
+  async function land() {
+    const sb = supabase();
+    if (!sb) return;
+    const { data } = await sb.auth.getSession();
+    if (!data.session) return false;
+    const where = await landingFor(sb, data.session, next);
+    if ("blocked" in where) {
+      setMsg({ kind: "info", text: where.blocked });
+      return true;
+    }
+    router.replace(where.go);
+    router.refresh();
+    return true;
+  }
+
+  // Someone arriving from an emailed link (or already signed in) gets routed straight away.
+  useEffect(() => {
+    if (checked.current || !AUTH_ENABLED) return;
+    checked.current = true;
+    setBusy(true);
+    land().finally(() => setBusy(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -38,112 +81,133 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
     if (!sb) return setMsg({ kind: "error", text: "Sign-in isn't configured on this server yet." });
     setBusy(true);
     setMsg(null);
-    if (mode === "login") {
-      const { error } = await sb.auth.signInWithPassword({ email, password });
+    const { error } = await sb.auth.signInWithPassword({ email: email.trim(), password });
+    if (error) {
       setBusy(false);
       // One message for unknown email and wrong password, so accounts can't be enumerated.
-      if (error) return setMsg({ kind: "error", text: "That email and password don't match an account." });
-      router.replace(next);
-      router.refresh();
-      return;
+      return setMsg({ kind: "error", text: "That email address and password don't match an account." });
     }
-    // requested_role is only a hint for the backend. Real roles live in app_metadata,
-    // which only the backend can write after a vendor or rider is approved.
-    const after = role === "vendor" ? "/sell/apply" : role === "rider" ? "/rider/apply" : next;
-    const { error } = await sb.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { requested_role: role },
-        emailRedirectTo: `${window.location.origin}/login?as=${role}&next=${encodeURIComponent(after)}`,
-      },
-    });
+    await land();
     setBusy(false);
-    if (error && error.status !== 422) return setMsg({ kind: "error", text: "Couldn't create the account. Check the details and try again." });
-    setMsg({ kind: "ok", text: "Check your inbox for a confirmation link. It expires in an hour." });
   }
 
   async function magic() {
     const sb = supabase();
-    if (!sb || !email) return setMsg({ kind: "error", text: "Enter your email first." });
+    if (!sb || !email.trim()) return setMsg({ kind: "error", text: "Enter your email address first." });
     setBusy(true);
-    await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo: `${window.location.origin}${next}` } });
+    const back = `${window.location.origin}/login${next ? `?next=${encodeURIComponent(next)}` : ""}`;
+    await sb.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: false, emailRedirectTo: back } });
     setBusy(false);
-    setMsg({ kind: "ok", text: "If there's an account for that email, a sign-in link is on its way." });
+    setMsg({ kind: "ok", text: "If there's an account for that email address, a sign-in link is on its way." });
   }
 
   return (
     <div>
-      <h1 className="heading text-center text-[20px]">{mode === "login" ? "Log in to your account" : "Create an account"}</h1>
-
-      <div role="tablist" aria-label="Account type" className="mt-5 flex overflow-hidden rounded-element border border-border-maxcontrast">
-        {tabs.map((r, i) => (
-          <button
-            key={r.id}
-            role="tab"
-            type="button"
-            aria-selected={role === r.id}
-            onClick={() => { setRole(r.id); setMsg(null); }}
-            className={`h-[34px] flex-1 text-[14px] font-medium transition-colors ${i ? "border-l border-border-maxcontrast" : ""} ${role === r.id ? "bg-primary-element-light font-semibold text-primary-element-light-text" : "hover:bg-background-hover"}`}
-          >
-            {r.label}
-          </button>
-        ))}
-      </div>
-      <p className="mt-2 text-center text-[14px] text-maxcontrast">{mode === "signup" ? current.signup : current.blurb}</p>
-
-      {!AUTH_ENABLED && (
-        <p className="note note-info mt-5 text-[14px]">
-          <span>
-            This server doesn&apos;t have Supabase keys yet, so sign-in is off. The rest of the store works in demo mode, and you
-            can look around the <Link className="underline" href={current.home}>{current.label.toLowerCase()} area</Link> with sample data.
-          </span>
-        </p>
-      )}
+      <h1 className="heading text-center text-[20px]">Log in to {STORE_NAME}</h1>
+      <p className="mt-1 text-center text-[14px] text-maxcontrast">Shoppers, vendors, riders and staff all log in here.</p>
 
       <form onSubmit={submit} className="mt-5 space-y-3">
+        {!AUTH_ENABLED && <DemoNote />}
         <label className="block">
-          <span className="label">Email</span>
-          <input type="email" required maxLength={254} autoComplete="email" className="field mt-1" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <span className="label">Email address</span>
+          <input type="email" inputMode="email" required maxLength={254} autoComplete="username" className="field mt-1" value={email} onChange={(e) => setEmail(e.target.value)} />
         </label>
         <label className="block">
           <span className="label">Password</span>
-          <input
-            type="password"
-            required
-            minLength={mode === "signup" ? 10 : 1}
-            maxLength={128}
-            autoComplete={mode === "login" ? "current-password" : "new-password"}
-            className="field mt-1"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-          {mode === "signup" && <span className="mt-1 block text-[13px] text-maxcontrast">At least 10 characters. A short sentence works well.</span>}
+          <input type="password" required maxLength={128} autoComplete="current-password" className="field mt-1" value={password} onChange={(e) => setPassword(e.target.value)} />
         </label>
-        {msg && (
-          <p role={msg.kind === "error" ? "alert" : "status"} className={`note text-[14px] ${msg.kind === "error" ? "note-error" : "note-success"}`}>
-            <span>{msg.text}</span>
-          </p>
-        )}
-        <button disabled={busy || !AUTH_ENABLED} className="btn btn-primary btn-lg btn-wide !mt-5">
-          {busy ? "One moment…" : mode === "login" ? `Log in as ${current.label.toLowerCase()}` : `Create ${current.label.toLowerCase()} account`}
-        </button>
-        {mode === "login" && role !== "admin" && (
-          <button type="button" disabled={busy || !AUTH_ENABLED} onClick={magic} className="btn btn-tertiary btn-wide">Email me a sign-in link</button>
-        )}
+        {msg && <Note msg={msg} />}
+        <button disabled={busy || !AUTH_ENABLED} className="btn btn-primary btn-lg btn-wide !mt-5">{busy ? "One moment…" : "Log in"}</button>
+        <button type="button" disabled={busy || !AUTH_ENABLED} onClick={magic} className="btn btn-tertiary btn-wide">Email me a sign-in link instead</button>
       </form>
 
-      <p className="mt-6 text-center text-[14px]">
-        {mode === "login" ? (
-          role === "admin" ? (
-            <span className="text-maxcontrast">Need admin access? Ask an existing admin to invite you.</span>
-          ) : (
-            <>New here? <Link className="link" href={`/signup?as=${role}`}>Create a {current.label.toLowerCase()} account</Link></>
-          )
-        ) : (
-          <>Already have one? <Link className="link" href={`/login?as=${role}`}>Log in</Link></>
-        )}
+      <div className="mt-6 space-y-2 border-t border-border pt-4 text-center text-[14px]">
+        <p>New here? <Link className="link" href="/signup">Create a shopper account</Link></p>
+        <p>Want to deliver for us? <Link className="link" href="/rider/apply">Apply to ride</Link></p>
+        <p className="text-maxcontrast">Selling? <Link className="link" href="/sell">Rent a stall</Link></p>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Shopper sign-up (and the vendor route from "Rent a stall"). Riders don't sign up here: they
+ * fill in the hiring form at /rider/apply. Once the account exists, people are sent to the login
+ * page and come into the shop from there.
+ */
+export function SignupForm() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const vendor = params.get("as") === "vendor";
+  const plan = (params.get("plan") ?? "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<Msg | null>(null);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    const sb = supabase();
+    if (!sb) return setMsg({ kind: "error", text: "Sign-up isn't configured on this server yet." });
+    setBusy(true);
+    setMsg(null);
+    const after = vendor ? `/sell/apply${plan ? `?plan=${plan}` : ""}` : null;
+    const loginUrl = (extra: string) => `/login?${extra}${after ? `&next=${encodeURIComponent(after)}` : ""}`;
+    // requested_role is only a hint. Real roles live in app_metadata, which only the backend
+    // writes, after a vendor's stall is approved.
+    const { data, error } = await sb.auth.signUp({
+      email: email.trim(),
+      password,
+      options: {
+        data: { requested_role: vendor ? "vendor" : "customer", full_name: name.trim().slice(0, 120) },
+        emailRedirectTo: `${window.location.origin}${loginUrl("created=1")}`,
+      },
+    });
+    if (error && error.status !== 422) {
+      setBusy(false);
+      return setMsg({ kind: "error", text: "Couldn't create the account. Check the details and try again." });
+    }
+    if (data?.session) {
+      // Email confirmation is off on this project: close the fresh session and send them to log in.
+      await sb.auth.signOut();
+      router.replace(loginUrl(`created=1&email=${encodeURIComponent(email.trim())}`));
+      return;
+    }
+    setBusy(false);
+    setMsg({ kind: "ok", text: "Nearly there. We've emailed you a confirmation link; open it and you'll land on the login page." });
+  }
+
+  return (
+    <div>
+      <h1 className="heading text-center text-[20px]">{vendor ? "Create your vendor login" : `Join ${STORE_NAME}`}</h1>
+      <p className="mt-1 text-center text-[14px] text-maxcontrast">
+        {vendor ? "After you log in, tell us about your shop. New stalls are reviewed within two working days." : "One account for every shop in the market."}
       </p>
+
+      <form onSubmit={submit} className="mt-5 space-y-3">
+        {!AUTH_ENABLED && <DemoNote />}
+        <label className="block">
+          <span className="label">Your name</span>
+          <input required maxLength={120} autoComplete="name" className="field mt-1" value={name} onChange={(e) => setName(e.target.value)} />
+        </label>
+        <label className="block">
+          <span className="label">Email address</span>
+          <input type="email" inputMode="email" required maxLength={254} autoComplete="email" className="field mt-1" value={email} onChange={(e) => setEmail(e.target.value)} />
+        </label>
+        <label className="block">
+          <span className="label">Password</span>
+          <input type="password" required minLength={10} maxLength={128} autoComplete="new-password" className="field mt-1" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <span className="mt-1 block text-[13px] text-maxcontrast">At least 10 characters. A short sentence works well.</span>
+        </label>
+        {msg && <Note msg={msg} />}
+        <button disabled={busy || !AUTH_ENABLED} className="btn btn-primary btn-lg btn-wide !mt-5">{busy ? "One moment…" : "Create account"}</button>
+      </form>
+
+      <div className="mt-6 space-y-2 border-t border-border pt-4 text-center text-[14px]">
+        <p>Already have an account? <Link className="link" href="/login">Log in</Link></p>
+        {!vendor && <p>Want to deliver for us? <Link className="link" href="/rider/apply">Apply to ride</Link></p>}
+      </div>
     </div>
   );
 }

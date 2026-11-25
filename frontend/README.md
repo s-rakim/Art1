@@ -1,4 +1,4 @@
-# Stallrow storefront
+# The Bazaar: web app
 
 The web app for the marketplace: the shop itself, the vendor dashboard, the rider app and the admin console. Next.js 16 (App Router, TypeScript), Tailwind 4, Supabase for sign-in, MapLibre with OpenStreetMap tiles for delivery tracking. It talks to the FastAPI service in `/backend` and never touches the database directly.
 
@@ -18,14 +18,15 @@ The name, currency and map centre are all environment variables, so rebranding i
 | Rider app | `/rider`, application at `/rider/apply` | `rider` role |
 | Admin console | `/admin/*` | `admin` role, everyone else gets a 404 |
 
-Sign-in has four tabs (shopper, vendor, rider, admin). Shoppers, vendors and riders can sign up; admins can't, they're invited. The role picked at sign-up is only stored as `user_metadata.requested_role`. Actual access comes from `app_metadata.roles` (`customer`, `vendor`, `rider`, `admin`), which only the backend can write, after a vendor's stall or a rider's application is approved. If that mirror hasn't caught up yet, the server asks `GET /me`, which reads the backend's own profile table.
+There is one login for everyone. After signing in, each person lands where their account belongs (their orders, the vendor dashboard, the rider app or the admin console), going by what `GET /me` says. Shoppers sign up at `/signup`, vendors through `/signup?as=vendor` and then the stall application, riders through `/rider/apply`; admins can't sign up, they're invited. The role picked at sign-up is only stored as `user_metadata.requested_role`. Actual access comes from `app_metadata.roles` (`customer`, `vendor`, `rider`, `admin`), which only the backend can write, after a vendor's stall or a rider's application is approved. If that mirror hasn't caught up yet, the server asks `GET /me`, which reads the backend's own profile table.
 
 ## How the money and the parcels move
 
 - **Paying.** Card payments aren't switched on yet. Shoppers pick cash on delivery or bank transfer at checkout. Cash orders are ready to dispatch straight away and the rider collects the money; transfer orders wait until the vendor confirms the money arrived. Admins can also mark an order paid or cancel it.
-- **Dispatching.** A vendor sends a paid (or cash) order to a nearby rider on shift, or ships it by courier with a tracking number. A rider can be called back until they collect the parcel.
+- **Dispatching.** As soon as an order is ready, the API sends the closest free rider on shift. If nobody is free it waits on automatic dispatch and goes to the first rider who frees up. A vendor can still pick a particular rider, re-send after a failed attempt, or ship by courier with a tracking number.
+- **Tracking.** Shoppers follow the rider on a live map, with speed and an ETA, and can drag the drop-off pin (to a gate, say) until the parcel arrives. The rider sees the new pin straight away.
 - **Handing over.** Once a rider accepts, the shopper's order page shows a six-digit handover code. The rider types it in to finish the delivery, so a parcel can't be marked delivered without the buyer.
-- **Renting space.** Vendors pay monthly rent for their stall plan, and can rent extra spots (homepage shelf, category banner, deal strip, search boost) by the day. Bookings come out of the store balance. Admins set the rent, commission and day rates.
+- **Renting space.** Stall rent and commission are agreed per vendor, so the public pages show no prices: `/sell` lists what each plan includes and puts the market team's contact card where a price would be. Admins set rent, commission and day rates in the console, and the delivery fees, tax and that contact card under "Fees and contact". A vendor sees their own plan's numbers once they have a stall. Extra spots (homepage shelf, category banner, deal strip, search boost) are booked by the day and come out of the store balance.
 
 ## Running it
 
@@ -38,18 +39,13 @@ npm run dev                  # http://localhost:3000
 
 With no Supabase keys the site runs in demo mode: the shop, vendor, rider and admin screens all work with bundled sample data, and every private page carries a yellow DEMO banner. If the API is down, public pages fall back to the same sample catalogue. Set `NEXT_PUBLIC_DEMO_DATA=off` in production so a dead API shows an error instead of fake products.
 
+`npm run lint` (ESLint with Next's rules and the React Compiler checks) and `npm run typecheck` should both come back clean before a push.
+
 ## Docker on the Oracle server
 
-The image is built from `node:22-alpine`, which has arm64 builds, so it builds natively on an Ampere instance. It runs as an unprivileged user and works with a read-only root filesystem.
+The whole stack, this app included, runs from the `compose.yml` at the repo root; `DEPLOY.md` there walks through it from an empty Oracle instance to a live domain. The image is built from `node:22-alpine`, which has arm64 builds, so it builds natively on an Ampere instance. It runs as an unprivileged user with a read-only root filesystem and Next's standalone server (`node server.js`).
 
-```bash
-# from the repo root, next to the backend's compose file
-docker compose -f compose.yml -f frontend/compose.frontend.yml up -d --build
-```
-
-`NEXT_PUBLIC_*` values are baked into the browser bundle at build time, which is why they're build args in the compose file. Change them and you rebuild. Server-side calls use `API_URL_INTERNAL` (defaults to `http://api:8000/api/v1`) so they stay on the Docker network.
-
-The container listens on `127.0.0.1:3000`. Put Caddy or Nginx in front of it for HTTPS; the security headers assume the site is served over TLS.
+`NEXT_PUBLIC_*` values are baked into the browser bundle at build time, which is why they're build args in the compose file. Change them and you rebuild (`docker compose build web`). Server-side calls use `API_URL_INTERNAL` (`http://api:8000/api/v1`) so they stay on the Docker network. Caddy sits in front for HTTPS; the security headers assume the site is served over TLS.
 
 ## Security notes
 
@@ -63,17 +59,17 @@ These are the things worth knowing before anyone starts poking at it.
 - **Untrusted text stays text.** No `dangerouslySetInnerHTML` anywhere. Seller-supplied colours must be `#rrggbb` before they reach a style attribute, images must be https, and map labels are set with `textContent`. Route params are validated before they hit the API. Post-login redirects only accept local paths.
 - **No CSRF surface.** API calls carry the token in an `Authorization` header, not a cookie, and there are no server actions.
 - **Live tracking socket.** The token goes in the first websocket message, never in the URL, so it stays out of proxy logs. Incoming messages are size-capped and shape-checked before they touch the map. The API refuses sockets from origins not in its CORS list.
-- **Photo uploads.** The API hands out a one-time signed URL into the store's own folder in Supabase Storage. The browser checks type (JPEG, PNG, WebP, AVIF) and size (5 MB) first, and refuses any upload or public URL that isn't https.
+- **Photo and video uploads.** Files go to the API as multipart uploads, and the API checks them again and writes them to Supabase Storage under the store's own folder. The browser checks first: photos must be JPEG, PNG, WebP or AVIF up to 10 MB (12 per item), the one video per item MP4, MOV or WebM up to 50 MB and three minutes. Media is only shown from the Supabase storage host over https, and the CSP's `media-src` allows nothing else.
 - **Sign-in doesn't leak accounts.** Wrong email and wrong password get the same message, and the magic-link form always says a link is on its way.
 - **Location privacy.** Riders only share position while on shift. The tracking endpoint only returns a customer's own order, and the rider doesn't see the drop-off address until they accept the job.
 
 ## Maps
 
-Tracking uses MapLibre GL with raster tiles from `tile.openstreetmap.org`. Positions stream over the API's `/ws/tracking` websocket; if it can't connect, the screens fall back to polling every 10 to 15 seconds. Shoppers see their own parcels, vendors see their own deliveries, and admins get the whole market plus every rider on shift. That's fine for testing, but OpenStreetMap's tile servers aren't meant for production traffic, so point `NEXT_PUBLIC_MAP_TILES` at MapTiler, Stadia or your own tile server before launch. The MapLibre web worker is copied into `public/vendor/` at build time so it loads from our own origin.
+Tracking uses MapLibre GL with OpenFreeMap's vector styles (OpenStreetMap data, rebuilt weekly, no key needed), light or dark to match the system, and falls back to raster OpenStreetMap tiles if the style can't load. Set `NEXT_PUBLIC_MAP_STYLE` to any MapLibre style URL to use MapTiler, Stadia or your own. Positions stream over the API's websocket; if it can't connect, the screens fall back to polling every 10 to 15 seconds. Shoppers see their own parcels, vendors see their own deliveries and the riders around their shop, and admins get the whole market plus every rider on shift. The map takes keyboard input (arrows pan, plus and minus zoom) and has zoom and fullscreen buttons. The MapLibre web worker is copied into `public/vendor/` at build time so it loads from our own origin.
 
 ## Look and feel
 
-The interface copies Nextcloud. Behind everything sits Nextcloud's default wallpaper, the blue and white "Fluid" image, with the header resting on it in white glyphs. Pages sit in a rounded body inset 8px from the edges: a see-through white navigation column on the left (the wallpaper shows through it, blurred) with the selected entry filled solid blue, and a white content area on the right. Below 1024px the navigation turns into a drawer behind the menu button.
+The interface copies Nextcloud. Behind everything runs a slow blue and white wave shader (`components/ui/poba-shade.tsx`, adapted from 21st.dev). It caps its pixel count and frame rate, pauses when the tab is hidden or scrolled away, draws one still frame for reduced motion or data saver, and gives up quietly without WebGL; underneath it sits Nextcloud's default wallpaper, the blue and white "Fluid" image, which is what you see if the shader never starts. The header rests on it in white glyphs. Pages sit in a rounded body inset 8px from the edges: a see-through white navigation column on the left (the wallpaper shows through it, blurred) with the selected entry filled solid blue, and a white content area on the right. Below 1024px the navigation turns into a drawer behind the menu button.
 
 The home page is laid out like Nextcloud's Dashboard: a greeting on the wallpaper, shortcut pills, and see-through white panels for deals, new arrivals, shops, departments, rented shelves, wholesale and selling.
 
@@ -88,7 +84,9 @@ The areas share one frame:
 - `components/app-frame.tsx` is the header, the navigation column and the content area. The shop, the vendor dashboard, the rider app and the admin console each pass it their own navigation.
 - `app/(home)/layout.tsx` is the Dashboard-style frame for the home page, with no side navigation.
 - `components/guest-frame.tsx` is the centred white box on the wallpaper used for log in, sign up, errors and maintenance, like Nextcloud's login page.
-- The header's app menu shows Shop, Vendor, Rider and Admin depending on the signed-in user's roles (all four in demo mode).
+- The header carries the site's one main menu (`components/site-nav.tsx`, on Base UI's navigation menu): Shop and Sell for everyone, then Vendor, Rider and Admin as the signed-in roles allow (all of them in demo mode). Panels slide between each other and labels do a letter swap on hover. Below 1024px it folds into a single Menu button. Every link in it, and in each area's side column, comes from `lib/nav.tsx`, so the two never disagree.
+- Pop-ups all use `components/ui/modal.tsx` (Base UI dialog: focus stays inside, Escape closes, focus goes back), and the account menu is a Base UI menu, so arrow keys work everywhere a list opens.
+- `/stores` and each store page have a coverflow switcher (`components/ui/coverflow-carousel.tsx`): swipe, arrow keys or the buttons swing the row round, and on a store page settling on another stall opens it.
 
 ## Layout
 
@@ -103,6 +101,8 @@ src/
   app/globals.css design tokens and component classes
   components/     UI, including the app frame and the delivery map
   lib/api.ts      every backend call, with demo fallbacks
+  lib/nav.tsx     every navigation link, for the header menu and the side columns
+  lib/hooks.ts    hydration, change and draft hooks (no setState-in-effect)
   lib/guard.ts    server-side auth and role checks
   lib/safe.ts     validators for colours, URLs, slugs and redirects
   lib/mock/       demo catalogue, orders, riders and deliveries

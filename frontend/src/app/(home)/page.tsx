@@ -1,45 +1,39 @@
 import Link from "next/link";
 import { Greeting } from "@/components/greeting";
+import { HomeRail } from "@/components/home-rail";
 import { Archive, CheckCircle, Fire, Megaphone, Shop, Sparkle, Store, Tag } from "@/components/icons";
 import { Avatar, ProductItem, Widget } from "@/components/widget";
 import { api } from "@/lib/api";
 import { STORE_NAME } from "@/lib/config";
-import { compact, money } from "@/lib/format";
+import { compact } from "@/lib/format";
 import type { ProductCard as Card, Store as StoreT } from "@/lib/types";
 
 export default async function Home() {
-  const [deals, fresh, stores, categories] = await Promise.all([
+  const [deals, fresh, stores, categories, women, men] = await Promise.all([
     api.products({ on_sale: true, sort: "popular", page_size: 6 }),
     api.products({ sort: "newest", page_size: 6 }),
     api.stores(),
     api.categories(),
+    api.products({ category: "women", sort: "newest", page_size: 12 }).catch(() => null),
+    api.products({ category: "men", sort: "newest", page_size: 12 }).catch(() => null),
   ]);
+  // Clothing for the rail, alternating women's and men's pieces, shoes left out.
+  const notShoe = (p: Card) => p.art?.shape !== "sneaker" && !/shoe|sneaker|trainer|boot|sandal/i.test(`${p.title} ${p.category_slug}`);
+  const lists = [women, men].map((r) => (r?.items ?? []).filter(notShoe));
+  const clothes = Array.from({ length: Math.max(0, ...lists.map((l) => l.length)) }, (_, i) => lists.map((l) => l[i]))
+    .flat()
+    .filter((p): p is Card => !!p);
   const roots = categories.filter((c) => !c.parent_id);
   const active = stores.items.slice(0, 8);
   const shelves = await rentedShelves(active);
 
   return (
     <div className="px-2 pb-6">
-      <div className="px-2 pt-8 pb-2 text-center text-background-plain-text sm:pt-12">
-        <h1 className="text-[32px] leading-[1.3] font-semibold">
-          <Greeting fallback={`Welcome to ${STORE_NAME}`} />
-        </h1>
-        <p className="mt-1 text-[16px] opacity-90">{stores.total} independent shops, one checkout.</p>
-      </div>
+      <h1 className="px-2 pt-10 pb-6 text-center text-[32px] leading-[1.3] font-semibold text-background-plain-text [text-shadow:0_1px_3px_rgb(0_0_0/0.25)] sm:pt-14 sm:pb-8">
+        <Greeting fallback={`Welcome to ${STORE_NAME}`} />
+      </h1>
 
-      <nav aria-label="Shortcuts" className="flex flex-wrap justify-center gap-2 px-2 py-4">
-        {[
-          ["/deals", "Today's deals", <Fire key="d" size={20} />],
-          ["/search?sort=newest", "New in", <Sparkle key="n" size={20} />],
-          ["/stores", "All stores", <Store key="s" size={20} />],
-          ["/wholesale", "Wholesale", <Archive key="w" size={20} />],
-        ].map(([href, label, icon]) => (
-          <Link key={href as string} href={href as string} className="glass flex h-[44px] items-center gap-2 rounded-pill px-4 font-semibold hover:bg-background-hover">
-            {icon}
-            {label}
-          </Link>
-        ))}
-      </nav>
+      <HomeRail products={clothes} />
 
       <div className="mx-auto flex max-w-[1800px] flex-wrap items-stretch justify-center gap-4 py-2 sm:gap-8">
         <Widget title="Today's deals" icon={<Fire size={26} />} more={{ href: "/deals", label: "More deals" }}>
@@ -91,30 +85,19 @@ export default async function Home() {
         ))}
 
         <Widget title="Buy by the case" icon={<Archive size={26} />} more={{ href: "/wholesale", label: "Browse wholesale" }}>
-          <p className="px-2 text-[14px] text-maxcontrast">Stores with bulk pricing drop the unit price as your quantity goes up. Example: insulated bottle, 750ml.</p>
-          <table className="mt-2 w-full text-[15px]">
-            <thead>
-              <tr className="text-left">
-                <th className="label px-2 py-1.5 font-normal">Quantity</th>
-                <th className="label px-2 py-1.5 font-normal">Per unit</th>
-                <th className="label px-2 py-1.5 text-right font-normal">You save</th>
-              </tr>
-            </thead>
-            <tbody className="price">
-              {[[1, 1599, 0], [10, 1407, 12], [50, 1215, 24], [200, 1023, 36]].map(([q, c, sv]) => (
-                <tr key={q} className="border-t border-border">
-                  <td className="px-2 py-2">{q}+</td>
-                  <td className="px-2 py-2">{money(c)}</td>
-                  <td className="px-2 py-2 text-right text-primary-element">{sv ? `${sv}%` : "—"}</td>
-                </tr>
+          <div className="space-y-3 px-2 text-[15px]">
+            <p>Many shops here drop the unit price as your quantity goes up. The tiers are on each product page, set by the shop.</p>
+            <ul className="space-y-2 text-[14px]">
+              {["Price breaks by quantity", "Minimum order shown up front", "One checkout across shops"].map((t) => (
+                <li key={t} className="flex items-center gap-2"><CheckCircle size={18} className="shrink-0 text-primary-element" />{t}</li>
               ))}
-            </tbody>
-          </table>
+            </ul>
+          </div>
         </Widget>
 
-        <Widget title="Sell here" icon={<Shop size={26} />} more={{ href: "/sell", label: "See plans and fees" }}>
+        <Widget title="Sell here" icon={<Shop size={26} />} more={{ href: "/sell", label: "How renting a stall works" }}>
           <div className="space-y-3 px-2 text-[15px]">
-            <p>Rent a stall from {money(1900)} a month. You get a storefront, your own customers, and payouts as often as daily.</p>
+            <p>Rent a stall and get your own storefront, your own customers, and payouts as often as daily. The market team will talk you through the rates.</p>
             <ul className="space-y-2 text-[14px]">
               {["Your own store page and address", "Market riders or your own courier", "Lower commission as you grow"].map((t) => (
                 <li key={t} className="flex items-center gap-2"><CheckCircle size={18} className="shrink-0 text-primary-element" />{t}</li>

@@ -148,7 +148,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Plans */
+        /**
+         * Plans
+         * @description Stall plans without prices. Rent and commission are set by the admin
+         *     (PATCH /admin/plans/{id}) and shown to a vendor in their own back office
+         *     once they're on a plan.
+         */
         get: operations["plans_api_v1_plans_get"];
         put?: never;
         post?: never;
@@ -199,7 +204,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Me */
+        /**
+         * Get Me
+         * @description Who is signed in and where they belong. After the one login page, the
+         *     frontend sends people to `home`: shoppers to the storefront, vendors to
+         *     their back office, riders to their jobs, admins to the console, and
+         *     riders who aren't hired yet to the hiring page.
+         */
         get: operations["get_me_api_v1_me_get"];
         put?: never;
         post?: never;
@@ -427,6 +438,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/orders/{order_id}/dropoff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Move Dropoff
+         * @description Move the drop-off pin, for example to the gate the rider should come
+         *     to. Works until the parcel is delivered. A rider already on the way sees
+         *     the new pin straight away.
+         */
+        put: operations["move_dropoff_api_v1_orders__order_id__dropoff_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/seller/applications": {
         parameters: {
             query?: never;
@@ -559,6 +592,94 @@ export interface paths {
         patch: operations["update_variant_api_v1_seller_variants__variant_id__patch"];
         trace?: never;
     };
+    "/api/v1/seller/products/{product_id}/images": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add Image
+         * @description Add a picture to the end of the product's gallery (12 at most).
+         */
+        post: operations["add_image_api_v1_seller_products__product_id__images_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/seller/products/{product_id}/images/{image_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Replace Image
+         * @description Swap one picture for a new file, keeping its place in the gallery.
+         */
+        put: operations["replace_image_api_v1_seller_products__product_id__images__image_id__put"];
+        post?: never;
+        /** Delete Image */
+        delete: operations["delete_image_api_v1_seller_products__product_id__images__image_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Image
+         * @description Change a picture's description.
+         */
+        patch: operations["update_image_api_v1_seller_products__product_id__images__image_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/seller/products/{product_id}/image-order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Reorder Images
+         * @description Send every image id of the product in the order to show them. The
+         *     first one is the cover picture.
+         */
+        put: operations["reorder_images_api_v1_seller_products__product_id__image_order_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/seller/products/{product_id}/video": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Video
+         * @description Add the product's video, or replace the one it has. Each product has
+         *     one video next to its photos.
+         */
+        put: operations["set_video_api_v1_seller_products__product_id__video_put"];
+        post?: never;
+        /** Delete Video */
+        delete: operations["delete_video_api_v1_seller_products__product_id__video_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/seller/uploads": {
         parameters: {
             query?: never;
@@ -568,7 +689,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create Upload */
+        /**
+         * Create Upload
+         * @deprecated
+         * @description Older direct-to-Storage upload. The bucket only takes images up to
+         *     5 MB, but the file isn't cleaned. Use POST /seller/products/{id}/images.
+         */
         post: operations["create_upload_api_v1_seller_uploads_post"];
         delete?: never;
         options?: never;
@@ -712,6 +838,32 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
+        /**
+         * Update Inventory
+         * @description Update stock for up to 200 variants at once. All or nothing: if one
+         *     line is wrong, nothing changes. Every change is kept in the history.
+         */
+        patch: operations["update_inventory_api_v1_seller_inventory_patch"];
+        trace?: never;
+    };
+    "/api/v1/seller/inventory/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Inventory History
+         * @description Who changed stock by hand, when, and why. Sales aren't listed here;
+         *     they're on the orders.
+         */
+        get: operations["inventory_history_api_v1_seller_inventory_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
         patch?: never;
         trace?: never;
     };
@@ -749,6 +901,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/seller/riders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Store Riders
+         * @description Riders on the store's jobs, riders who delivered for it lately, and
+         *     free riders close to the shop, closest first within each group. Each row
+         *     carries what the expandable panel shows: contact, vehicle, live position
+         *     and recent jobs for this store.
+         */
+        get: operations["store_riders_api_v1_seller_riders_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/seller/riders/{rider_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Store Rider */
+        get: operations["store_rider_api_v1_seller_riders__rider_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/seller/orders/{store_order_id}/dispatch": {
         parameters: {
             query?: never;
@@ -758,7 +950,15 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Dispatch */
+        /**
+         * Dispatch
+         * @description Send a rider for the order. Leave rider_id out to send the closest
+         *     free rider to the shop (409 "no_riders" if nobody is on shift nearby;
+         *     the order then stays on automatic dispatch and goes to the first rider
+         *     who frees up). Orders are normally dispatched automatically as soon as
+         *     they're ready, so this is for re-sending after a failed attempt, or for
+         *     choosing a particular rider.
+         */
         post: operations["dispatch_api_v1_seller_orders__store_order_id__dispatch_post"];
         delete?: never;
         options?: never;
@@ -794,7 +994,9 @@ export interface paths {
         put?: never;
         /**
          * Cancel Delivery
-         * @description Pull a job back from a rider who hasn't collected it yet.
+         * @description Pull a job back from a rider who hasn't collected it yet. The order
+         *     comes off automatic dispatch, so it waits for the store to choose the
+         *     next rider (or to dispatch again with no rider to go back to automatic).
          */
         post: operations["cancel_delivery_api_v1_seller_deliveries__delivery_id__cancel_post"];
         delete?: never;
@@ -812,7 +1014,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Apply */
+        /**
+         * Apply
+         * @description The hiring form. Open to riders who signed up through the rider link
+         *     and to existing shoppers. The application lands on the admins' hiring
+         *     page, and the account gets rider access only once an admin hires it.
+         */
         post: operations["apply_api_v1_rider_applications_post"];
         delete?: never;
         options?: never;
@@ -827,7 +1034,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Rider Me */
+        /**
+         * Rider Me
+         * @description The rider's profile, or the state of their application while they
+         *     wait: status is "applicant" until an admin decides, then "active" or
+         *     "rejected". 404 means they haven't applied yet.
+         */
         get: operations["rider_me_api_v1_rider_me_get"];
         put?: never;
         post?: never;
@@ -940,7 +1152,11 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Update Site Settings */
+        /**
+         * Update Site Settings
+         * @description Fees take effect for orders placed from now on; orders already placed
+         *     keep what they were charged.
+         */
         patch: operations["update_site_settings_api_v1_admin_settings_patch"];
         trace?: never;
     };
@@ -1235,7 +1451,7 @@ export interface paths {
         put?: never;
         /**
          * Mark Paid
-         * @description For transfers made to the marketplace's own account.
+         * @description For transfers made to The Bazaar's own account.
          */
         post: operations["mark_paid_api_v1_admin_orders__order_id__mark_paid_post"];
         delete?: never;
@@ -1312,6 +1528,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/riders/{rider_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Rider Detail
+         * @description Everything for the expandable row: contact, last position and
+         *     heading, and the latest 20 jobs.
+         */
+        get: operations["rider_detail_api_v1_admin_riders__rider_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Rider */
+        patch: operations["update_rider_api_v1_admin_riders__rider_id__patch"];
+        trace?: never;
+    };
     "/api/v1/admin/rider-applications": {
         parameters: {
             query?: never;
@@ -1319,7 +1557,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Rider Applications */
+        /**
+         * Rider Applications
+         * @description The hiring queue: riders who filled in the form and are waiting.
+         */
         get: operations["rider_applications_api_v1_admin_rider_applications_get"];
         put?: never;
         post?: never;
@@ -1329,7 +1570,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/riders/{rider_id}": {
+    "/api/v1/admin/rider-applications/{rider_id}/approve": {
         parameters: {
             query?: never;
             header?: never;
@@ -1338,12 +1579,36 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
+        /**
+         * Hire Rider
+         * @description Hire the rider. Their account switches to the rider role and they can
+         *     sign in to the rider app.
+         */
+        post: operations["hire_rider_api_v1_admin_rider_applications__rider_id__approve_post"];
         delete?: never;
         options?: never;
         head?: never;
-        /** Update Rider */
-        patch: operations["update_rider_api_v1_admin_riders__rider_id__patch"];
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/rider-applications/{rider_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject Rider
+         * @description Turn the application down. The note is shown to the applicant.
+         */
+        post: operations["reject_rider_api_v1_admin_rider_applications__rider_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/admin/deliveries": {
@@ -1415,7 +1680,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Status */
+        /**
+         * Status
+         * @description Maintenance state, the fees the cart should show, and the admin
+         *     contact the rent-a-stall page shows instead of prices.
+         */
         get: operations["status_api_v1_status_get"];
         put?: never;
         post?: never;
@@ -1620,6 +1889,8 @@ export interface components {
             last_lat: number | null;
             /** Last Lng */
             last_lng: number | null;
+            /** Last Heading */
+            last_heading: number | null;
             /** Last Seen At */
             last_seen_at: string | null;
             /** Active Deliveries */
@@ -1633,6 +1904,55 @@ export interface components {
             created_at: string;
             /** Approved At */
             approved_at: string | null;
+        };
+        /** AdminRiderDetail */
+        AdminRiderDetail: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Full Name */
+            full_name: string;
+            /** Email */
+            email: string | null;
+            /** Phone */
+            phone: string;
+            /** City */
+            city: string;
+            /** Vehicle */
+            vehicle: string;
+            /** Licence Number */
+            licence_number: string | null;
+            /** Status */
+            status: string;
+            /** Review Note */
+            review_note: string | null;
+            /** Is Online */
+            is_online: boolean;
+            /** Last Lat */
+            last_lat: number | null;
+            /** Last Lng */
+            last_lng: number | null;
+            /** Last Heading */
+            last_heading: number | null;
+            /** Last Seen At */
+            last_seen_at: string | null;
+            /** Active Deliveries */
+            active_deliveries: number;
+            /** Completed Deliveries */
+            completed_deliveries: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Approved At */
+            approved_at: string | null;
+            /** Unpaid Earnings Cents */
+            unpaid_earnings_cents: number;
+            /** Jobs */
+            jobs: components["schemas"]["RiderJob"][];
         };
         /** AdminRiderUpdate */
         AdminRiderUpdate: {
@@ -1666,6 +1986,8 @@ export interface components {
             active_stores: number;
             /** Pending Stores */
             pending_stores: number;
+            /** Pending Riders */
+            pending_riders: number;
             /** Customers */
             customers: number;
             /** Active Products */
@@ -1727,6 +2049,11 @@ export interface components {
              */
             role: "customer" | "seller" | "admin";
         };
+        /** ApplicationDecision */
+        ApplicationDecision: {
+            /** Note */
+            note?: string | null;
+        };
         /** AvailableRider */
         AvailableRider: {
             /**
@@ -1764,6 +2091,47 @@ export interface components {
             subscriptions_billed: number;
             /** Orders Expired */
             orders_expired: number;
+        };
+        /** Body_add_image_api_v1_seller_products__product_id__images_post */
+        Body_add_image_api_v1_seller_products__product_id__images_post: {
+            /**
+             * File
+             * @description JPEG, PNG, WebP or AVIF. Stored as WebP.
+             */
+            file: string;
+            /**
+             * Alt
+             * @description What the picture shows, for screen readers
+             */
+            alt?: string | null;
+        };
+        /** Body_replace_image_api_v1_seller_products__product_id__images__image_id__put */
+        Body_replace_image_api_v1_seller_products__product_id__images__image_id__put: {
+            /**
+             * File
+             * @description JPEG, PNG, WebP or AVIF. Stored as WebP.
+             */
+            file: string;
+            /**
+             * Alt
+             * @description What the picture shows, for screen readers
+             */
+            alt?: string | null;
+        };
+        /** Body_set_video_api_v1_seller_products__product_id__video_put */
+        Body_set_video_api_v1_seller_products__product_id__video_put: {
+            /**
+             * File
+             * @description MP4, MOV or WebM, up to 50 MB and 3 minutes
+             */
+            file: string;
+            /**
+             * Poster
+             * @description Optional still shown before the video plays
+             */
+            poster?: string | null;
+            /** Caption */
+            caption?: string | null;
         };
         /** BusinessInfo */
         BusinessInfo: {
@@ -2061,11 +2429,17 @@ export interface components {
         };
         /** DispatchIn */
         DispatchIn: {
-            /**
-             * Rider Id
-             * Format: uuid
-             */
-            rider_id: string;
+            /** Rider Id */
+            rider_id?: string | null;
+            /** Note */
+            note?: string | null;
+        };
+        /** DropoffIn */
+        DropoffIn: {
+            /** Lat */
+            lat: number;
+            /** Lng */
+            lng: number;
             /** Note */
             note?: string | null;
         };
@@ -2119,12 +2493,22 @@ export interface components {
             /** Alt */
             alt: string | null;
         };
+        /** ImageAltIn */
+        ImageAltIn: {
+            /** Alt */
+            alt?: string | null;
+        };
         /** ImageIn */
         ImageIn: {
             /** Url */
             url: string;
             /** Alt */
             alt?: string | null;
+        };
+        /** ImageOrderIn */
+        ImageOrderIn: {
+            /** Image Ids */
+            image_ids: string[];
         };
         /** Income */
         Income: {
@@ -2167,6 +2551,41 @@ export interface components {
             /** Delivery Fee Cents */
             delivery_fee_cents: number;
         };
+        /** InventoryAdjustment */
+        InventoryAdjustment: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Variant Id
+             * Format: uuid
+             */
+            variant_id: string;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Product Title */
+            product_title: string;
+            /** Sku */
+            sku: string;
+            /** Stock Before */
+            stock_before: number;
+            /** Stock After */
+            stock_after: number;
+            /** Reason */
+            reason: string | null;
+            /** By */
+            by: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
         /** InventoryRow */
         InventoryRow: {
             /**
@@ -2201,6 +2620,16 @@ export interface components {
             reserved: number;
             /** Sold 30D */
             sold_30d: number;
+        };
+        /** InventoryUpdateIn */
+        InventoryUpdateIn: {
+            /** Items */
+            items: components["schemas"]["StockChange"][];
+        };
+        /** InventoryUpdateOut */
+        InventoryUpdateOut: {
+            /** Items */
+            items: components["schemas"]["StockLevel"][];
         };
         /** LedgerEntry */
         LedgerEntry: {
@@ -2294,6 +2723,8 @@ export interface components {
             accuracy_m?: number | null;
             /** Heading */
             heading?: number | null;
+            /** Speed Mps */
+            speed_mps?: number | null;
         };
         /** MapPoint */
         MapPoint: {
@@ -2315,10 +2746,24 @@ export interface components {
             email: string | null;
             /** Full Name */
             full_name: string | null;
+            /** First Name */
+            first_name: string | null;
             /** Avatar Url */
             avatar_url: string | null;
-            /** Role */
-            role: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "customer" | "seller" | "rider" | "admin" | "rider_applicant";
+            /**
+             * Signup As
+             * @enum {string}
+             */
+            signup_as: "customer" | "rider";
+            /** Home */
+            home: string;
+            /** Rider Status */
+            rider_status: ("applicant" | "active" | "suspended" | "rejected") | null;
             store: components["schemas"]["MyStoreRef"] | null;
         };
         /** MeUpdate */
@@ -2490,6 +2935,17 @@ export interface components {
         Page_Earning_: {
             /** Items */
             items: components["schemas"]["Earning"][];
+            /** Total */
+            total: number;
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+        };
+        /** Page[InventoryAdjustment] */
+        Page_InventoryAdjustment_: {
+            /** Items */
+            items: components["schemas"]["InventoryAdjustment"][];
             /** Total */
             total: number;
             /** Page */
@@ -2962,6 +3418,7 @@ export interface components {
             variants: components["schemas"]["Variant"][];
             /** Images */
             images: components["schemas"]["Image"][];
+            video?: components["schemas"]["Video"] | null;
             store: components["schemas"]["StoreSummary"];
             category: components["schemas"]["CategoryRef"] | null;
         };
@@ -3042,6 +3499,37 @@ export interface components {
             tags?: string[] | null;
             /** Images */
             images?: components["schemas"]["ImageIn"][] | null;
+            /** Video */
+            video?: null;
+        };
+        /**
+         * PublicPlan
+         * @description A stall plan as the public sees it: what it includes, not what it
+         *     costs. Prices are agreed with the admin; GET /status has the contact.
+         */
+        PublicPlan: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /** Description */
+            description: string | null;
+            /** Product Limit */
+            product_limit: number | null;
+            /** Featured Slots */
+            featured_slots: number;
+            /** Features */
+            features: string[];
+            /**
+             * Price On Request
+             * @default true
+             */
+            price_on_request: boolean;
         };
         /** RentInvoice */
         RentInvoice: {
@@ -3164,6 +3652,25 @@ export interface components {
             /** Delivered At */
             delivered_at: string | null;
         };
+        /** RiderJob */
+        RiderJob: {
+            /**
+             * Delivery Id
+             * Format: uuid
+             */
+            delivery_id: string;
+            /** Order Number */
+            order_number: string;
+            /** Status */
+            status: string;
+            /**
+             * Assigned At
+             * Format: date-time
+             */
+            assigned_at: string;
+            /** Delivered At */
+            delivered_at?: string | null;
+        };
         /** RiderMe */
         RiderMe: {
             /**
@@ -3216,6 +3723,8 @@ export interface components {
             lat: number;
             /** Lng */
             lng: number;
+            /** Heading */
+            heading?: number | null;
             /** At */
             at: string | null;
         };
@@ -3278,6 +3787,7 @@ export interface components {
             variants: components["schemas"]["SellerVariant"][];
             /** Images */
             images: components["schemas"]["Image"][];
+            video?: components["schemas"]["Video"] | null;
             /**
              * Created At
              * Format: date-time
@@ -3462,6 +3972,28 @@ export interface components {
         };
         /** SiteSettings */
         SiteSettings: {
+            /** Contact Name */
+            contact_name: string | null;
+            /** Contact Email */
+            contact_email: string | null;
+            /** Contact Phone */
+            contact_phone: string | null;
+            /** Contact Whatsapp */
+            contact_whatsapp: string | null;
+            /** Contact Note */
+            contact_note: string | null;
+            /** Currency */
+            currency: string;
+            /** Standard Shipping Cents */
+            standard_shipping_cents: number;
+            /** Express Shipping Cents */
+            express_shipping_cents: number;
+            /** Free Shipping Over Cents */
+            free_shipping_over_cents: number | null;
+            /** Rider Fee Cents */
+            rider_fee_cents: number;
+            /** Tax Rate */
+            tax_rate: number;
             /** Maintenance Mode */
             maintenance_mode: boolean;
             /** Maintenance Message */
@@ -3486,9 +4018,51 @@ export interface components {
             vendor_signups_open?: boolean | null;
             /** Rider Signups Open */
             rider_signups_open?: boolean | null;
+            /** Standard Shipping Cents */
+            standard_shipping_cents?: number | null;
+            /** Express Shipping Cents */
+            express_shipping_cents?: number | null;
+            /** Free Shipping Over Cents */
+            free_shipping_over_cents?: number | null;
+            /** Rider Fee Cents */
+            rider_fee_cents?: number | null;
+            /** Tax Rate */
+            tax_rate?: number | null;
+            /** Contact Name */
+            contact_name?: string | null;
+            /** Contact Email */
+            contact_email?: string | null;
+            /** Contact Phone */
+            contact_phone?: string | null;
+            /** Contact Whatsapp */
+            contact_whatsapp?: string | null;
+            /** Contact Note */
+            contact_note?: string | null;
         };
         /** SiteStatus */
         SiteStatus: {
+            /** Contact Name */
+            contact_name: string | null;
+            /** Contact Email */
+            contact_email: string | null;
+            /** Contact Phone */
+            contact_phone: string | null;
+            /** Contact Whatsapp */
+            contact_whatsapp: string | null;
+            /** Contact Note */
+            contact_note: string | null;
+            /** Currency */
+            currency: string;
+            /** Standard Shipping Cents */
+            standard_shipping_cents: number;
+            /** Express Shipping Cents */
+            express_shipping_cents: number;
+            /** Free Shipping Over Cents */
+            free_shipping_over_cents: number | null;
+            /** Rider Fee Cents */
+            rider_fee_cents: number;
+            /** Tax Rate */
+            tax_rate: number;
             /** Maintenance Mode */
             maintenance_mode: boolean;
             /** Maintenance Message */
@@ -3502,6 +4076,44 @@ export interface components {
             capacity?: number | null;
             /** Is Active */
             is_active?: boolean | null;
+        };
+        /**
+         * StockChange
+         * @description Set `stock` to a count, or move it by `adjust_by` (a delivery in, a
+         *     damaged item out). `adjust_by` is safer while orders are coming in,
+         *     because it doesn't overwrite a sale that happened a second ago.
+         */
+        StockChange: {
+            /**
+             * Variant Id
+             * Format: uuid
+             */
+            variant_id: string;
+            /** Stock */
+            stock?: number | null;
+            /** Adjust By */
+            adjust_by?: number | null;
+            /** Reason */
+            reason?: string | null;
+        };
+        /** StockLevel */
+        StockLevel: {
+            /**
+             * Variant Id
+             * Format: uuid
+             */
+            variant_id: string;
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Sku */
+            sku: string;
+            /** Stock Before */
+            stock_before: number;
+            /** Stock */
+            stock: number;
         };
         /** Store */
         Store: {
@@ -3673,6 +4285,56 @@ export interface components {
             slug: string;
             /** Name */
             name: string;
+        };
+        /**
+         * StoreRider
+         * @description A rider as a store sees them. `relation` says why they're listed:
+         *     on_job (carrying or about to carry one of the store's orders), recent
+         *     (delivered for the store in the last 30 days) or nearby (on shift, free
+         *     and close to the shop). Phone numbers are shown for riders who work the
+         *     store's orders, never for strangers nearby, and the exact position only
+         *     while the rider is out on one of the store's jobs. completed_deliveries
+         *     counts deliveries for this store in the last 30 days.
+         */
+        StoreRider: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Relation
+             * @enum {string}
+             */
+            relation: "on_job" | "recent" | "nearby";
+            /** Name */
+            name: string;
+            /** Phone */
+            phone: string | null;
+            /** Vehicle */
+            vehicle: string;
+            /** Status */
+            status: string;
+            /** On Shift */
+            on_shift: boolean;
+            /** Lat */
+            lat: number | null;
+            /** Lng */
+            lng: number | null;
+            /** Heading */
+            heading: number | null;
+            /** Last Seen At */
+            last_seen_at: string | null;
+            /** Distance Km */
+            distance_km: number | null;
+            /** Eta To Store Minutes */
+            eta_to_store_minutes: number | null;
+            /** Active Deliveries */
+            active_deliveries: number;
+            /** Completed Deliveries */
+            completed_deliveries: number;
+            /** Jobs */
+            jobs: components["schemas"]["RiderJob"][];
         };
         /** StoreSummary */
         StoreSummary: {
@@ -3909,6 +4571,24 @@ export interface components {
             weight_grams?: number | null;
             /** Is Active */
             is_active?: boolean | null;
+        };
+        /** Video */
+        Video: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Url */
+            url: string;
+            /** Poster Url */
+            poster_url: string | null;
+            /** Content Type */
+            content_type: string;
+            /** Duration S */
+            duration_s: number | null;
+            /** Caption */
+            caption: string | null;
         };
         /** WishlistIn */
         WishlistIn: {
@@ -4237,7 +4917,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Plan"][];
+                    "application/json": components["schemas"]["PublicPlan"][];
                 };
             };
         };
@@ -4888,6 +5568,41 @@ export interface operations {
             };
         };
     };
+    move_dropoff_api_v1_orders__order_id__dropoff_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DropoffIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Tracking"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     apply_api_v1_seller_applications_post: {
         parameters: {
             query?: never;
@@ -5249,6 +5964,246 @@ export interface operations {
                 "application/json": components["schemas"]["VariantUpdate"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SellerProduct"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_image_api_v1_seller_products__product_id__images_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_add_image_api_v1_seller_products__product_id__images_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SellerProduct"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    replace_image_api_v1_seller_products__product_id__images__image_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+                image_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_replace_image_api_v1_seller_products__product_id__images__image_id__put"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SellerProduct"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_image_api_v1_seller_products__product_id__images__image_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+                image_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SellerProduct"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_image_api_v1_seller_products__product_id__images__image_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+                image_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImageAltIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SellerProduct"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reorder_images_api_v1_seller_products__product_id__image_order_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImageOrderIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SellerProduct"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_video_api_v1_seller_products__product_id__video_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_set_video_api_v1_seller_products__product_id__video_put"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SellerProduct"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_video_api_v1_seller_products__product_id__video_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -5638,6 +6593,72 @@ export interface operations {
             };
         };
     };
+    update_inventory_api_v1_seller_inventory_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InventoryUpdateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InventoryUpdateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    inventory_history_api_v1_seller_inventory_history_get: {
+        parameters: {
+            query?: {
+                variant_id?: string | null;
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_InventoryAdjustment_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     confirm_payment_api_v1_seller_orders__store_order_id__confirm_payment_post: {
         parameters: {
             query?: never;
@@ -5685,6 +6706,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AvailableRider"][];
+                };
+            };
+        };
+    };
+    store_riders_api_v1_seller_riders_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoreRider"][];
+                };
+            };
+        };
+    };
+    store_rider_api_v1_seller_riders__rider_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rider_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StoreRider"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -6862,6 +7934,72 @@ export interface operations {
             };
         };
     };
+    rider_detail_api_v1_admin_riders__rider_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rider_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminRiderDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_rider_api_v1_admin_riders__rider_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rider_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminRiderUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminRider"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     rider_applications_api_v1_admin_rider_applications_get: {
         parameters: {
             query?: {
@@ -6894,7 +8032,7 @@ export interface operations {
             };
         };
     };
-    update_rider_api_v1_admin_riders__rider_id__patch: {
+    hire_rider_api_v1_admin_rider_applications__rider_id__approve_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -6905,7 +8043,42 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["AdminRiderUpdate"];
+                "application/json": components["schemas"]["ApplicationDecision"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminRider"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_rider_api_v1_admin_rider_applications__rider_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rider_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplicationDecision"];
             };
         };
         responses: {

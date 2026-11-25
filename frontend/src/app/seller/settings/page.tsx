@@ -1,9 +1,10 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ErrorLine, PageTitle } from "@/components/dash";
 import { DeliveryMap, type MapPin } from "@/components/delivery-map";
 import { api, ApiError } from "@/lib/api";
 import { safeColor } from "@/lib/safe";
+import { useChanged } from "@/lib/hooks";
 import { useApi } from "@/lib/use-api";
 import type { LatLng } from "@/lib/types";
 
@@ -17,8 +18,9 @@ export default function StorefrontSettings() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
-  useEffect(() => {
-    if (!data) return;
+  // Fill the form each time the store record loads or comes back from a save.
+  const loaded = useChanged(data);
+  if (loaded && data) {
     const s = data.store;
     setF({
       name: s.name,
@@ -29,7 +31,7 @@ export default function StorefrontSettings() {
       support_email: s.support_email ?? "",
     });
     setPickup(s.pickup ? { lat: s.pickup.lat, lng: s.pickup.lng, label: s.pickup.label ?? "", city: s.pickup.city ?? "" } : null);
-  }, [data]);
+  }
 
   const pins = useMemo<MapPin[]>(() => (pickup ? [{ id: "pickup", kind: "pickup", label: pickup.label || "Pickup", lat: pickup.lat, lng: pickup.lng }] : []), [pickup]);
 

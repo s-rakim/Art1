@@ -1,12 +1,21 @@
 "use client";
+import Link from "next/link";
 import { useState } from "react";
 import { ErrorLine, PageTitle, Table } from "@/components/dash";
 import { api, ApiError } from "@/lib/api";
 import { money } from "@/lib/format";
 import { useApi } from "@/lib/use-api";
+import { LiveDot } from "@/components/live-refresh";
+import { useLiveEvents, useLiveReload } from "@/lib/live";
 
 export default function Inventory() {
-  const { data, setData, error, token } = useApi((t) => api.sellerInventory(t));
+  const { data, setData, error, token, reload } = useApi((t) => api.sellerInventory(t));
+  // Stock moves when orders come in; take the server's number unless the vendor is mid-edit.
+  const live = useLiveEvents(["stock"], (e) => {
+    if (e.type !== "stock") return;
+    setData((d) => (d ? { ...d, items: d.items.map((r) => (r.variant_id === e.variant_id ? { ...r, stock: e.stock, low_stock: e.stock < 5 } : r)) } : d));
+  });
+  useLiveReload(["catalog"], reload, live ? 0 : 30000);
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -34,7 +43,7 @@ export default function Inventory() {
 
   return (
     <>
-      <PageTitle kicker={`${data?.items.length ?? 0} variants · ${totalUnits.toLocaleString("en-US")} units on hand`} title="Inventory" />
+      <PageTitle kicker={`${data?.items.length ?? 0} variants · ${totalUnits.toLocaleString("en-US")} units on hand`} title="Inventory" action={<LiveDot live={live} />} />
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <input className="field max-w-xs" placeholder="Search title or SKU" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search inventory" />
         <label className="flex items-center gap-2 text-[14px]"><input type="checkbox" className="accent-primary-element" checked={lowOnly} onChange={(e) => setLowOnly(e.target.checked)} />Low stock only</label>
@@ -45,7 +54,7 @@ export default function Inventory() {
           const editing = draft[r.variant_id] !== undefined;
           return (
             <tr key={r.variant_id} className={r.stock === 0 ? "bg-error" : ""}>
-              <td className="px-3 py-2.5">{r.product_title}</td>
+              <td className="px-3 py-2.5"><Link href={`/seller/products/${encodeURIComponent(r.product_id)}`} className="hover:underline">{r.product_title}</Link></td>
               <td className="px-3 py-2.5 text-maxcontrast">{r.label}</td>
               <td className="px-3 py-2.5 tabular-nums text-[12px]">{r.sku}</td>
               <td className="price px-3 py-2.5">{money(r.price_cents)}</td>

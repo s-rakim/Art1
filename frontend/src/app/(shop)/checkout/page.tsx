@@ -1,20 +1,24 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { ProductImage } from "@/components/product-art";
+import { useState } from "react";
+import { DropoffPicker } from "@/components/dropoff-picker";
+import { ProductImage } from "@/components/product-image";
 import { DemoNotice, Empty } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { AUTH_ENABLED, FREE_SHIPPING_CENTS } from "@/lib/config";
+import { AUTH_ENABLED } from "@/lib/config";
+import { useSite } from "@/components/site-context";
 import { COUNTRIES } from "@/lib/countries";
 import { money } from "@/lib/format";
 import { cartSubtotal, useCart } from "@/store/cart";
 import type { Address } from "@/lib/types";
+import { useHydrated } from "@/lib/hooks";
 
+// Fees come from the admin's settings; the API charges the same numbers when the order is placed.
 const methods = [
-  { id: "standard", label: "Standard", note: "Each store ships separately, 3 to 12 days", cents: 499 },
-  { id: "express", label: "Express", note: "Tracked, 2 to 4 days where the store offers it", cents: 1299 },
+  { id: "standard", label: "Standard", note: "Each store ships separately, 3 to 12 days", fee: "standard_shipping_cents" },
+  { id: "express", label: "Express", note: "Tracked, 2 to 4 days where the store offers it", fee: "express_shipping_cents" },
 ] as const;
 
 const payments = [
@@ -27,10 +31,10 @@ const empty: Address = { full_name: "", line1: "", line2: "", city: "", region: 
 export default function CheckoutPage() {
   const router = useRouter();
   const { token, email, ready } = useAuth();
-  const [h, setH] = useState(false);
-  useEffect(() => setH(true), []);
+  const h = useHydrated();
   const { lines, clear } = useCart();
   const [addr, setAddr] = useState<Address>(empty);
+  const site = useSite();
   const [method, setMethod] = useState<(typeof methods)[number]["id"]>("standard");
   const [payment, setPayment] = useState<(typeof payments)[number]["id"]>("cod");
   const [coupon, setCoupon] = useState("");
@@ -51,7 +55,10 @@ export default function CheckoutPage() {
   const subtotal = cartSubtotal(lines);
   const perStore = [...stores].map((s) => cartSubtotal(lines.filter((l) => l.store_slug === s)));
   const m = methods.find((x) => x.id === method)!;
-  const shipping = perStore.reduce((a, st) => a + (method === "standard" && st >= FREE_SHIPPING_CENTS ? 0 : m.cents), 0);
+  const fee = site[m.fee];
+  const freeOver = site.free_shipping_over_cents;
+  // Null when the admin hasn't set a fee: the order page shows the real amount.
+  const shipping = fee == null ? null : perStore.reduce((a, st) => a + (method === "standard" && freeOver != null && st >= freeOver ? 0 : fee), 0);
 
   const set = (k: keyof Address) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setAddr({ ...addr, [k]: e.target.value });
 
@@ -136,18 +143,12 @@ export default function CheckoutPage() {
                 </select>
               </label>
               <label className="sm:col-span-2"><span className="label">Phone, for the rider</span><input required type="tel" maxLength={24} pattern="[0-9 +\(\)\-]{6,32}" autoComplete="tel" className="field mt-1" value={addr.phone ?? ""} onChange={set("phone")} /></label>
-              <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
-                {addr.lat != null && addr.lng != null ? (
-                  <>
-                    <span className="chip chip-success">Pin set</span>
-                    <span className="tabular-nums text-[12px]">{addr.lat.toFixed(5)}, {addr.lng.toFixed(5)}</span>
-                    <button type="button" className="text-[13px] underline" onClick={() => setAddr({ ...addr, lat: null, lng: null })}>Remove pin</button>
-                  </>
-                ) : (
-                  <button type="button" className="btn btn-secondary btn-sm" disabled={locating} onClick={pin}>{locating ? "Finding you…" : "Drop a pin at my location"}</button>
-                )}
-                <span className="text-[12px] text-maxcontrast">Optional. Helps the rider find the door.</span>
-              </div>
+              <DropoffPicker
+                value={addr.lat != null && addr.lng != null ? { lat: addr.lat, lng: addr.lng } : null}
+                onChange={(p) => setAddr((a) => ({ ...a, lat: p?.lat ?? null, lng: p?.lng ?? null }))}
+                onLocate={pin}
+                locating={locating}
+              />
             </div>
           </fieldset>
 
@@ -161,7 +162,7 @@ export default function CheckoutPage() {
                     <span className="block font-semibold">{x.label}</span>
                     <span className="block text-[13px] text-maxcontrast">{x.note}</span>
                   </span>
-                  <span className="price text-[14px]">{money(x.cents)} / store</span>
+                  <span className="price text-[14px]">{site[x.fee] != null ? `${money(site[x.fee]!)} / store` : "Set by the market"}</span>
                 </label>
               ))}
             </div>
@@ -213,10 +214,10 @@ export default function CheckoutPage() {
             </ul>
             <dl className="space-y-2 border-t border-border p-5 text-[14px]">
               <div className="flex justify-between"><dt>Subtotal</dt><dd className="price">{money(subtotal)}</dd></div>
-              <div className="flex justify-between"><dt>Shipping ({stores.size} {stores.size === 1 ? "store" : "stores"})</dt><dd className="price">{shipping ? money(shipping) : "Free"}</dd></div>
+              <div className="flex justify-between"><dt>Shipping ({stores.size} {stores.size === 1 ? "store" : "stores"})</dt><dd className={shipping == null ? "text-maxcontrast" : "price"}>{shipping == null ? "Shown on your order" : shipping ? money(shipping) : "Free"}</dd></div>
               <div className="flex justify-between text-maxcontrast"><dt>Tax{coupon.trim() ? " and coupon" : ""}</dt><dd>Worked out when you place it</dd></div>
               <div className="h-px bg-border !my-4" />
-              <div className="flex justify-between text-[17px] font-semibold"><dt>Estimated total</dt><dd className="price">{money(subtotal + shipping)}</dd></div>
+              <div className="flex justify-between text-[17px] font-semibold"><dt>Estimated total{shipping == null ? " before shipping" : ""}</dt><dd className="price">{money(subtotal + (shipping ?? 0))}</dd></div>
             </dl>
             <div className="px-5 pb-5">
               {error && <p role="alert" className="mb-3 note note-error text-[14px]">{error}</p>}

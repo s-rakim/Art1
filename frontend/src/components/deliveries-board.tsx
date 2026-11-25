@@ -45,7 +45,7 @@ export function DeliveriesBoard({
       setData((cur) =>
         cur && {
           ...cur,
-          deliveries: cur.deliveries.map((d) => (d.id === e.delivery_id ? { ...d, rider_position: { lat: e.lat, lng: e.lng, at: e.at } } : d)),
+          deliveries: cur.deliveries.map((d) => (d.id === e.delivery_id ? { ...d, rider_position: { lat: e.lat, lng: e.lng, at: e.at, heading: e.heading } } : d)),
         },
       );
     },
@@ -69,7 +69,7 @@ export function DeliveriesBoard({
       if (d.dropoff) pins.push({ id: `${d.id}-d`, kind: "dropoff", label: `${d.order_number}: ${d.dropoff.label ?? "drop-off"}`, lat: d.dropoff.lat, lng: d.dropoff.lng });
       const next = d.status === "picked_up" ? d.dropoff : d.pickup;
       if (d.rider_position) {
-        pins.push({ id: `${d.id}-r`, kind: "rider", label: d.rider?.name ?? "Rider", lat: d.rider_position.lat, lng: d.rider_position.lng });
+        pins.push({ id: `${d.id}-r`, kind: "rider", label: d.rider?.name ?? "Rider", lat: d.rider_position.lat, lng: d.rider_position.lng, heading: d.rider_position.heading });
         if (next) lines.push({ id: d.id, from: d.rider_position, to: next });
       } else if (d.pickup && d.dropoff) {
         lines.push({ id: d.id, from: d.pickup, to: d.dropoff });

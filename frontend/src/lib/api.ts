@@ -9,7 +9,7 @@ import type { components } from "./openapi";
 import type {
   AdminOrder, AdminStats, AdminStore, AvailableRider, BookedPlacement, Category, Delivery, DeliveryTrack, Income,
   InventoryRow, LiveRider, MapPoint, Order, OrderLine, OrderSummary, Paged, PlacementBooking, PlacementSlot, Plan,
-  Product, ProductCard, Review, Rider, SellerOrder, SellerProductRow, SellerProfile, SellerStats, Settings, Store,
+  Product, ProductCard, Review, Rider, SellerOrder, SellerProductRow, SellerProfile, SellerStats, Settings, SiteInfo, Store,
   Tracking,
 } from "./types";
 
@@ -21,15 +21,60 @@ export class ApiError extends Error {
   }
 }
 
+type ErrorField = { loc?: unknown; msg?: unknown };
+type ErrorBody = { detail?: unknown; code?: unknown; error?: { code?: unknown; message?: unknown; fields?: unknown } };
+
+/**
+ * The message to show for a failed call. Our API sends {error: {code, message, fields}}, plain
+ * FastAPI sends {detail}. When a form field was rejected, name the field and say why, because
+ * "Some fields are invalid" alone leaves people guessing which one.
+ */
+function readError(raw: unknown): { message: string | null; code?: string } {
+  const j = (raw && typeof raw === "object" ? raw : {}) as ErrorBody;
+  const code = typeof j.error?.code === "string" ? j.error.code : typeof j.code === "string" ? j.code : undefined;
+  const fields = (Array.isArray(j.error?.fields) ? j.error.fields : Array.isArray(j.detail) ? j.detail : []) as ErrorField[];
+  const first = fields.find((f) => f && typeof f.msg === "string");
+  if (first) {
+    const path = Array.isArray(first.loc) ? first.loc.filter((p): p is string => typeof p === "string" && p !== "body") : [];
+    const name = (path.at(-1) ?? "").replace(/_/g, " ");
+    const why = String(first.msg).replace(/^Value error, /, "").slice(0, 200);
+    return { message: name ? `${name[0].toUpperCase()}${name.slice(1)}: ${why}` : why, code };
+  }
+  if (typeof j.detail === "string") return { message: j.detail.slice(0, 300), code };
+  if (typeof j.error?.message === "string") return { message: j.error.message.slice(0, 300), code };
+  return { message: null, code };
+}
+
 type Opts = { token?: string | null; method?: string; body?: unknown; revalidate?: number; authed?: boolean };
+
+const IP_LIST = /^[0-9a-fA-F:., ]{2,200}$/;
+
+/**
+ * On the server, requests that skip the cache (signed in, or writes) pass on the visitor's
+ * address as Caddy set it, so the API rate-limits each visitor rather than this server.
+ * Cached public reads don't: Next keys its cache on headers, and the API gives the site's own
+ * cached reads a separate allowance.
+ */
+async function forwardedFor(uncached: boolean): Promise<Record<string, string>> {
+  if (typeof window !== "undefined" || !uncached) return {};
+  try {
+    const { headers } = await import("next/headers");
+    const xff = (await headers()).get("x-forwarded-for")?.trim();
+    return xff && IP_LIST.test(xff) ? { "X-Forwarded-For": xff } : {};
+  } catch {
+    return {}; // outside a request (build time, background work)
+  }
+}
 
 async function request<T>(path: string, opts: Opts = {}, fallback?: () => T): Promise<T> {
   try {
+    const uncached = Boolean(opts.token) || Boolean(opts.method && opts.method !== "GET");
     const res = await fetch(`${apiBase()}${path}`, {
       method: opts.method ?? "GET",
       headers: {
         "Content-Type": "application/json",
         ...(opts.token ? { Authorization: `Bearer ${opts.token}` } : {}),
+        ...(await forwardedFor(uncached)),
       },
       body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
       ...(opts.method && opts.method !== "GET"
@@ -41,17 +86,12 @@ async function request<T>(path: string, opts: Opts = {}, fallback?: () => T): Pr
     });
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      let message = res.statusText;
-      let code: string | undefined;
+      let body: unknown = null;
       try {
-        const j = JSON.parse(text);
-        // FastAPI: {detail: "..."} or {detail: [{msg}]}; our API: {error: {code, message}}
-        if (typeof j?.detail === "string") message = j.detail;
-        else if (Array.isArray(j?.detail) && j.detail[0]?.msg) message = String(j.detail[0].msg);
-        else if (j?.error?.message) message = String(j.error.message);
-        code = j?.error?.code ?? j?.code;
+        body = JSON.parse(text);
       } catch {}
-      throw new ApiError(res.status, message || "Request failed", code);
+      const { message, code } = readError(body);
+      throw new ApiError(res.status, message ?? (res.statusText || "Request failed"), code);
     }
     if (res.status === 204) return undefined as T;
     return (await res.json()) as T;
@@ -143,6 +183,8 @@ function toProduct(p: S["ProductDetail"]): Product {
     currency: p.currency,
     image_url: p.images[0]?.url ?? null,
     images: p.images.map((i) => i.url),
+    image_alts: p.images.map((i) => i.alt),
+    video: p.video ?? null,
     rating: p.rating,
     review_count: p.review_count,
     sold_count: p.sold_count,
@@ -174,20 +216,28 @@ function toStore(s: S["Store"]): Store {
   };
 }
 
-function toPlan(p: S["Plan"], i: number, all: S["Plan"][]): Plan {
+/** Admin and seller reads carry prices; the public list (PublicPlan) doesn't. */
+function toPlan(p: S["Plan"] | S["PublicPlan"], i: number, all: unknown[]): Plan {
+  const priced = "monthly_price_cents" in p;
   return {
     id: p.id,
     code: p.code,
     name: p.name,
-    monthly_price_cents: p.monthly_price_cents,
-    commission_rate: p.commission_rate,
-    per_item_fee_cents: p.per_item_fee_cents,
+    description: p.description,
+    monthly_price_cents: priced ? p.monthly_price_cents : null,
+    commission_rate: priced ? p.commission_rate : null,
+    per_item_fee_cents: priced ? p.per_item_fee_cents : null,
     product_limit: p.product_limit,
     featured_slots: p.featured_slots,
     features: p.features,
     highlighted: all.length === 3 ? i === 1 : false,
+    price_on_request: !priced,
   };
 }
+
+/** The demo plans with their prices taken off, the way the public sees them. */
+const publicPlans = (): Plan[] =>
+  demo.plans.map((p) => ({ ...p, monthly_price_cents: null, commission_rate: null, per_item_fee_cents: null, price_on_request: true }));
 
 function toSlot(s: S["PlacementSlot"]): PlacementSlot {
   return { id: s.id, code: s.code, name: s.name, location: s.location, description: s.description ?? "", daily_price_cents: s.daily_price_cents, capacity: s.capacity };
@@ -325,6 +375,71 @@ function toSellerProfile(m: S["SellerMe"], plans?: Plan[]): SellerProfile {
   };
 }
 
+export const EMPTY_SITE: SiteInfo = {
+  maintenance_mode: false, maintenance_message: "", currency: "USD",
+  standard_shipping_cents: null, express_shipping_cents: null, free_shipping_over_cents: null,
+  rider_fee_cents: null, tax_rate: null,
+  contact_name: null, contact_email: null, contact_phone: null, contact_whatsapp: null, contact_note: null,
+};
+
+const cents = (v: unknown) => (typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= 100_000_000 ? v : null);
+const line = (v: unknown, max = 200) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null);
+
+/** Reads fee and contact fields defensively; anything missing or malformed becomes null. */
+function siteFields(raw: Record<string, unknown>) {
+  return {
+    currency: line(raw.currency, 3) ?? "USD",
+    standard_shipping_cents: cents(raw.standard_shipping_cents),
+    express_shipping_cents: cents(raw.express_shipping_cents),
+    free_shipping_over_cents: cents(raw.free_shipping_over_cents),
+    rider_fee_cents: cents(raw.rider_fee_cents),
+    tax_rate: typeof raw.tax_rate === "number" && raw.tax_rate >= 0 && raw.tax_rate < 1 ? raw.tax_rate : null,
+    contact_name: line(raw.contact_name, 120),
+    contact_email: line(raw.contact_email, 254),
+    contact_phone: line(raw.contact_phone, 32),
+    contact_whatsapp: line(raw.contact_whatsapp, 32),
+    contact_note: line(raw.contact_note, 500),
+  };
+}
+
+function toSite(s: S["SiteStatus"]): SiteInfo {
+  return { maintenance_mode: s.maintenance_mode, maintenance_message: s.maintenance_message ?? "", ...siteFields(s as unknown as Record<string, unknown>) };
+}
+
+function toSettings(s: S["SiteSettings"]): Settings {
+  return { ...s, maintenance_message: s.maintenance_message ?? "", ...siteFields(s as unknown as Record<string, unknown>) };
+}
+
+type SellerRiderRaw = {
+  id: string; name?: string; full_name?: string; phone?: string | null; vehicle?: string; city?: string | null; status?: string;
+  on_shift?: boolean; is_online?: boolean; lat?: number | null; lng?: number | null; last_lat?: number | null; last_lng?: number | null;
+  heading?: number | null; last_seen_at?: string | null; distance_km?: number | null; eta_to_store_minutes?: number | null;
+  active_deliveries?: number; completed_deliveries?: number;
+  relation?: string; jobs?: S["RiderJob"][];
+};
+
+const finite = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
+const byDistance = (a: Rider, b: Rider) => (a.distance_km ?? Infinity) - (b.distance_km ?? Infinity);
+const RELATION_ORDER = { on_job: 0, recent: 1, nearby: 2 } as const;
+// The API's order: riders on the store's jobs, then recent ones, then free riders near the shop; closest first in each.
+const byRelation = (a: Rider, b: Rider) => (RELATION_ORDER[a.relation ?? "nearby"] - RELATION_ORDER[b.relation ?? "nearby"]) || byDistance(a, b);
+const isRelation = (r: unknown): r is keyof typeof RELATION_ORDER => r === "on_job" || r === "recent" || r === "nearby";
+
+function toSellerRider(r: SellerRiderRaw): Rider {
+  const lat = r.lat ?? r.last_lat;
+  const lng = r.lng ?? r.last_lng;
+  const ok = finite(lat) && finite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+  return {
+    id: r.id, full_name: r.full_name ?? r.name ?? "Rider", phone: r.phone ?? "", vehicle: r.vehicle ?? "", city: r.city ?? "",
+    status: r.status ?? "active", on_shift: !!(r.on_shift ?? r.is_online), deliveries_completed: r.completed_deliveries ?? 0,
+    active_deliveries: r.active_deliveries ?? 0, applied_at: "",
+    position: ok ? { lat, lng, at: r.last_seen_at ?? null, heading: finite(r.heading) ? r.heading : null } : null,
+    distance_km: finite(r.distance_km) ? r.distance_km : null, eta_to_store_minutes: finite(r.eta_to_store_minutes) ? r.eta_to_store_minutes : null,
+    relation: isRelation(r.relation) ? r.relation : undefined,
+    jobs: (r.jobs ?? []).slice(0, 10).map((j) => ({ delivery_id: j.delivery_id, order_number: j.order_number, status: j.status, assigned_at: j.assigned_at, delivered_at: j.delivered_at ?? null })),
+  };
+}
+
 function toRider(r: S["AdminRider"] | S["RiderMe"]): Rider {
   const a = r as S["AdminRider"];
   return {
@@ -446,6 +561,77 @@ const notFoundToNull = <T>(p: Promise<T>) =>
 
 // ---------- the API ----------
 
+export type SellerProductDetail = S["SellerProduct"];
+
+const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp", "image/avif"] as const;
+const VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/webm"] as const;
+export const PHOTO_MAX_BYTES = 10 * 1024 * 1024;
+export const VIDEO_MAX_BYTES = 50 * 1024 * 1024;
+export const PHOTO_ACCEPT = PHOTO_TYPES.join(",");
+export const VIDEO_ACCEPT = VIDEO_TYPES.join(",");
+
+const safeName = (name: string, fallback: string) => name.replace(/[^A-Za-z0-9._-]/g, "_").slice(-80) || fallback;
+
+function checkPhoto(file: File) {
+  if (!PHOTO_TYPES.some((t) => t === file.type)) throw new ApiError(422, "Photos must be JPEG, PNG, WebP or AVIF.", "bad_type");
+  if (file.size > PHOTO_MAX_BYTES) throw new ApiError(422, "Photos can be up to 10 MB.", "too_big");
+}
+
+function photoForm(file: File, alt: string) {
+  checkPhoto(file);
+  const form = new FormData();
+  form.append("file", file, safeName(file.name, "photo"));
+  const text = alt.trim().slice(0, 200);
+  if (text) form.append("alt", text);
+  return form;
+}
+
+/**
+ * Multipart upload from the browser with progress. fetch() can't report upload progress, and a
+ * 50 MB video needs a progress bar, so this uses XMLHttpRequest. Errors come back as ApiError
+ * with the API's message, the same as request().
+ */
+function upload<T>(path: string, method: "POST" | "PUT", token: string | null, form: FormData, onProgress?: (share: number) => void): Promise<T> {
+  if (!AUTH_ENABLED && DEMO_DATA) return Promise.reject(new ApiError(503, "Uploads need sign-in to be set up.", "demo"));
+  return new Promise<T>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(method, `${apiBase()}${path}`);
+    if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    xhr.timeout = 10 * 60 * 1000;
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total);
+    };
+    xhr.onload = () => {
+      let body: unknown = null;
+      try {
+        body = xhr.responseText ? JSON.parse(xhr.responseText) : null;
+      } catch {}
+      if (xhr.status >= 200 && xhr.status < 300) return resolve(body as T);
+      const { message, code } = readError(body);
+      reject(new ApiError(xhr.status, message ?? (xhr.status === 413 ? "That file is too big." : "The upload didn't go through. Try again."), code));
+    };
+    xhr.onerror = () => reject(new ApiError(0, "Lost the connection during the upload. Try again.", "network"));
+    xhr.ontimeout = () => reject(new ApiError(0, "The upload took too long. Try a smaller file.", "timeout"));
+    xhr.send(form);
+  });
+}
+
+/** A demo listing shaped like GET /seller/products/{id}, for running without a backend. */
+function demoSellerProduct(id: string): SellerProductDetail {
+  const p = demo.products.find((x) => x.id === id) ?? demo.products[0];
+  return {
+    id: p.id, slug: p.slug, title: p.title, description: p.description, brand: null, category_id: null, status: "active",
+    attributes: {}, tags: [], currency: p.currency, price_cents: p.price_cents, rating: p.rating, review_count: p.review_count,
+    sold_count: p.sold_count, created_at: new Date(0).toISOString(), updated_at: new Date(0).toISOString(),
+    images: [], video: null,
+    variants: p.variants.map((v) => ({
+      id: v.id, sku: v.sku, title: v.title ?? [v.color, v.size].filter(Boolean).join(" / "), options: {}, price_cents: v.price_cents,
+      compare_at_cents: v.compare_at_cents ?? null, stock: v.stock, in_stock: v.stock > 0, min_order_qty: v.min_order_qty ?? 1,
+      tier_prices: [], is_active: true, weight_grams: null,
+    })),
+  };
+}
+
 export const api = {
   // Catalogue
   products: (query: ProductQuery = {}) => {
@@ -485,7 +671,7 @@ export const api = {
   store: (slug: string) =>
     notFoundToNull(get<S["Store"], Store | null>(`/stores/${enc(slug)}`, {}, toStore, () => demo.stores.find((s) => s.slug === slug) ?? null)),
   plans: () =>
-    get<S["Plan"][], Plan[]>(`/plans`, { revalidate: 600 }, (list) => list.map(toPlan), () => demo.plans),
+    get<S["PublicPlan"][], Plan[]>(`/plans`, { revalidate: 120 }, (list) => list.map(toPlan), publicPlans),
   placementSlots: () =>
     get<S["PlacementSlot"][], PlacementSlot[]>(`/placement-slots`, { revalidate: 120 }, (l) => l.map(toSlot), () => demo.placements),
   /** Live bookings shown on the storefront (homepage shelves, banners). */
@@ -493,13 +679,13 @@ export const api = {
     get<S["Placement"][], BookedPlacement[]>(`/placements`, { revalidate: 120 }, (l) =>
       l.map((p) => ({ id: p.id, slot_code: p.slot_code, location: p.location, headline: p.headline, store: p.store, product: p.product ? toCard(p.product) : null })),
       () => []),
+  /** Maintenance switch, admin-set fees and the market contact. Older APIs send only the switch. */
   status: () =>
-    get<S["SiteStatus"], { maintenance_mode: boolean; maintenance_message: string }>(`/status`, { revalidate: 15 },
-      (s) => ({ maintenance_mode: s.maintenance_mode, maintenance_message: s.maintenance_message ?? "" }),
-      () => ({ maintenance_mode: false, maintenance_message: "" })),
+    get<S["SiteStatus"], SiteInfo>(`/status`, { revalidate: 15 }, toSite, () => ({ ...EMPTY_SITE, ...logi.demoFees })),
 
   // Shopper
-  role: (token: string | null) => request<S["Me"]>(`/me`, { token, authed: true }).then((m) => m.role),
+  /** Who is signed in, from the API's own profile table. "home" and "rider_status" arrive with the hiring flow. */
+  me: (token: string | null) => request<S["Me"] & { home?: string | null; rider_status?: string | null }>(`/me`, { token, authed: true }),
   wishlist: (token: string | null, ids: string[] = []) =>
     get<S["Page_ProductCard_"], Paged<ProductCard>>(`/wishlist${qs({ page_size: 100 })}`, { token, authed: true }, (p) => mapPage(p, toCard),
       () => page(demo.products.filter((p) => ids.includes(p.id)), 1, 200)),
@@ -515,6 +701,12 @@ export const api = {
     get<S["Order"], Order>(`/orders/${enc(id)}/cancel`, { token, method: "POST", body: {}, authed: true }, toOrder, () => ({ ...demo.demoOrders()[0], status: "canceled" })),
   tracking: (token: string | null, orderId: string) =>
     notFoundToNull(get<S["Tracking"], Tracking | null>(`/orders/${enc(orderId)}/tracking`, { token, authed: true }, toTracking, () => logi.trackingFor(orderId))),
+  /** Move the drop-off pin (to the gate, say) until the parcel is delivered. The rider sees it at once. */
+  moveDropoff: (token: string | null, orderId: string, body: S["DropoffIn"]) =>
+    get<S["Tracking"], Tracking>(`/orders/${enc(orderId)}/dropoff`, { token, method: "PUT", body, authed: true }, toTracking, () => {
+      const t = logi.trackingFor(orderId);
+      return { ...t, dropoff: { ...t.dropoff, lat: body.lat, lng: body.lng } };
+    }),
   checkout: (token: string | null, body: S["CheckoutIn"]) =>
     request<S["CheckoutOut"]>(`/checkout`, { token, method: "POST", body, authed: true }, () => ({
       order_id: demo.demoOrders()[0].id, order_number: demo.demoOrders()[0].number, status: "pending_payment", total_cents: 0, currency: "USD", payment_url: null,
@@ -552,28 +744,39 @@ export const api = {
   /** Publish, hide (draft) or archive a listing. */
   updateProduct: (token: string | null, id: string, body: S["ProductUpdate"]) =>
     request<S["SellerProduct"]>(`/seller/products/${enc(id)}`, { token, method: "PATCH", body, authed: true }, () => ({ id, status: body.status ?? "active" }) as S["SellerProduct"]),
-  /**
-   * Uploads a product photo: the API hands out a one-time signed URL into the store's own
-   * folder in Supabase Storage, the browser sends the file straight there, and we keep the
-   * public URL. The API never sees the bytes and the client never picks the path.
-   */
-  uploadImage: async (token: string | null, file: File): Promise<string> => {
-    const types = ["image/jpeg", "image/png", "image/webp", "image/avif"] as const;
-    const type = types.find((t) => t === file.type);
-    if (!type) throw new ApiError(422, "Photos must be JPEG, PNG, WebP or AVIF.", "bad_type");
-    if (file.size > 5 * 1024 * 1024) throw new ApiError(422, "Photos can be up to 5 MB.", "too_big");
-    const name = file.name.replace(/[^A-Za-z0-9._-]/g, "_").slice(-80) || "photo";
-    const slot = await request<S["UploadOut"]>(`/seller/uploads`, { token, method: "POST", body: { filename: name, content_type: type }, authed: true });
-    const target = new URL(slot.upload_url);
-    const pub = new URL(slot.public_url);
-    if (target.protocol !== "https:" || pub.protocol !== "https:") throw new ApiError(502, "The upload link wasn't secure, so we stopped.", "insecure");
+  /** One listing with its variants, photos and video, for the editor. */
+  sellerProduct: (token: string | null, id: string) =>
+    request<SellerProductDetail>(`/seller/products/${enc(id)}`, { token, authed: true }, () => demoSellerProduct(id)),
+  /** Adds a photo at the end of the gallery (12 at most). The API re-encodes it and strips EXIF. */
+  addProductImage: (token: string | null, id: string, file: File, alt: string, onProgress?: (share: number) => void) =>
+    upload<SellerProductDetail>(`/seller/products/${enc(id)}/images`, "POST", token, photoForm(file, alt), onProgress),
+  /** Swaps one photo for a new file, keeping its place. */
+  replaceProductImage: (token: string | null, id: string, imageId: string, file: File, alt: string, onProgress?: (share: number) => void) =>
+    upload<SellerProductDetail>(`/seller/products/${enc(id)}/images/${enc(imageId)}`, "PUT", token, photoForm(file, alt), onProgress),
+  setImageAlt: (token: string | null, id: string, imageId: string, alt: string) =>
+    request<SellerProductDetail>(`/seller/products/${enc(id)}/images/${enc(imageId)}`, { token, method: "PATCH", body: { alt: alt.trim().slice(0, 200) || null }, authed: true }),
+  deleteProductImage: (token: string | null, id: string, imageId: string) =>
+    request<SellerProductDetail>(`/seller/products/${enc(id)}/images/${enc(imageId)}`, { token, method: "DELETE", authed: true }),
+  /** Every image id in the order to show them. The first is the cover. */
+  reorderImages: (token: string | null, id: string, imageIds: string[]) =>
+    request<SellerProductDetail>(`/seller/products/${enc(id)}/image-order`, { token, method: "PUT", body: { image_ids: imageIds }, authed: true }),
+  /** Adds or replaces the product's one video (MP4, MOV or WebM, 50 MB and 3 minutes at most). */
+  setProductVideo: (token: string | null, id: string, file: File, opts: { poster?: File | null; caption?: string }, onProgress?: (share: number) => void) => {
+    const kind = VIDEO_TYPES.find((t) => t === file.type);
+    if (!kind) return Promise.reject(new ApiError(422, "Videos must be MP4, MOV or WebM.", "bad_type"));
+    if (file.size > VIDEO_MAX_BYTES) return Promise.reject(new ApiError(422, "Videos can be up to 50 MB.", "too_big"));
     const form = new FormData();
-    form.append("cacheControl", "3600");
-    form.append("", file);
-    const res = await fetch(target, { method: "PUT", body: form, headers: { "x-upsert": "false" }, credentials: "omit", referrerPolicy: "no-referrer" });
-    if (!res.ok) throw new ApiError(res.status, "The photo didn't upload. Try again.", "upload_failed");
-    return pub.toString();
+    form.append("file", file, safeName(file.name, "video"));
+    if (opts.poster) {
+      checkPhoto(opts.poster);
+      form.append("poster", opts.poster, safeName(opts.poster.name, "poster"));
+    }
+    const caption = opts.caption?.trim().slice(0, 300);
+    if (caption) form.append("caption", caption);
+    return upload<SellerProductDetail>(`/seller/products/${enc(id)}/video`, "PUT", token, form, onProgress);
   },
+  deleteProductVideo: (token: string | null, id: string) =>
+    request<SellerProductDetail>(`/seller/products/${enc(id)}/video`, { token, method: "DELETE", authed: true }),
   sellerOrders: (token: string | null) =>
     get<S["Page_StoreOrder_"], Paged<SellerOrder>>(`/seller/orders${qs({ page_size: 100 })}`, { token, authed: true }, (p) => mapPage(p, toSellerOrder),
       () => page(demo.demoOrders().map((o, i): SellerOrder => ({
@@ -592,10 +795,33 @@ export const api = {
   updateSellerOrder: (token: string | null, storeOrderId: string, body: S["StoreOrderUpdate"]) =>
     get<S["StoreOrder"], SellerOrder>(`/seller/orders/${enc(storeOrderId)}`, { token, method: "PATCH", body, authed: true }, toSellerOrder,
       () => ({ id: storeOrderId, status: body.status ?? "processing", tracking_carrier: body.tracking_carrier, tracking_number: body.tracking_number }) as SellerOrder),
+  /**
+   * Riders a vendor can see: everyone on their deliveries plus riders on shift near the shop,
+   * nearest first. Older APIs only have /seller/riders/available, which lacks contact and
+   * position, so we fall back to that.
+   */
+  sellerRiders: async (token: string | null): Promise<Rider[]> => {
+    const demoList = (): SellerRiderRaw[] =>
+      logi.riders.filter((r) => r.status === "active").map((r, i) => ({
+        id: r.id, full_name: r.full_name, phone: r.phone, vehicle: r.vehicle, city: r.city, status: r.status, on_shift: r.on_shift,
+        lat: r.position?.lat, lng: r.position?.lng, last_seen_at: r.position?.at, active_deliveries: r.active_deliveries,
+        completed_deliveries: r.deliveries_completed, distance_km: r.on_shift ? 1.2 + i * 1.7 : null, eta_to_store_minutes: r.on_shift ? 6 + i * 5 : null,
+        relation: r.active_deliveries > 0 ? "on_job" : i % 3 === 1 ? "recent" : "nearby",
+      }));
+    try {
+      const raw = await request<SellerRiderRaw[] | { items: SellerRiderRaw[] }>(`/seller/riders`, { token, authed: true }, demoList);
+      return (Array.isArray(raw) ? raw : raw.items ?? []).slice(0, 200).map(toSellerRider).sort(byRelation);
+    } catch (e) {
+      if (!(e instanceof ApiError) || (e.status !== 404 && e.status !== 405)) throw e;
+      const avail = await request<S["AvailableRider"][]>(`/seller/riders/available`, { token, authed: true });
+      return avail.map((a) => toSellerRider({ ...a, on_shift: true })).sort(byDistance);
+    }
+  },
   availableRiders: (token: string | null) =>
     get<S["AvailableRider"][], AvailableRider[]>(`/seller/riders/available`, { token, authed: true }, (l) => l, () => logi.availableRiders),
-  dispatch: (token: string | null, storeOrderId: string, riderId: string, note?: string) =>
-    get<S["StoreOrder"], SellerOrder>(`/seller/orders/${enc(storeOrderId)}/dispatch`, { token, method: "POST", body: { rider_id: riderId, note: note || null }, authed: true }, toSellerOrder,
+  /** Hand an order to a rider. With no rider id the API picks the free rider nearest the shop. */
+  dispatch: (token: string | null, storeOrderId: string, riderId: string | null, note?: string) =>
+    get<S["StoreOrder"], SellerOrder>(`/seller/orders/${enc(storeOrderId)}/dispatch`, { token, method: "POST", body: { ...(riderId ? { rider_id: riderId } : {}), note: note || null }, authed: true }, toSellerOrder,
       () => ({ id: storeOrderId, status: "processing", delivery: { id: "d4", status: "assigned", rider_name: "Rider", rider_vehicle: "" } }) as SellerOrder),
   sellerDeliveries: (token: string | null) =>
     get<S["Page_StoreDelivery_"], Paged<Delivery>>(`/seller/deliveries${qs({ page_size: 100 })}`, { token, authed: true },
@@ -617,8 +843,17 @@ export const api = {
         price_cents: r.price_cents, reserved: r.reserved, sold_30d: r.sold_30d,
       })),
       () => page(logi.inventory, 1, 500)),
+  /** One variant's stock, through the inventory endpoint so the change lands in the history. */
   setStock: (token: string | null, variantId: string, stock: number) =>
-    request<unknown>(`/seller/variants/${enc(variantId)}`, { token, method: "PATCH", body: { stock }, authed: true }, () => ({})).then(() => stock),
+    request<unknown>(`/seller/inventory`, { token, method: "PATCH", body: { items: [{ variant_id: variantId, stock, reason: "Edited on the inventory page" }] }, authed: true }, () => ({})).then(() => stock),
+  updateVariant: (token: string | null, variantId: string, body: S["VariantUpdate"]) =>
+    request<unknown>(`/seller/variants/${enc(variantId)}`, { token, method: "PATCH", body, authed: true }, () => ({})),
+  /** Sets or adjusts stock for up to 200 variants. All or nothing; every change lands in the history. */
+  updateInventory: (token: string | null, items: S["StockChange"][]) =>
+    request<S["InventoryUpdateOut"]>(`/seller/inventory`, { token, method: "PATCH", body: { items: items.slice(0, 200) }, authed: true },
+      () => ({ items: [] }) as unknown as S["InventoryUpdateOut"]),
+  inventoryHistory: (token: string | null) =>
+    get<S["Page_InventoryAdjustment_"], Paged<S["InventoryAdjustment"]>>(`/seller/inventory/history${qs({ page_size: 50 })}`, { token, authed: true }, (p) => p, () => page([], 1, 50)),
   bookPlacement: (token: string | null, body: S["PlacementBookingIn"]) =>
     get<S["PlacementBooking"], PlacementBooking>(`/seller/placements`, { token, method: "POST", body, authed: true }, (b) => b,
       () => {
@@ -633,6 +868,8 @@ export const api = {
   applyRider: (token: string | null, body: S["RiderApplicationIn"]) =>
     get<S["RiderMe"], Rider>(`/rider/applications`, { token, method: "POST", body, authed: true }, toRider, () => ({ ...logi.riders[4], ...body, status: "applicant" }) as Rider),
   riderMe: (token: string | null) => get<S["RiderMe"], Rider>(`/rider/me`, { token, authed: true }, toRider, () => logi.riders[0]),
+  /** Raw application status, no demo fallback: 404 means no application yet. */
+  riderStatus: (token: string | null) => request<S["RiderMe"]>(`/rider/me`, { token, authed: true }),
   riderShift: (token: string | null, online: boolean) =>
     get<S["RiderMe"], Rider>(`/rider/shift`, { token, method: "POST", body: { online }, authed: true }, toRider, () => ({ ...logi.riders[0], on_shift: online })),
   riderDeliveries: (token: string | null) =>
@@ -688,7 +925,18 @@ export const api = {
   adminCancelOrder: (token: string | null, id: string) =>
     request<S["Order"]>(`/admin/orders/${enc(id)}/cancel`, { token, method: "POST", body: {}, authed: true }, () => ({}) as S["Order"]),
   adminSettings: (token: string | null) =>
-    get<S["SiteSettings"], Settings>(`/admin/settings`, { token, authed: true }, (s) => ({ ...s, maintenance_message: s.maintenance_message ?? "" }), () => logi.settings),
-  adminUpdateSettings: (token: string | null, body: S["SiteSettingsUpdate"]) =>
-    get<S["SiteSettings"], Settings>(`/admin/settings`, { token, method: "PATCH", body, authed: true }, (s) => ({ ...s, maintenance_message: s.maintenance_message ?? "" }), () => ({ ...logi.settings, ...(body as object) }) as Settings),
+    get<S["SiteSettings"], Settings>(`/admin/settings`, { token, authed: true }, toSettings, () => logi.settings),
+  /** Sends only the fields the API accepts (it rejects unknown ones such as currency or updated_at). */
+  adminUpdateSettings: (token: string | null, body: Partial<Settings>) => {
+    const patch = Object.fromEntries(
+      Object.entries(body).filter(([k, v]) => SETTINGS_KEYS.includes(k as keyof S["SiteSettingsUpdate"]) && v !== undefined),
+    ) as S["SiteSettingsUpdate"];
+    return get<S["SiteSettings"], Settings>(`/admin/settings`, { token, method: "PATCH", body: patch, authed: true }, toSettings, () => ({ ...logi.settings, ...(patch as object) }) as Settings);
+  },
 };
+
+const SETTINGS_KEYS: (keyof S["SiteSettingsUpdate"])[] = [
+  "maintenance_mode", "maintenance_message", "vendor_signups_open", "rider_signups_open",
+  "standard_shipping_cents", "express_shipping_cents", "free_shipping_over_cents", "rider_fee_cents", "tax_rate",
+  "contact_name", "contact_email", "contact_phone", "contact_whatsapp", "contact_note",
+];

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { compact } from "@/lib/format";
 import type { ProductCard as P } from "@/lib/types";
 import { safeColor } from "@/lib/safe";
-import { ProductImage } from "./product-art";
+import { ProductImage } from "./product-image";
 import { Price, Stars } from "./ui";
 import { CheckCircle } from "./icons";
 import { WishButton } from "./wish-button";

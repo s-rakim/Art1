@@ -3,16 +3,20 @@ import Link from "next/link";
 import { useState } from "react";
 import { ErrorLine, PageTitle, Table } from "@/components/dash";
 import { StatusTag } from "@/components/status-tag";
+import { Modal, ModalFooter } from "@/components/ui/modal";
 import { api, ApiError } from "@/lib/api";
 import { shortDate } from "@/lib/format";
 import type { AdminStore } from "@/lib/types";
 import { useApi } from "@/lib/use-api";
+import { useLiveReload } from "@/lib/live";
 
 type Change = { status?: "active" | "suspended" | "rejected"; plan_code?: string; review_note?: string };
 const str = (v: unknown) => (typeof v === "string" && v.trim() ? v : null);
 
 export default function AdminStores() {
-  const { data, setData, error, token } = useApi((t) => api.adminStores(t));
+  const { data, setData, error, token, reload } = useApi((t) => api.adminStores(t));
+  // A new stall application shows up without a refresh.
+  useLiveReload(["application"], reload, 60000, (e) => e.type === "application" && e.kind === "vendor");
   const plans = useApi((t) => api.adminPlans(t));
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -117,30 +121,30 @@ export default function AdminStores() {
         ))}
       </Table>
 
-      {asking && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center" role="dialog" aria-modal="true" aria-label={`${asking.status === "rejected" ? "Reject" : "Suspend"} ${asking.store.name}`}>
-          <div className="absolute inset-0 bg-black/50" onClick={() => setAsking(null)} />
+      <Modal
+        open={!!asking}
+        onClose={() => setAsking(null)}
+        busy={!!asking && busy === asking.store.id}
+        title={asking ? `${asking.status === "rejected" ? "Reject" : "Suspend"} ${asking.store.name}` : ""}
+      >
+        {asking && (
           <form
-            className="modal relative w-full max-w-md overflow-hidden"
             onSubmit={(e) => {
               e.preventDefault();
               update(asking.store, { status: asking.status, review_note: note.trim() });
             }}
           >
-            <div className="border-b border-border p-4">
-              <p className="heading text-[20px]">{asking.status === "rejected" ? "Reject" : "Suspend"} {asking.store.name}</p>
-              <p className="text-[13px] text-maxcontrast">{asking.status === "suspended" ? "Their listings disappear right away and rent stops." : "They can see this note and apply again."}</p>
-            </div>
+            <p className="px-4 text-[14px] text-maxcontrast">{asking.status === "suspended" ? "Their listings disappear right away and rent stops." : "They can see this note and apply again."}</p>
             <label className="block p-4"><span className="label">Reason the vendor will see</span>
               <textarea required minLength={5} maxLength={500} rows={3} className="field mt-1" value={note} onChange={(e) => setNote(e.target.value)} />
             </label>
-            <div className="flex justify-end gap-2 border-t border-border p-4">
+            <ModalFooter>
               <button type="button" onClick={() => setAsking(null)} className="btn btn-tertiary">Cancel</button>
-              <button disabled={busy === asking.store.id} className="btn btn-primary">{asking.status === "rejected" ? "Reject" : "Suspend"}</button>
-            </div>
+              <button disabled={busy === asking.store.id} className="btn btn-error">{asking.status === "rejected" ? "Reject" : "Suspend"}</button>
+            </ModalFooter>
           </form>
-        </div>
-      )}
+        )}
+      </Modal>
     </>
   );
 }
