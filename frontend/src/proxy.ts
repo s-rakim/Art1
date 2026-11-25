@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { MAP_STYLE, MAP_STYLE_DARK } from "@/lib/config";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
@@ -8,7 +9,8 @@ const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1"
 const tiles = process.env.NEXT_PUBLIC_MAP_TILES || "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 
 const GUARDED = ["/account", "/orders", "/seller", "/admin", "/checkout", "/wishlist", "/rider"];
-// Application forms need a signed-in user but not an approved role.
+// The rider hiring form is where people without an account apply, so it stays open.
+const OPEN = ["/rider/apply"];
 
 function origin(u: string) {
   try {
@@ -22,12 +24,16 @@ function buildCsp(nonce: string) {
   const dev = process.env.NODE_ENV === "development";
   const sb = origin(supabaseUrl);
   const tileOrigin = origin(tiles.replace(/\{[a-z]\}/g, "a"));
+  // The vector style, its tiles, fonts and sprites all come from the style's own host.
+  const styleOrigins = [MAP_STYLE, MAP_STYLE_DARK].map(origin).filter(Boolean).join(" ");
   const api = origin(apiUrl);
   // The API's tracking websocket lives on the same host, over ws:// or wss://.
-  const connect = ["'self'", api, api && api.replace(/^http/, "ws"), sb, sb && sb.replace(/^http/, "ws"), tileOrigin].filter(Boolean).join(" ");
-  const img = ["'self'", "data:", "blob:", sb, tileOrigin, process.env.NEXT_PUBLIC_IMAGE_HOST ? `https://${process.env.NEXT_PUBLIC_IMAGE_HOST}` : ""]
+  const connect = ["'self'", api, api && api.replace(/^http/, "ws"), sb, sb && sb.replace(/^http/, "ws"), tileOrigin, styleOrigins].filter(Boolean).join(" ");
+  const img = ["'self'", "data:", "blob:", sb, tileOrigin, styleOrigins, process.env.NEXT_PUBLIC_IMAGE_HOST ? `https://${process.env.NEXT_PUBLIC_IMAGE_HOST}` : ""]
     .filter(Boolean)
     .join(" ");
+  // Product videos come from the same storage host as photos; blob: is the editor's local preview.
+  const media = ["'self'", "blob:", sb, process.env.NEXT_PUBLIC_IMAGE_HOST ? `https://${process.env.NEXT_PUBLIC_IMAGE_HOST}` : ""].filter(Boolean).join(" ");
   return [
     `default-src 'self'`,
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`,
@@ -36,6 +42,7 @@ function buildCsp(nonce: string) {
     `style-src 'self' 'nonce-${nonce}'${dev ? " 'unsafe-inline'" : ""}`,
     `style-src-attr 'unsafe-inline'`,
     `img-src ${img}`,
+    `media-src ${media}`,
     `font-src 'self'`,
     `connect-src ${connect}`,
     `object-src 'none'`,
@@ -80,7 +87,8 @@ export async function proxy(request: NextRequest) {
     // getUser() validates the JWT with Supabase; getSession() alone would trust the cookie.
     const { data } = await sb.auth.getUser();
     const path = request.nextUrl.pathname;
-    if (!data.user && GUARDED.some((p) => path === p || path.startsWith(`${p}/`))) {
+    const under = (p: string) => path === p || path.startsWith(`${p}/`);
+    if (!data.user && GUARDED.some(under) && !OPEN.some(under)) {
       const login = request.nextUrl.clone();
       login.pathname = "/login";
       login.search = "";
@@ -99,6 +107,6 @@ export const config = {
   matcher: [
     // Prefetches go through the proxy too, so nobody can skip the auth check or forge
     // the x-pathname header by sending a prefetch-looking request.
-    "/((?!_next/static|_next/image|favicon.ico|icon.svg|robots.txt|vendor/|img/).*)",
+    "/((?!_next/static|_next/image|favicon.ico|icon.png|apple-icon.png|robots.txt|vendor/|img/).*)",
   ],
 };

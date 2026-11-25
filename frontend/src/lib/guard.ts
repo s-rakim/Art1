@@ -40,10 +40,22 @@ export async function requireUser(nextPath: string, gate?: Gate): Promise<Guarde
   const raw = Array.isArray(meta.roles) ? meta.roles : typeof meta.role === "string" ? [meta.role] : [];
   let roles = raw.filter((r): r is string => typeof r === "string").map(norm);
 
+  // Rider applicants can't use the site until they're hired. The API refuses them anyway
+  // (403 rider_not_hired); this just sends them to the page that explains where they stand.
+  if (data.user.user_metadata?.requested_role === "rider" && !roles.some((r) => r === "rider" || r === "vendor" || r === "admin")) {
+    redirect("/rider/apply");
+  }
+
   if (gate && !allowed(roles, gate)) {
     const token = await serverToken();
-    const fresh = token ? await api.role(token).catch(() => null) : null;
-    if (fresh) roles = Array.from(new Set([...roles, norm(fresh)]));
+    const me = token ? await api.me(token).catch(() => null) : null;
+    if (me) roles = Array.from(new Set([...roles, norm(me.role)]));
+    // A stall that's waiting for review already has a dashboard: the vendor can fill in the
+    // shop and draft products while the market team looks. The API lets them do exactly that
+    // and nothing more (going live, orders and payouts wait for approval).
+    if (gate === "vendor" && me?.store && (me.store.status === "pending" || me.store.status === "active")) {
+      return { demo: false, email: data.user.email ?? null, roles: Array.from(new Set([...roles, "vendor"])) };
+    }
   }
 
   if (gate === "admin" && !allowed(roles, "admin")) notFound();

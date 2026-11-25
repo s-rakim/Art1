@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { ErrorLine, PageTitle, Table } from "@/components/dash";
-import { ProductImage } from "@/components/product-art";
+import { ProductImage } from "@/components/product-image";
 import { StatusTag } from "@/components/status-tag";
 import { api, ApiError } from "@/lib/api";
 import { compact, money } from "@/lib/format";
@@ -42,12 +42,13 @@ export default function SellerProducts() {
         {(data?.items ?? []).map((p) => (
           <tr key={p.id}>
             <td className="w-14 px-3 py-2"><div className="h-14 w-11 overflow-hidden bg-background-hover"><ProductImage src={p.image_url} art={p.art} alt={p.title} /></div></td>
-            <td className="px-3 py-2">{p.title}</td>
+            <td className="px-3 py-2"><Link href={`/seller/products/${encodeURIComponent(p.id)}`} className="font-semibold hover:underline">{p.title}</Link></td>
             <td className="px-3 py-2"><StatusTag status={p.status} /></td>
             <td className="price px-3 py-2">{p.price_cents !== null ? money(p.price_cents) : "No price"}</td>
             <td className={`px-3 py-2 tabular-nums text-[13px] ${p.stock === 0 ? "text-text-error" : ""}`}>{p.stock}</td>
             <td className="px-3 py-2 tabular-nums text-[13px]">{compact(p.sold_count)}</td>
             <td className="space-x-3 whitespace-nowrap px-3 py-2 text-right text-[13px]">
+              <Link href={`/seller/products/${encodeURIComponent(p.id)}`} className="link-u">Edit</Link>
               {p.status === "active" ? (
                 <>
                   <Link href={`/p/${p.slug}`} className="link-u">View</Link>

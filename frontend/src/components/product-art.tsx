@@ -1,5 +1,5 @@
 import type { ArtShape, ProductArt as Art } from "@/lib/types";
-import { safeColor, safeImageUrl } from "@/lib/safe";
+import { safeColor } from "@/lib/safe";
 
 // Flat catalogue illustrations, drawn when a listing has no photo yet.
 // Each shape is a single silhouette on a coloured backdrop with a floor shadow.
@@ -33,15 +33,4 @@ export function ProductArt({ art, className, label }: { art?: Art; className?: s
       {shapes[a.shape](a.fg)}
     </svg>
   );
-}
-
-export function ProductImage({
-  src, art, alt, className,
-}: { src?: string | null; art?: Art; alt: string; className?: string }) {
-  const url = safeImageUrl(src);
-  if (url) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={url} alt={alt} referrerPolicy="no-referrer" loading="lazy" className={`h-full w-full object-cover ${className ?? ""}`} />;
-  }
-  return <ProductArt art={art} label={alt} className={`h-full w-full ${className ?? ""}`} />;
 }

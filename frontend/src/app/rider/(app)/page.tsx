@@ -6,7 +6,9 @@ import { Pin } from "@/components/icons";
 import { api, ApiError } from "@/lib/api";
 import { money } from "@/lib/format";
 import type { Delivery, LatLng } from "@/lib/types";
+import { useBrowserFact } from "@/lib/hooks";
 import { useApi } from "@/lib/use-api";
+import { useLiveReload } from "@/lib/live";
 
 // The API asks for a position every 10 to 15 seconds while on shift.
 const SEND_EVERY_MS = 12000;
@@ -28,7 +30,9 @@ function routeUrl(from: LatLng | null, d: Delivery) {
 export default function RiderHome() {
   const me = useApi((t) => api.riderMe(t));
   const jobs = useApi((t) => api.riderDeliveries(t));
-  const [onShift, setOnShift] = useState(false);
+  // The server is the record of whether this rider is on shift.
+  const onShift = me.data?.on_shift ?? false;
+  const canLocate = useBrowserFact(() => "geolocation" in navigator, true);
   const [switching, setSwitching] = useState(false);
   const [pos, setPos] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
   const [geoError, setGeoError] = useState<string | null>(null);
@@ -40,18 +44,12 @@ export default function RiderHome() {
   const lastSent = useRef(0);
   const watch = useRef<number | null>(null);
 
-  useEffect(() => {
-    if (me.data) setOnShift(me.data.on_shift);
-  }, [me.data]);
-
   async function toggleShift() {
     const next = !onShift;
     setSwitching(true);
     setMsg(null);
     try {
-      const r = await api.riderShift(jobs.token, next);
-      setOnShift(r.on_shift);
-      me.setData(r);
+      me.setData(await api.riderShift(jobs.token, next));
     } catch (e) {
       setMsg(e instanceof ApiError ? e.message : "Couldn't change your shift. Check your signal.");
     } finally {
@@ -61,13 +59,9 @@ export default function RiderHome() {
 
   // Location is only read and shared while the rider is on shift.
   useEffect(() => {
-    if (!onShift) {
+    if (!onShift || !canLocate) {
       if (watch.current !== null) navigator.geolocation.clearWatch(watch.current);
       watch.current = null;
-      return;
-    }
-    if (!("geolocation" in navigator)) {
-      setGeoError("This browser can't share location.");
       return;
     }
     watch.current = navigator.geolocation.watchPosition(
@@ -79,7 +73,8 @@ export default function RiderHome() {
         if (now - lastSent.current >= SEND_EVERY_MS) {
           lastSent.current = now;
           const heading = p.coords.heading !== null && Number.isFinite(p.coords.heading) ? p.coords.heading : null;
-          api.riderLocation(jobs.token, { lat: next.lat, lng: next.lng, accuracy_m: Math.round(next.accuracy), heading }).catch(() => {});
+          const speed = p.coords.speed !== null && Number.isFinite(p.coords.speed) && p.coords.speed >= 0 ? p.coords.speed : null;
+          api.riderLocation(jobs.token, { lat: next.lat, lng: next.lng, accuracy_m: Math.round(next.accuracy), heading, speed_mps: speed }).catch(() => {});
         }
       },
       (err) => setGeoError(err.code === err.PERMISSION_DENIED ? "Location permission is off. Turn it on so stores and customers can see you coming." : "Can't get a GPS fix right now."),
@@ -88,12 +83,10 @@ export default function RiderHome() {
     return () => {
       if (watch.current !== null) navigator.geolocation.clearWatch(watch.current);
     };
-  }, [onShift, jobs.token]);
+  }, [onShift, canLocate, jobs.token]);
 
-  useEffect(() => {
-    const t = setInterval(jobs.reload, 20000);
-    return () => clearInterval(t);
-  }, [jobs.reload]);
+  // New jobs and changes from the shop or customer arrive live; polling covers a dropped socket.
+  useLiveReload(["job", "order"], jobs.reload, 20000);
 
   async function act(d: Delivery, action: Action, extra: { code?: string; note?: string } = {}) {
     setBusy(d.id);
@@ -155,7 +148,7 @@ export default function RiderHome() {
           <span>Sharing your location with the market, and with the store and customer on your job, while you&apos;re on shift.{pos && <span className="ml-1 text-maxcontrast tabular-nums">±{Math.round(pos.accuracy)}m</span>}</span>
         </p>
       )}
-      <ErrorLine error={geoError ?? msg ?? jobs.error} />
+      <ErrorLine error={(onShift && !canLocate ? "This browser can't share location." : geoError) ?? msg ?? jobs.error} />
 
       {pins.length > 0 && <DeliveryMap pins={pins} lines={lines} follow={here ? "me" : undefined} className="mb-6 h-[300px]" />}
 

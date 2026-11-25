@@ -3,8 +3,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Message } from "@/components/icons";
 import { ProductGrid } from "@/components/product-card";
+import { StoreSwitcher } from "@/components/store-switcher";
 import { Breadcrumbs } from "@/components/ui";
 import { api } from "@/lib/api";
+import { forSwitcher } from "@/lib/switcher";
 import { compact, pct, shortDate } from "@/lib/format";
 import { parseQuery, type SP } from "@/lib/query";
 import { safeSlug } from "@/lib/safe";
@@ -26,11 +28,18 @@ export default async function StorePage({ params, searchParams }: { params: Para
   const sp = await searchParams;
   const query = parseQuery(sp, { store: store.slug, page_size: 48 });
   const sort = query.sort ?? "popular";
-  const products = await api.products({ ...query, sort });
+  const [products, all] = await Promise.all([api.products({ ...query, sort }), api.stores().catch(() => null)]);
+  const stalls = (all?.items ?? []).filter((s) => s.status === undefined || s.status === "active").map(forSwitcher);
 
   return (
     <>
       <div className="px-4 pt-4 md:px-6"><Breadcrumbs items={[["Home", "/"], ["Stores", "/stores"], [store.name]]} /></div>
+      {stalls.length > 2 && (
+        <div className="px-4 pb-2 md:px-6">
+          {/* Keyed by stall so arriving from anywhere else starts with this stall in front. */}
+          <StoreSwitcher key={store.slug} stores={stalls} current={store.slug} compactCards />
+        </div>
+      )}
       {/* Laid out like a Nextcloud profile page: a primary band with a large avatar. */}
       <section className="mx-4 rounded-large bg-primary-element text-primary-element-text md:mx-6">
         <div className="px-5 pt-6 pb-6 md:px-7">
@@ -98,7 +107,7 @@ export default async function StorePage({ params, searchParams }: { params: Para
               {store.response_rate != null ? `${store.name} replies to ${pct(store.response_rate)} of messages, usually within a day. ` : ""}
               Messages go through the marketplace so we can help if anything goes wrong.
             </p>
-            <Link href={`/login?next=${encodeURIComponent(`/s/${store.slug}#contact`)}`} className="btn btn-primary mt-4">Sign in to message the seller</Link>
+            <Link href={`/login?next=${encodeURIComponent(`/s/${store.slug}#contact`)}`} className="btn btn-primary mt-4">Log in to message the seller</Link>
           </div>
         </section>
       </div>

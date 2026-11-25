@@ -1,16 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Fragment } from "react";
 import { notFound } from "next/navigation";
 import { BuyBox } from "@/components/buy-box";
 import { CheckCircle, Message, Return, Shield, Truck } from "@/components/icons";
-import { ProductImage } from "@/components/product-art";
+import { ProductImage } from "@/components/product-image";
 import { Avatar } from "@/components/widget";
 import { ProductCard } from "@/components/product-card";
 import { TrackView } from "@/components/recently-viewed";
 import { Breadcrumbs, SectionHead, Stars } from "@/components/ui";
-import { api } from "@/lib/api";
-import { compact, pct, shortDate } from "@/lib/format";
-import { safeSlug } from "@/lib/safe";
+import { api, EMPTY_SITE } from "@/lib/api";
+import { compact, money, pct, shortDate } from "@/lib/format";
+import { safeImageUrl, safeSlug } from "@/lib/safe";
 
 type Params = Promise<{ slug: string }>;
 
@@ -29,18 +30,22 @@ export default async function ProductPage({ params }: { params: Params }) {
   const product = await load((await params).slug);
   if (!product) notFound();
 
-  const [reviews, store, more, similar, categories] = await Promise.all([
+  const [reviews, store, more, similar, categories, site] = await Promise.all([
     api.reviews(product.slug),
     api.store(product.store.slug),
     api.products({ store: product.store.slug, page_size: 5, sort: "popular" }),
     api.products({ category: product.category_slug, page_size: 6, sort: "rating" }),
     api.categories(),
+    api.status().catch(() => EMPTY_SITE),
   ]);
   const cat = categories.find((c) => c.slug === product.category_slug);
   const breakdown = product.rating_breakdown;
   const totalRatings = breakdown ? Object.values(breakdown).reduce((a, b) => a + b, 0) : 0;
   const gallery = product.images.length ? product.images : [null, null, null];
   const delivery = product.delivery_days;
+  const videoUrl = product.video ? safeImageUrl(product.video.url) : null;
+  const video = product.video && videoUrl ? { ...product.video, url: videoUrl } : null;
+  const videoPoster = product.video?.poster_url ? safeImageUrl(product.video.poster_url) : null;
 
   return (
     <div className="px-4 py-5 md:px-6 pb-28 md:pb-6">
@@ -51,13 +56,24 @@ export default async function ProductPage({ params }: { params: Params }) {
         {/* Gallery */}
         <div className="grid grid-cols-2 gap-2">
           {gallery.slice(0, 4).map((src, i) => (
-            <div key={i} className={`overflow-hidden rounded-container bg-background-dark ${i === 0 ? "col-span-2 aspect-[5/4]" : "aspect-square"}`}>
-              <ProductImage
-                src={src}
-                art={product.art && (i === 0 ? product.art : { ...product.art, bg: ["#e5ddd0", "#dcd6c7", "#d8ddd4"][i % 3], fg: product.colors?.[i % (product.colors.length || 1)] ?? product.art.fg })}
-                alt={`${product.title}, view ${i + 1}`}
-              />
-            </div>
+            <Fragment key={i}>
+              <div className={`overflow-hidden rounded-container bg-background-dark ${i === 0 ? "col-span-2 aspect-[5/4]" : "aspect-square"}`}>
+                <ProductImage
+                  src={src}
+                  art={product.art && (i === 0 ? product.art : { ...product.art, bg: ["#e5ddd0", "#dcd6c7", "#d8ddd4"][i % 3], fg: product.colors?.[i % (product.colors.length || 1)] ?? product.art.fg })}
+                  alt={product.image_alts?.[i] || `${product.title}, view ${i + 1}`}
+                />
+              </div>
+              {i === 0 && video && (
+                <figure className="col-span-2">
+                  {/* Plays only when the shopper presses play: no autoplay, nothing downloaded until then. */}
+                  <video controls playsInline preload="none" poster={videoPoster ?? undefined} className="aspect-video w-full rounded-container bg-black" aria-label={`Video of ${product.title}`}>
+                    <source src={video.url} type={video.content_type} />
+                  </video>
+                  {video.caption && <figcaption className="mt-1.5 text-[13px] text-maxcontrast">{video.caption}</figcaption>}
+                </figure>
+              )}
+            </Fragment>
           ))}
         </div>
 
@@ -80,7 +96,7 @@ export default async function ProductPage({ params }: { params: Params }) {
               <Truck size={20} className="shrink-0 text-maxcontrast" />
               <span>
                 {delivery ? <>Arrives in <b>{delivery[0]}–{delivery[1]} days</b></> : "Ships soon"} from {product.ships_from ?? "the seller"}.
-                Free over $50 from this store.
+                {site.free_shipping_over_cents != null && <> Free over {money(site.free_shipping_over_cents)} from this store.</>}
               </span>
             </li>
             <li className="flex gap-3 py-3"><Return size={20} className="shrink-0 text-maxcontrast" /><span>Free returns within 30 days of delivery.</span></li>

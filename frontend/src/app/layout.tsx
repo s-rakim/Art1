@@ -3,7 +3,9 @@ import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import { GuestFrame } from "@/components/guest-frame";
 import { CartDrawer } from "@/components/cart-drawer";
-import { api } from "@/lib/api";
+import { api, EMPTY_SITE } from "@/lib/api";
+import { SiteProvider } from "@/components/site-context";
+import { SiteBackground } from "@/components/site-background";
 import { STORE_NAME } from "@/lib/config";
 
 export const metadata: Metadata = {
@@ -18,14 +20,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // Reading headers opts every page into dynamic rendering, which the per-request CSP nonce needs.
   const h = await headers();
   const path = h.get("x-pathname") ?? "/";
-  const status = await api.status().catch(() => ({ maintenance_mode: false, maintenance_message: "" }));
+  const status = await api.status().catch(() => EMPTY_SITE);
   const closed = status.maintenance_mode && !/^\/(admin|login)(\/|$)/.test(path);
   return (
     <html lang="en">
       <body>
+        <SiteBackground />
         <a href="#main" className="sr-only rounded-element focus:not-sr-only focus:fixed focus:top-1.5 focus:left-1.5 focus:z-[60] focus:bg-main-background focus:px-3 focus:py-2 focus:text-main-text">
           Skip to content
         </a>
+        <SiteProvider site={status}>
         {closed ? (
           <GuestFrame>
             <h1 className="heading text-[20px]">Down for maintenance</h1>
@@ -35,6 +39,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           children
         )}
         <CartDrawer />
+        </SiteProvider>
       </body>
     </html>
   );

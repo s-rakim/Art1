@@ -5,12 +5,15 @@ import { StatusTag } from "@/components/status-tag";
 import { api } from "@/lib/api";
 import { money, shortDate } from "@/lib/format";
 import { useApi } from "@/lib/use-api";
+import { useLiveReload } from "@/lib/live";
 
 export default function SellerOverview() {
   const me = useApi((t) => api.sellerMe(t));
   const stats = useApi((t) => api.sellerStats(t));
   const orders = useApi((t) => api.sellerOrders(t));
   const inv = useApi((t) => api.sellerInventory(t));
+  useLiveReload(["order", "job"], () => (orders.reload(), stats.reload()), 60000);
+  useLiveReload(["stock"], inv.reload, 0);
   const s = stats.data;
   const store = me.data?.store;
   const low = inv.data?.items.filter((r) => r.low_stock) ?? [];

@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { money } from "@/lib/format";
 import type { ProductCard } from "@/lib/types";
 import { CheckCircle } from "./icons";
-import { ProductImage } from "./product-art";
+import { ProductImage } from "./product-image";
 
 /** NcDashboardWidget: a see-through white panel on the wallpaper, a bold title and a short list. */
 export function Widget({ title, icon, more, children }: { title: string; icon: ReactNode; more?: { href: string; label: string }; children: ReactNode }) {

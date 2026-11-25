@@ -1,7 +1,8 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRecent } from "@/store/cart";
+import { useHydrated } from "@/lib/hooks";
 
 export function TrackView({ slug }: { slug: string }) {
   const push = useRecent((s) => s.push);
@@ -10,8 +11,7 @@ export function TrackView({ slug }: { slug: string }) {
 }
 
 export function RecentlyViewed({ titles }: { titles: Record<string, string> }) {
-  const [h, setH] = useState(false);
-  useEffect(() => setH(true), []);
+  const h = useHydrated();
   const slugs = useRecent((s) => s.slugs).filter((s) => titles[s]);
   if (!h || slugs.length === 0) return null;
   return (

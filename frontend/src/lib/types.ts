@@ -50,9 +50,21 @@ export type ProductCard = {
   sponsored?: boolean;
 };
 
+/** One clip per product, shown next to the photos. Played only when the shopper taps play. */
+export type ProductVideo = {
+  id: string;
+  url: string;
+  poster_url: string | null;
+  content_type: string;
+  duration_s: number | null;
+  caption: string | null;
+};
+
 export type Product = ProductCard & {
   description: string;
   images: string[];
+  image_alts?: (string | null)[];
+  video?: ProductVideo | null;
   variants: Variant[];
   price_tiers?: PriceTier[];
   specs?: Record<string, string>;
@@ -88,17 +100,23 @@ export type Store = StoreSummary & {
   status?: string;
 };
 
+/**
+ * A stall plan. The public list (GET /plans) carries no prices: rent and commission are agreed
+ * with the market team, so those fields are null there. Admin and seller reads include them.
+ */
 export type Plan = {
   id: string; // backend row id, used for admin edits
   code: string; // stable code, used in URLs and applications
   name: string;
-  monthly_price_cents: number;
-  commission_rate: number; // 0.08 = 8%
-  per_item_fee_cents?: number;
+  description?: string | null;
+  monthly_price_cents: number | null;
+  commission_rate: number | null; // 0.08 = 8%
+  per_item_fee_cents?: number | null;
   product_limit: number | null;
   featured_slots?: number;
   features: string[];
   highlighted?: boolean;
+  price_on_request?: boolean;
 };
 
 /** A kind of rentable space (homepage shelf, category banner…), sold by the day. */
@@ -304,10 +322,17 @@ export type Rider = {
   active_deliveries: number;
   earnings_cents?: number;
   unpaid_earnings_cents?: number;
-  position: (LatLng & { at: string | null }) | null;
+  position: (LatLng & { at: string | null; heading?: number | null }) | null;
   applied_at: string;
+  /** Vendor view: how far the rider is from the shop right now. */
+  distance_km?: number | null;
+  eta_to_store_minutes?: number | null;
   review_note?: string | null;
   licence_number?: string | null;
+  /** Vendor view: why this rider is listed (carrying an order now, delivered lately, or just near). */
+  relation?: "on_job" | "recent" | "nearby";
+  /** Vendor view: this rider's latest jobs for the store. */
+  jobs?: { delivery_id: string; order_number: string; status: string; assigned_at: string; delivered_at: string | null }[];
 };
 
 export type DeliveryStatus = "awaiting_rider" | "assigned" | "accepted" | "declined" | "picked_up" | "delivered" | "failed" | "canceled";
@@ -322,7 +347,7 @@ export type Delivery = {
   dropoff: MapPoint | null;
   dropoff_address?: string | null;
   rider: { id: string; name: string; vehicle: string } | null;
-  rider_position: (LatLng & { at: string | null }) | null;
+  rider_position: (LatLng & { at: string | null; heading?: number | null; speed_kmh?: number | null }) | null;
   eta_minutes: number | null;
   fee_cents?: number;
   cash_to_collect_cents?: number;
@@ -332,7 +357,7 @@ export type Delivery = {
   created_at: string;
 };
 
-export type LiveRider = { id: string; name: string; vehicle: string; lat: number | null; lng: number | null; busy: boolean };
+export type LiveRider = { id: string; name: string; vehicle: string; lat: number | null; lng: number | null; busy: boolean; heading?: number | null };
 
 export type DeliveryTrack = {
   delivery_id: string | null;
@@ -340,7 +365,7 @@ export type DeliveryTrack = {
   status: string;
   eta_minutes: number | null;
   rider: { name: string; phone_masked: string | null; vehicle: string } | null;
-  rider_position: (LatLng & { at: string | null }) | null;
+  rider_position: (LatLng & { at: string | null; heading?: number | null; speed_kmh?: number | null }) | null;
   pickup: MapPoint | null;
   dropoff: MapPoint | null;
   handover_code: string | null;
@@ -403,12 +428,37 @@ export type AdminOrder = {
   stores: number;
 };
 
+/** Delivery fees, all set by the admin. Null means "not set", and the app shows no amount. */
+export type Fees = {
+  currency: string;
+  standard_shipping_cents: number | null;
+  express_shipping_cents: number | null;
+  /** A store's items above this ship free with standard delivery. Null: never free. */
+  free_shipping_over_cents: number | null;
+  /** What the rider is paid per delivery. */
+  rider_fee_cents: number | null;
+  /** 0.075 = 7.5%. Null: no tax added. */
+  tax_rate: number | null;
+};
+
+/** Who would-be vendors talk to about renting a stall. Set by the admin. */
+export type Contact = {
+  contact_name: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  contact_whatsapp: string | null;
+  contact_note: string | null;
+};
+
+/** Public site state every page can read: maintenance switch, fees and the market contact. */
+export type SiteInfo = { maintenance_mode: boolean; maintenance_message: string } & Fees & Contact;
+
 export type Settings = {
   maintenance_mode: boolean;
   maintenance_message: string;
   vendor_signups_open: boolean;
   rider_signups_open: boolean;
-};
+} & Partial<Fees & Contact>;
 
 // Visual stand-in for a product photo when the seller hasn't uploaded one.
 export type ProductArt = { shape: ArtShape; bg: string; fg: string };

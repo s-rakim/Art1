@@ -1,9 +1,13 @@
 "use client";
-import { useState } from "react";
-import { ErrorLine, PageTitle, Table } from "@/components/dash";
-import { StatusTag } from "@/components/status-tag";
+import { useCallback, useMemo, useState } from "react";
+import { ErrorLine, PageTitle } from "@/components/dash";
+import { DeliveryMap, type MapPin } from "@/components/delivery-map";
+import { LiveDot } from "@/components/live-refresh";
+import { RidersList } from "@/components/riders-list";
+import { Modal, ModalFooter } from "@/components/ui/modal";
 import { api, ApiError } from "@/lib/api";
 import { money, shortDate } from "@/lib/format";
+import { useLiveReload, useLiveTracking, type LiveEvent } from "@/lib/live";
 import type { Rider } from "@/lib/types";
 import { useApi } from "@/lib/use-api";
 
@@ -16,6 +20,18 @@ export default function AdminRiders() {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [asking, setAsking] = useState<{ rider: Rider; status: Next } | null>(null);
   const [note, setNote] = useState("");
+
+  // New applications land in the queue live; rider dots move with the whole-market feed.
+  const appsLive = useLiveReload(["application"], () => (apps.reload(), crew.reload()), 30000, (e) => e.type === "application" && e.kind === "rider");
+  const move = useCallback(
+    (e: LiveEvent) => {
+      if (e.type !== "rider_location") return;
+      crew.setData((d) => d && { ...d, items: d.items.map((r) => (r.id === e.rider_id ? { ...r, position: { lat: e.lat, lng: e.lng, at: e.at, heading: r.position?.heading } } : r)) });
+    },
+    [crew],
+  );
+  const mapLive = useLiveTracking(crew.token, { admin: true }, move);
+  useLiveReload([], crew.reload, mapLive ? 60000 : 15000);
 
   async function setStatus(r: Rider, status: Next, review_note?: string) {
     setBusy(r.id);
@@ -48,17 +64,29 @@ export default function AdminRiders() {
   }
 
   const applicants = apps.data?.items ?? [];
-  const team = crew.data?.items ?? [];
+  const team = useMemo(() => [...(crew.data?.items ?? [])].sort((a, b) => Number(b.on_shift) - Number(a.on_shift) || b.active_deliveries - a.active_deliveries || a.full_name.localeCompare(b.full_name)), [crew.data]);
+  const pins = useMemo<MapPin[]>(
+    () => team.filter((r) => r.status === "active" && r.on_shift && r.position).map((r) => ({ id: r.id, kind: r.active_deliveries > 0 ? "rider" : "idle", label: r.full_name, lat: r.position!.lat, lng: r.position!.lng, heading: r.position!.heading })),
+    [team],
+  );
 
   return (
     <>
-      <PageTitle title="Riders" kicker={`${team.filter((r) => r.on_shift && r.status === "active").length} on shift now · ${applicants.length} applying`} />
+      <PageTitle
+        title="Riders and hiring"
+        kicker={`${team.filter((r) => r.on_shift && r.status === "active").length} on shift now · ${applicants.length} waiting for a decision`}
+        action={<LiveDot live={appsLive || mapLive} />}
+      />
       <ErrorLine error={crew.error ?? apps.error} />
       {msg && <p role="status" className={`mb-4 border-l-2 pl-3 text-[13px] ${msg.ok ? "border-element-success text-text-success" : "border-element-error text-text-error"}`}>{msg.text}</p>}
 
-      {applicants.length > 0 && (
-        <section className="mb-10">
-          <p className="label mb-2">Hiring queue</p>
+      <section className="mb-10" aria-labelledby="apps-h">
+        <h2 id="apps-h" className="heading mb-1 flex items-center gap-2 text-[18px]">
+          Rider applications {applicants.length > 0 && <span className="counter counter-highlighted">{applicants.length}</span>}
+        </h2>
+        <p className="mb-3 text-[14px] text-maxcontrast">People who filled in the hiring form. Nobody can log in as a rider until you hire them here.</p>
+        {applicants.length === 0 && apps.data && <p className="rounded-container border border-dashed border-border-dark px-4 py-6 text-center text-[14px] text-maxcontrast">No applications waiting. New ones appear here as soon as they&apos;re sent.</p>}
+        {applicants.length > 0 && (
           <ul className="grid gap-3 md:grid-cols-2">
             {applicants.map((r) => (
               <li key={r.id} className="card p-4">
@@ -78,59 +106,59 @@ export default function AdminRiders() {
               </li>
             ))}
           </ul>
-        </section>
-      )}
+        )}
+      </section>
 
-      <Table head={["Rider", "Vehicle", "City", "On a job", "Delivered", "Status", ""]}>
-        {team.map((r) => (
-          <tr key={r.id}>
-            <td className="px-3 py-2.5">{r.full_name}<span className="block text-[12px] text-maxcontrast">{r.phone}</span></td>
-            <td className="px-3 py-2.5 capitalize">{r.vehicle.replace(/_/g, " ")}</td>
-            <td className="px-3 py-2.5">{r.city}</td>
-            <td className="px-3 py-2.5 tabular-nums text-[13px]">{r.active_deliveries}</td>
-            <td className="px-3 py-2.5 tabular-nums text-[13px]">{r.deliveries_completed.toLocaleString("en-US")}</td>
-            <td className="px-3 py-2.5">
-              {r.status === "active" ? <span className={`chip chip-error ${r.on_shift ? "chip-success" : "chip-primary"}`}>{r.on_shift ? "ON SHIFT" : "OFF SHIFT"}</span> : <StatusTag status={r.status} />}
-              {r.position?.at && r.on_shift && <span className="mt-1 block tabular-nums text-[12px] text-maxcontrast" suppressHydrationWarning>seen {new Date(r.position.at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</span>}
-            </td>
-            <td className="space-x-1 whitespace-nowrap px-3 py-2.5 text-right">
-              {r.status === "active" && <button disabled={busy === r.id} onClick={() => settle(r)} className="btn btn-tertiary btn-sm">Mark paid</button>}
-              {r.status === "active" ? (
-                <button disabled={busy === r.id} onClick={() => { setAsking({ rider: r, status: "suspended" }); setNote(""); }} className="btn btn-tertiary btn-sm text-text-error">Suspend</button>
-              ) : (
-                <button disabled={busy === r.id} onClick={() => setStatus(r, "active", "")} className="btn btn-tertiary btn-sm">Reinstate</button>
+      <section aria-labelledby="team-h">
+        <h2 id="team-h" className="heading mb-1 text-[18px]">Your riders</h2>
+        <p className="mb-3 text-[14px] text-maxcontrast">Open a rider to see where they are, how to reach them and what they&apos;re carrying.</p>
+        <div className="grid gap-4 xl:grid-cols-[1fr_460px]">
+          <DeliveryMap pins={pins} className="h-[340px] xl:h-[600px]" />
+          <div className="xl:max-h-[600px] xl:overflow-y-auto">
+            <RidersList
+              riders={team}
+              showLicence
+              empty="No riders hired yet."
+              actions={(r) => (
+                <>
+                  {r.status === "active" && <button disabled={busy === r.id} onClick={() => settle(r)} className="btn btn-secondary btn-sm">Mark paid</button>}
+                  {r.status === "active" ? (
+                    <button disabled={busy === r.id} onClick={() => { setAsking({ rider: r, status: "suspended" }); setNote(""); }} className="btn btn-tertiary btn-sm text-text-error">Suspend</button>
+                  ) : (
+                    <button disabled={busy === r.id} onClick={() => setStatus(r, "active", "")} className="btn btn-secondary btn-sm">Reinstate</button>
+                  )}
+                </>
               )}
-            </td>
-          </tr>
-        ))}
-        {crew.data && team.length === 0 && <tr><td colSpan={7} className="px-3 py-8 text-center text-maxcontrast">No riders hired yet.</td></tr>}
-      </Table>
+            />
+          </div>
+        </div>
+      </section>
       <p className="mt-2 text-[12px] text-maxcontrast">&ldquo;Mark paid&rdquo; records that you&apos;ve paid a rider everything they&apos;re owed, outside the app.</p>
 
-      {asking && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center" role="dialog" aria-modal="true" aria-label={`${asking.status === "rejected" ? "Turn down" : "Suspend"} ${asking.rider.full_name}`}>
-          <div className="absolute inset-0 bg-black/50" onClick={() => setAsking(null)} />
+      <Modal
+        open={!!asking}
+        onClose={() => setAsking(null)}
+        busy={!!asking && busy === asking.rider.id}
+        title={asking ? `${asking.status === "rejected" ? "Turn down" : "Suspend"} ${asking.rider.full_name}` : ""}
+      >
+        {asking && (
           <form
-            className="modal relative w-full max-w-md overflow-hidden"
             onSubmit={(e) => {
               e.preventDefault();
               setStatus(asking.rider, asking.status, note.trim());
             }}
           >
-            <div className="border-b border-border p-4">
-              <p className="heading text-[20px]">{asking.status === "rejected" ? "Turn down" : "Suspend"} {asking.rider.full_name}</p>
-              {asking.status === "suspended" && <p className="text-[13px] text-maxcontrast">They go off shift and can&apos;t take jobs until reinstated.</p>}
-            </div>
+            {asking.status === "suspended" && <p className="px-4 text-[14px] text-maxcontrast">They go off shift and can&apos;t take jobs until reinstated.</p>}
             <label className="block p-4"><span className="label">Note for the rider</span>
               <textarea required minLength={5} maxLength={500} rows={3} className="field mt-1" value={note} onChange={(e) => setNote(e.target.value)} />
             </label>
-            <div className="flex justify-end gap-2 border-t border-border p-4">
+            <ModalFooter>
               <button type="button" onClick={() => setAsking(null)} className="btn btn-tertiary">Cancel</button>
-              <button disabled={busy === asking.rider.id} className="btn btn-primary">{asking.status === "rejected" ? "Turn down" : "Suspend"}</button>
-            </div>
+              <button disabled={busy === asking.rider.id} className="btn btn-error">{asking.status === "rejected" ? "Turn down" : "Suspend"}</button>
+            </ModalFooter>
           </form>
-        </div>
-      )}
+        )}
+      </Modal>
     </>
   );
 }

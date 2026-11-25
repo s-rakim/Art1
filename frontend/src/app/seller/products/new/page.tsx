@@ -1,11 +1,10 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { ErrorLine, PageTitle } from "@/components/dash";
-import { Plus, X } from "@/components/icons";
+import { ImageIcon, Plus, Video, X } from "@/components/icons";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { safeImageUrl } from "@/lib/safe";
 import { useApi } from "@/lib/use-api";
 
 type VariantDraft = { color: string; color_hex: string; size: string; sku: string; price: string; compare: string; stock: string; moq: string };
@@ -30,33 +29,13 @@ export default function NewProduct() {
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
   const [tags, setTags] = useState("");
-  const [images, setImages] = useState<string[]>([]);
-  const [uploading, setUploading] = useState(false);
   const [specs, setSpecs] = useState<Spec[]>([]);
   const [variants, setVariants] = useState<VariantDraft[]>([{ ...blank }]);
   const [tiers, setTiers] = useState<Tier[]>([]);
   const [busy, setBusy] = useState<"draft" | "active" | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const file = useRef<HTMLInputElement>(null);
 
   const setV = (i: number, k: keyof VariantDraft, v: string) => setVariants((vs) => vs.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
-
-  async function addPhotos(files: FileList | null) {
-    if (!files?.length) return;
-    setUploading(true);
-    setError(null);
-    try {
-      for (const f of Array.from(files).slice(0, 12 - images.length)) {
-        const url = await api.uploadImage(token, f);
-        if (safeImageUrl(url)) setImages((xs) => [...xs, url]);
-      }
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Photo uploads need the live backend. You can add photos later.");
-    } finally {
-      setUploading(false);
-      if (file.current) file.current.value = "";
-    }
-  }
 
   async function submit(status: "draft" | "active") {
     setError(null);
@@ -72,7 +51,7 @@ export default function NewProduct() {
       .sort((a, b) => a.min_qty - b.min_qty);
     setBusy(status);
     try {
-      await api.createProduct(token, {
+      const created = await api.createProduct(token, {
         title: title.trim(),
         description: description.trim(),
         brand: brand.trim() || null,
@@ -80,7 +59,7 @@ export default function NewProduct() {
         status,
         attributes: Object.fromEntries(specs.filter((s) => s.k.trim() && s.v.trim()).map((s) => [s.k.trim().slice(0, 120), s.v.trim().slice(0, 120)])),
         tags: tags.split(",").map((t) => t.trim().toLowerCase()).filter(Boolean).slice(0, 20).map((t) => t.slice(0, 40)),
-        images: images.map((url) => ({ url, alt: title.trim().slice(0, 120) || null })),
+        images: [],
         variants: variants.map((v, i) => {
           const options: Record<string, string> = {};
           if (v.color.trim()) options.color = v.color.trim();
@@ -100,7 +79,8 @@ export default function NewProduct() {
           };
         }),
       });
-      router.push("/seller/products");
+      // Photos and the video go through the editor, where each file is checked and cleaned on upload.
+      router.push(`/seller/products/${encodeURIComponent(created.id)}?created=1`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Couldn't save the product. Your draft is still here.");
       setBusy(null);
@@ -142,27 +122,10 @@ export default function NewProduct() {
         </label>
         <label className="block"><span className="label">Description</span><textarea required minLength={30} maxLength={20000} rows={6} className="field mt-1" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Materials, fit, care, what's in the box. Plain text only." /></label>
 
-        <fieldset>
-          <legend className="label mb-2">Photos ({images.length}/12)</legend>
-          <div className="flex flex-wrap gap-2">
-            {images.map((src, i) => (
-              <div key={src} className="rounded-element relative h-28 w-24 overflow-hidden border border-border bg-background-hover">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={src} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
-                {i === 0 && <span className="absolute bottom-0 left-0 bg-primary-element px-1 tabular-nums text-[12px] text-primary-element-text">Cover</span>}
-                <button type="button" onClick={() => setImages((xs) => xs.filter((x) => x !== src))} className="absolute top-1 right-1 bg-main-background p-0.5" aria-label="Remove photo"><X size={14} /></button>
-              </div>
-            ))}
-            {images.length < 12 && (
-              <label className={`rounded-element flex h-28 w-24 cursor-pointer flex-col items-center justify-center gap-1 border border-dashed border-border-dark text-[12px] ${uploading ? "opacity-50" : ""}`}>
-                <Plus size={18} />
-                {uploading ? "Uploading…" : "Add photos"}
-                <input ref={file} type="file" accept="image/jpeg,image/png,image/webp,image/avif" multiple className="sr-only" disabled={uploading} onChange={(e) => addPhotos(e.target.files)} />
-              </label>
-            )}
-          </div>
-          <p className="mt-1 text-[12px] text-maxcontrast">JPEG, PNG, WebP or AVIF, up to 5 MB each. The first photo is the cover.</p>
-        </fieldset>
+        <div className="flex items-start gap-3 rounded-container border border-border-dark bg-background-hover px-4 py-3 text-[14px]">
+          <span aria-hidden className="mt-0.5 flex gap-1 text-primary-element"><ImageIcon size={20} /><Video size={20} /></span>
+          <p className="text-pretty">Photos and a video come next. Save the details here first, then add up to 12 photos and one short clip on the listing&apos;s page.</p>
+        </div>
 
         <fieldset>
           <legend className="label mb-2">Variants</legend>
@@ -219,8 +182,8 @@ export default function NewProduct() {
 
         <ErrorLine error={error} />
         <div className="flex flex-wrap gap-2 border-t border-border pt-5">
-          <button disabled={!!busy || uploading} className="btn btn-primary">{busy === "active" ? "Publishing…" : "Publish"}</button>
-          <button type="button" disabled={!!busy || uploading} onClick={() => submit("draft")} className="btn btn-secondary">{busy === "draft" ? "Saving…" : "Save as draft"}</button>
+          <button disabled={!!busy} className="btn btn-primary">{busy === "active" ? "Saving…" : "Publish and add photos"}</button>
+          <button type="button" disabled={!!busy} onClick={() => submit("draft")} className="btn btn-secondary">{busy === "draft" ? "Saving…" : "Save draft and add photos"}</button>
           <button type="button" onClick={() => router.back()} className="btn btn-tertiary">Cancel</button>
         </div>
       </div>

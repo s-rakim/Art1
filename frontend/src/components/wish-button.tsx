@@ -1,13 +1,12 @@
 "use client";
-import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { supabase } from "@/lib/supabase/client";
 import { useWishlist } from "@/store/cart";
 import { Heart } from "./icons";
+import { useHydrated } from "@/lib/hooks";
 
 export function WishButton({ id, large = false }: { id: string; large?: boolean }) {
-  const [hydrated, setH] = useState(false);
-  useEffect(() => setH(true), []);
+  const hydrated = useHydrated();
   const on = useWishlist((s) => s.ids.includes(id));
   const toggle = useWishlist((s) => s.toggle);
   const active = hydrated && on;

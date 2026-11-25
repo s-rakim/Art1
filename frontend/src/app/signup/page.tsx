@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { AuthForm } from "@/components/auth-form";
+import { SignupForm } from "@/components/auth-form";
 import { GuestFrame } from "@/components/guest-frame";
 
 export const metadata: Metadata = { title: "Create account", robots: { index: false } };
@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: "Create account", robots: { index: fa
 export default function SignupPage() {
   return (
     <GuestFrame>
-      <Suspense><AuthForm mode="signup" /></Suspense>
+      <Suspense><SignupForm /></Suspense>
     </GuestFrame>
   );
 }

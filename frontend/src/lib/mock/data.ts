@@ -331,7 +331,7 @@ export function demoOrders(): Order[] {
     const upto = status === "paid" ? 2 : flow.indexOf(status);
     return {
       id: `o${1040 + i}`,
-      number: `SR-${(20481 + i * 37).toString()}`,
+      number: `BZ-${(20481 + i * 37).toString()}`,
       status,
       created_at: new Date(created).toISOString(),
       subtotal_cents: subtotal,

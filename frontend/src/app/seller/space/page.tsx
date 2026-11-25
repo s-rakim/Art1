@@ -2,8 +2,9 @@
 import { useMemo, useState } from "react";
 import { ErrorLine, PageTitle, Table } from "@/components/dash";
 import { StatusTag } from "@/components/status-tag";
+import { Modal, ModalFooter } from "@/components/ui/modal";
 import { api, ApiError } from "@/lib/api";
-import { money, shortDate } from "@/lib/format";
+import { money, pct, shortDate } from "@/lib/format";
 import type { PlacementSlot } from "@/lib/types";
 import { useApi } from "@/lib/use-api";
 
@@ -56,16 +57,24 @@ export default function StoreSpace() {
                   <p className="heading text-[22px]">{p.name}</p>
                   {on && <span className="chip chip-primary">Current plan</span>}
                 </div>
-                <p className="price mt-1 text-[20px]">{money(p.monthly_price_cents)}<span className="text-[13px] text-maxcontrast"> / month</span></p>
+                {/* Only the vendor's own plan shows what they pay; other plans are quoted by the market team. */}
+                {on && current?.monthly_price_cents != null ? (
+                  <p className="price mt-1 text-[20px]">{money(current.monthly_price_cents)}<span className="text-[13px] text-maxcontrast"> / month</span></p>
+                ) : (
+                  <p className="mt-1 text-[14px] font-semibold text-primary-element">Price on request</p>
+                )}
                 <ul className="mt-3 flex-1 space-y-1 text-[13px] text-maxcontrast">
-                  <li>{(p.commission_rate * 100).toFixed(p.commission_rate * 100 % 1 ? 1 : 0)}% commission per sale</li>
+                  {on && current?.commission_rate != null && <li>{pct(current.commission_rate)} commission per sale</li>}
                   <li>{p.product_limit ? `Up to ${p.product_limit.toLocaleString("en-US")} live products` : "Unlimited products"}</li>
                   {!!p.featured_slots && <li>{p.featured_slots} free promo days a month</li>}
                 </ul>
                 {!on && (
-                  <button disabled={!!switching || !me.data} onClick={() => switchPlan(p.code, p.name)} className="btn btn-secondary btn-sm mt-4">
-                    {switching === p.code ? "Switching…" : `Switch to ${p.name}`}
-                  </button>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button disabled={!!switching || !me.data} onClick={() => switchPlan(p.code, p.name)} className="btn btn-secondary btn-sm">
+                      {switching === p.code ? "Switching…" : `Switch to ${p.name}`}
+                    </button>
+                    <a href="/sell#contact" className="btn btn-tertiary btn-sm">Ask for a quote</a>
+                  </div>
                 )}
               </div>
             );
@@ -171,13 +180,9 @@ function BookDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center" role="dialog" aria-modal="true" aria-label={`Book ${slot.name}`}>
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <form onSubmit={submit} className="modal relative w-full max-w-lg overflow-hidden">
-        <div className="border-b border-border p-4">
-          <p className="label">{slot.location}</p>
-          <p className="heading text-[20px]">Book {slot.name}</p>
-        </div>
+    <Modal open onClose={onClose} busy={busy} title={`Book ${slot.name}`}>
+      <form onSubmit={submit}>
+        <p className="px-4 text-[13px] text-maxcontrast">{slot.location}</p>
         <div className="space-y-4 p-4">
           <div className="grid grid-cols-2 gap-3">
             <label><span className="label">Start</span><input type="date" required min={today} max={addDays(today, 180)} className="field mt-1" value={start} onChange={(e) => setStart(e.target.value || today)} /></label>
@@ -203,11 +208,11 @@ function BookDialog({
           </div>
           <ErrorLine error={err} />
         </div>
-        <div className="flex justify-end gap-2 border-t border-border p-4">
+        <ModalFooter>
           <button type="button" onClick={onClose} className="btn btn-tertiary">Cancel</button>
           <button disabled={busy} className="btn btn-primary">{busy ? "Booking…" : "Book it"}</button>
-        </div>
+        </ModalFooter>
       </form>
-    </div>
+    </Modal>
   );
 }

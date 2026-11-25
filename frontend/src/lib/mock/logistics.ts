@@ -22,8 +22,8 @@ const rider = (r: Rider) => ({ id: r.id, name: r.full_name.split(" ")[0], vehicl
 export const deliveries: Delivery[] = [
   { id: "d1", order_id: orders[0].id, order_number: orders[0].number, store_name: stores[0].name, status: "picked_up", pickup: { ...off(0.021, -0.019), label: "Northline Studio, E 6th St" }, dropoff: { ...off(-0.006, 0.011), label: "12 Market Row" }, rider: rider(riders[0]), rider_position: riders[0].position, eta_minutes: 14, fee_cents: 699, cash_to_collect_cents: 0, customer_name: "Ada", customer_phone: "+1 ••• ••• 2201", items: 3, created_at: at(55) },
   { id: "d2", order_id: orders[2].id, order_number: orders[2].number, store_name: stores[1].name, status: "accepted", pickup: { ...off(-0.025, 0.004), label: "Kiln & Co, S Congress" }, dropoff: { ...off(-0.03, 0.03), label: "88 Riverside Dr" }, rider: rider(riders[1]), rider_position: riders[1].position, eta_minutes: 32, fee_cents: 899, cash_to_collect_cents: 4_598, customer_name: "Cleo", items: 1, created_at: at(30) },
-  { id: "d3", order_id: "o1099", order_number: "SR-20999", store_name: stores[2].name, status: "awaiting_rider", pickup: { ...off(0.03, 0.02), label: "Volt Depot warehouse" }, dropoff: { ...off(0.01, -0.03), label: "401 W 2nd St" }, rider: null, rider_position: null, eta_minutes: null, fee_cents: 599, items: 2, created_at: at(8) },
-  { id: "d4", order_id: "o1100", order_number: "SR-21036", store_name: stores[0].name, status: "assigned", pickup: { ...off(0.021, -0.019), label: "Northline Studio, E 6th St" }, dropoff: null, rider: rider(riders[3]), rider_position: riders[3].position, eta_minutes: 41, fee_cents: 799, cash_to_collect_cents: 7_400, items: 1, created_at: at(4) },
+  { id: "d3", order_id: "o1099", order_number: "BZ-20999", store_name: stores[2].name, status: "awaiting_rider", pickup: { ...off(0.03, 0.02), label: "Volt Depot warehouse" }, dropoff: { ...off(0.01, -0.03), label: "401 W 2nd St" }, rider: null, rider_position: null, eta_minutes: null, fee_cents: 599, items: 2, created_at: at(8) },
+  { id: "d4", order_id: "o1100", order_number: "BZ-21036", store_name: stores[0].name, status: "assigned", pickup: { ...off(0.021, -0.019), label: "Northline Studio, E 6th St" }, dropoff: null, rider: rider(riders[3]), rider_position: riders[3].position, eta_minutes: 41, fee_cents: 799, cash_to_collect_cents: 7_400, items: 1, created_at: at(4) },
 ];
 
 export const liveRiders: LiveRider[] = riders
@@ -98,9 +98,25 @@ export function incomeFor(days: number): Income {
 
 export const income = incomeFor(30);
 
+// Sample values for demo mode only. A live site takes every amount from the admin's settings.
+export const demoFees = {
+  currency: "USD",
+  standard_shipping_cents: 499,
+  express_shipping_cents: 1299,
+  free_shipping_over_cents: 5000,
+  rider_fee_cents: 350,
+  tax_rate: 0,
+  contact_name: "The market team",
+  contact_email: "market@example.com",
+  contact_phone: "+1 555 0100",
+  contact_whatsapp: "+1 555 0100",
+  contact_note: "Weekdays 9 to 5. Have your business name and what you sell ready.",
+};
+
 export const settings: Settings = {
   maintenance_mode: false,
   maintenance_message: "We're tidying the aisles. Back shortly.",
   vendor_signups_open: true,
   rider_signups_open: true,
+  ...demoFees,
 };

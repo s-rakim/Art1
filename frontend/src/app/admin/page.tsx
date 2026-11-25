@@ -5,6 +5,7 @@ import { Bars, ErrorLine, PageTitle, Stat } from "@/components/dash";
 import { api } from "@/lib/api";
 import { money, shortDate } from "@/lib/format";
 import { useApi } from "@/lib/use-api";
+import { useLiveReload } from "@/lib/live";
 
 const periods = [["7d", "7 days"], ["30d", "30 days"], ["90d", "90 days"], ["365d", "A year"]] as const;
 type Period = (typeof periods)[number][0];
@@ -14,6 +15,8 @@ export default function AdminHome() {
   const income = useApi((t) => api.adminIncome(t, period), [period]);
   const stats = useApi((t) => api.adminStats(t));
   const riders = useApi((t) => api.adminRiderApplications(t));
+  useLiveReload(["application"], riders.reload, 60000);
+  useLiveReload(["order"], stats.reload, 120000);
   const i = income.data;
   const s = stats.data;
   const label = periods.find(([p]) => p === period)![1];
