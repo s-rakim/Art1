@@ -39,7 +39,7 @@ jobs:
           cache-dependency-path: backend/api/requirements*.txt
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.24"
+          go-version-file: backend/search/go.mod
           cache-dependency-path: backend/search/go.sum
       - name: Install
         run: |
