@@ -336,6 +336,57 @@ async def test_job_board_claims_and_batching(actor, admin, db, settings_reset):
     assert (await seller.get(f"{API}/rider/open-jobs")).status_code == 403
 
 
+async def test_a_typed_address_without_a_pin(actor, admin, db, settings_reset):
+    """Buyers can check out with a typed address and no pin. The rider still
+    gets the job, the address and a working run page, just no drop-off pin."""
+    seller, vid = await shop_at(actor, admin, spot(11))
+    rider = await hire_rider(actor, admin, **spot(11, 1))
+    buyer = actor("Ama Buyer")
+    addr = {k: v for k, v in ADDRESS.items() if k not in ("lat", "lng")}
+    addr.update(line1="Moi Avenue 12", city="Nairobi")
+    r = await buyer.post(f"{API}/checkout", json={
+        "items": [{"variant_id": vid, "quantity": 1}], "shipping_address": addr, "payment_method": "cod"})
+    assert r.status_code == 201, r.text
+    order = r.json()
+    so = await store_order_of(db, order["order_id"])
+
+    board = (await rider.get(f"{API}/rider/open-jobs")).json()["items"]
+    job = next(j for j in board if j["id"] == str(so))
+    assert job["dropoff"] is None and job["trip_km"] is None and job["area"] == "Nairobi"
+
+    r = await rider.post(f"{API}/rider/open-jobs/{so}/claim")
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["dropoff"] is None and d["pickup"]["lat"] == pytest.approx(spot(11)["lat"])
+    assert d["dropoff_address"]["line1"] == "Moi Avenue 12"
+    did = d["id"]
+
+    r = await rider.get(f"{API}/rider/run")
+    assert r.status_code == 200, r.text
+    run = r.json()
+    assert [s["id"] for s in run["stops"]] == [did]
+    assert [w["kind"] for w in run["route"]] == ["rider", "pickup"]
+    for url in (f"{API}/rider/deliveries", f"{API}/rider/deliveries/{did}", f"{API}/rider/me"):
+        assert (await rider.get(url)).status_code == 200, url
+
+    # Something else that needs a pin can't join this run: we can't tell how
+    # far apart the drop-offs are.
+    other = await buy(actor(), vid, spot(11, 2))
+    other_so = await store_order_of(db, other["order_id"])
+    r = await rider.post(f"{API}/rider/open-jobs/{other_so}/claim")
+    assert r.status_code == 409 and r.json()["error"]["code"] == "not_batchable"
+
+    # Store, admin and buyer views cope too, and the job still finishes.
+    assert (await seller.get(f"{API}/seller/deliveries")).status_code == 200
+    assert (await admin.get(f"{API}/admin/deliveries")).status_code == 200
+    assert (await buyer.get(f"{API}/orders/{order['order_id']}/tracking")).status_code == 200
+    assert (await rider.patch(f"{API}/rider/deliveries/{did}", json={"action": "picked_up"})).status_code == 200
+    await pay_at_door(admin, rider, did)
+    code = await db.fetchval("select handover_code from deliveries where id = $1", uuid.UUID(did))
+    r = await rider.patch(f"{API}/rider/deliveries/{did}", json={"action": "delivered", "code": code})
+    assert r.status_code == 200, r.text
+
+
 async def test_earnings_follow_the_admins_commission(actor, admin, db, settings_reset):
     await admin.patch(f"{API}/admin/settings", json={"rider_commission_rate": 0.5})
     seller, vid = await shop_at(actor, admin, spot(7))
