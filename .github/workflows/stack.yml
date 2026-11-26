@@ -1,0 +1,33 @@
+name: stack
+
+# Checks that the files tying the whole site together still parse: the
+# compose file with the example settings, and the Caddyfile.
+
+on:
+  push:
+    branches: [main]
+    paths: ["compose.yml", "Caddyfile", ".env.example", ".github/workflows/stack.yml"]
+  pull_request:
+    paths: ["compose.yml", "Caddyfile", ".env.example", ".github/workflows/stack.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compose file
+        run: |
+          # The example leaves the anon key blank and compose refuses a
+          # blank one, which is what should happen on a real server.
+          sed 's/^SUPABASE_ANON_KEY=$/SUPABASE_ANON_KEY=ci/' .env.example > .env
+          docker compose config --quiet
+          docker compose --profile localdb config --quiet
+      - name: Caddyfile
+        run: |
+          docker run --rm -e SITE_DOMAIN=example.com -e ACME_EMAIL=ops@example.com \
+            -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2.10-alpine \
+            caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
