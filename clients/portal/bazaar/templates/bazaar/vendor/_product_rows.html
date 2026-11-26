@@ -1,0 +1,12 @@
+{% load bazaar %}{% for p in products %}
+<tr>
+  <td><a class="row link" href="{% url 'vendor:product' p.id %}">{% if p.image_url %}<img class="mini" src="{{ p.image_url }}" alt="">{% else %}<span class="mini thumb-empty">{% icon "image-plus" 18 %}</span>{% endif %}{{ p.title }}</a></td>
+  <td><span class="chip {{ p.status|status_tone }}">{% if p.status == "active" %}Live{% else %}{{ p.status|humanize }}{% endif %}</span></td>
+  <td class="right num">{{ p.price_cents|money }}</td>
+  <td class="right num">{{ p.stock }}</td>
+  <td class="right num">{{ p.sold_count }}</td>
+  <td class="small">{{ p.updated_at|when }}</td>
+</tr>
+{% empty %}
+<tr><td colspan="6"><div class="empty"><strong>No products yet</strong><p>Add your first product, then photos and a video.</p><a class="btn btn-primary" href="{% url 'vendor:product_new' %}">New product</a></div></td></tr>
+{% endfor %}

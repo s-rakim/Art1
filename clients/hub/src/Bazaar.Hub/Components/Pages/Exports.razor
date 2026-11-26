@@ -1,0 +1,14 @@
+@page "/exports"
+@attribute [Authorize(Policy = "staff")]
+
+<PageTitle>Exports</PageTitle>
+<div class="page-head"><div><h1 class="heading">Exports</h1><p>Spreadsheet-ready CSV files. Cells that start like a formula are made safe before you open them.</p></div></div>
+<AuthorizeView>
+<div class="tool-grid">
+    <a class="card tool" href="export/orders.csv" download><Icon Name="download" Size="28" /><strong>Orders</strong><span class="muted">@(context.User.IsInRole("admin") ? "Every order in the market, with customer and total." : "Your orders with what you were paid, commission and fees.")</span></a>
+    @if (context.User.IsInRole("seller"))
+    {
+        <a class="card tool" href="export/inventory.csv" download><Icon Name="download" Size="28" /><strong>Stock</strong><span class="muted">Every option with SKU, price, stock, held and sold in 30 days. Edit it and bring it back through Stock import.</span></a>
+    }
+</div>
+</AuthorizeView>

@@ -1,0 +1,21 @@
+{% load bazaar %}
+{% if error %}<p class="small note note-warning">{{ error }}</p>
+{% elif check %}
+  <p class="small">Due {{ check.due_cents|money:check.currency }} · paid so far {{ check.paid_cents|money:check.currency }}{% if check.payment_confirmed %} · <span class="chip chip-success">Paid in full</span>{% endif %}</p>
+  {% for m in check.matches %}
+  <div class="card panel-pad row-between">
+    <div class="small"><strong>{{ m.payer_name|default:"Unknown payer" }}</strong> · {{ m.amount_cents|money:m.currency }}<br><span class="muted">{{ m.code }} · {{ m.received_at|when }}</span></div>
+    {% if m.used %}<span class="chip chip-error">Code already used</span>
+    {% else %}
+    <form method="post" action="{% url 'rider:payment_confirm' delivery_id %}">{% csrf_token %}<input type="hidden" name="receipt_id" value="{{ m.receipt_id }}"><button class="btn btn-primary btn-sm">Use this payment</button></form>
+    {% endif %}
+  </div>
+  {% empty %}
+  <p class="small muted">Nothing matches “{{ q }}” yet. Payments take a minute to arrive. You can also type the full code below.</p>
+  {% endfor %}
+  <form class="row" method="post" action="{% url 'rider:payment_confirm' delivery_id %}">{% csrf_token %}
+    <label class="sr-only" for="code-full-{{ delivery_id }}">Full transaction code</label>
+    <input class="field" id="code-full-{{ delivery_id }}" name="code" maxlength="20" autocomplete="off" autocapitalize="characters" placeholder="Full code, e.g. RKT1AB2CD3" required>
+    <button class="btn">Confirm by code</button>
+  </form>
+{% endif %}

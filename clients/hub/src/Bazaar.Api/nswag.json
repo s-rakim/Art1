@@ -1,0 +1,31 @@
+{
+  "runtime": "Net100",
+  "defaultVariables": null,
+  "documentGenerator": {
+    "fromDocument": { "url": "../../obj/openapi.csharp.json" }
+  },
+  "codeGenerators": {
+    "openApiToCSharpClient": {
+      "className": "BazaarApiClient",
+      "namespace": "Bazaar.Api",
+      "operationGenerationMode": "SingleClientFromOperationId",
+      "generateClientInterfaces": true,
+      "injectHttpClient": true,
+      "useBaseUrl": false,
+      "disposeHttpClient": false,
+      "generateOptionalParameters": true,
+      "generateExceptionClasses": true,
+      "exceptionClass": "ApiException",
+      "wrapDtoExceptions": true,
+      "jsonLibrary": "SystemTextJson",
+      "generateNullableReferenceTypes": true,
+      "generateOptionalPropertiesAsNullable": true,
+      "generateDataAnnotations": false,
+      "classStyle": "Poco",
+      "arrayType": "System.Collections.Generic.ICollection",
+      "dateTimeType": "System.DateTimeOffset",
+      "generateResponseClasses": true,
+      "output": "BazaarApiClient.g.cs"
+    }
+  }
+}

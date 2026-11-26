@@ -1,0 +1,45 @@
+{% extends "bazaar/base.html" %}
+{% load bazaar %}
+{% block title %}Admin{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1 class="heading">{% greeting me %}</h1><p>The market at a glance.</p></div>
+  <div class="chips" role="group" aria-label="Period">
+    <a class="chip chip-link" href="?period=7d" {% if period == "7d" %}aria-current="true"{% endif %}>7 days</a>
+    <a class="chip chip-link" href="?period=30d" {% if period == "30d" %}aria-current="true"{% endif %}>30 days</a>
+    <a class="chip chip-link" href="?period=90d" {% if period == "90d" %}aria-current="true"{% endif %}>90 days</a>
+    <a class="chip chip-link" href="?period=365d" {% if period == "365d" %}aria-current="true"{% endif %}>A year</a>
+  </div>
+</div>
+<div class="tiles">
+  <div class="card tile tile-lead"><span class="label">Market income, {{ income.period_days }} days</span><span class="value">{{ income.total_cents|money:income.currency }}</span></div>
+  <div class="card tile"><span class="label">Stall rent</span><span class="value">{{ income.rent_cents|money:income.currency }}</span></div>
+  <div class="card tile"><span class="label">Commission</span><span class="value">{{ income.commission_cents|money:income.currency }}</span></div>
+  <div class="card tile"><span class="label">Placements</span><span class="value">{{ income.placement_cents|money:income.currency }}</span></div>
+  <div class="card tile"><span class="label">Delivery fees</span><span class="value">{{ income.delivery_fee_cents|money:income.currency }}</span></div>
+  <div class="card tile"><span class="label">Paid to riders</span><span class="value">{{ income.rider_cost_cents|money:income.currency }}</span></div>
+</div>
+<div class="tiles tiles-gap">
+  <div class="card tile"><span class="label">Sales, 30 days</span><span class="value">{{ stats.gmv_cents_30d|money:stats.currency }}</span></div>
+  <div class="card tile"><span class="label">Orders, 30 days</span><span class="value">{{ stats.orders_30d }}</span></div>
+  <div class="card tile"><span class="label">Open stalls</span><span class="value">{{ stats.active_stores }}</span></div>
+  <a class="card tile" href="{% url 'console:stores' %}?status=pending"><span class="label">Stalls waiting</span><span class="value">{{ stats.pending_stores }}</span></a>
+  <a class="card tile" href="{% url 'console:riders' %}"><span class="label">Riders waiting</span><span class="value">{{ stats.pending_riders }}</span></a>
+  <div class="card tile"><span class="label">Customers</span><span class="value">{{ stats.customers }}</span></div>
+</div>
+<section class="dash-cols">
+  <div>
+    <h2 class="heading section-title">Rider applications</h2>
+    {% if applicants %}{% for a in applicants %}{% include "bazaar/console/_applicant.html" %}{% endfor %}
+    {% else %}<div class="empty"><strong>No one waiting</strong><p>New rider applications show up here.</p></div>{% endif %}
+  </div>
+  <div>
+    <h2 class="heading section-title">Daily income</h2>
+    {% if income.daily %}
+    <div class="table-wrap"><table class="table"><thead><tr><th>Day</th><th class="right">Rent</th><th class="right">Commission</th><th class="right">Fees</th></tr></thead><tbody>
+    {% for d in income.daily|slice:":14" %}<tr><td class="small">{{ d.date }}</td><td class="right num">{{ d.rent_cents|money }}</td><td class="right num">{{ d.commission_cents|money }}</td><td class="right num">{{ d.fee_cents|add:d.delivery_fee_cents|money }}</td></tr>{% endfor %}
+    </tbody></table></div>
+    {% else %}<p class="muted">No income in this period yet.</p>{% endif %}
+  </div>
+</section>
+{% endblock %}

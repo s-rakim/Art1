@@ -1,0 +1,58 @@
+{% extends "bazaar/base.html" %}
+{% load bazaar %}
+{% block title %}{{ product.title }}{% endblock %}
+{% block content %}
+<div class="product-layout">
+  <section data-gallery aria-label="Photos">
+    {% with first=product.images.0 %}
+    {% if first %}<img class="gallery-main" data-gallery-main src="{{ first.url }}" alt="{{ first.alt|default:product.title }}">{% else %}<div class="gallery-main thumb-empty">No photo yet</div>{% endif %}
+    {% endwith %}
+    {% if product.images|length > 1 %}
+    <div class="gallery-strip">
+      {% for img in product.images %}
+      <button type="button" data-gallery-thumb data-src="{{ img.url }}" data-alt="{{ img.alt|default:product.title }}" aria-pressed="{% if forloop.first %}true{% else %}false{% endif %}" aria-label="Photo {{ forloop.counter }}"><img src="{{ img.url }}" alt="" loading="lazy"></button>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% if product.video %}
+    <video class="product-video" controls preload="metadata" playsinline {% if product.video.poster_url %}poster="{{ product.video.poster_url }}"{% endif %}>
+      <source src="{{ product.video.url }}" type="{{ product.video.content_type }}">
+    </video>
+    {% if product.video.caption %}<p class="small muted">{{ product.video.caption }}</p>{% endif %}
+    {% endif %}
+  </section>
+
+  <section class="card buy-box stack" aria-labelledby="title">
+    <div class="stack-sm">
+      <a class="small link" href="{% url 'shop:home' %}?q={{ product.store.name|urlencode }}">{{ product.store.name }}</a>
+      <h1 class="heading page-title" id="title">{{ product.title }}</h1>
+      {% if product.brand %}<p class="small muted">{{ product.brand }}</p>{% endif %}
+    </div>
+    {% if default_variant %}
+    <p class="price-lg" data-variant-price>{{ default_variant.price_cents|money:product.currency }}</p>
+    <form class="stack-sm" method="post" action="{% url 'shop:add_to_cart' %}" hx-post="{% url 'shop:add_to_cart' %}" hx-target="#added" hx-swap="innerHTML">
+      {% csrf_token %}
+      {% if variants|length > 1 %}
+      <label class="label" for="variant">Option</label>
+      <select class="field" id="variant" name="variant_id" data-variant-select>
+        {% for v in variants %}<option value="{{ v.id }}" data-price="{{ v.price_cents|money:product.currency }}" data-stock="{% if v.in_stock %}{{ v.stock }} in stock{% else %}Sold out{% endif %}"{% if v.id == default_variant.id %} selected{% endif %}{% if not v.in_stock %} disabled{% endif %}>{{ v.title }}{% if not v.in_stock %} (sold out){% endif %}</option>{% endfor %}
+      </select>
+      {% else %}
+      <input type="hidden" name="variant_id" value="{{ default_variant.id }}">
+      {% endif %}
+      <p class="small muted" data-variant-stock>{% if default_variant.in_stock %}{{ default_variant.stock }} in stock{% else %}Sold out{% endif %}</p>
+      <div class="row">
+        <label class="sr-only" for="qty">Quantity</label>
+        <input class="field qty" id="qty" name="quantity" type="number" min="{{ default_variant.min_order_qty|default:1 }}" max="999" value="{{ default_variant.min_order_qty|default:1 }}" inputmode="numeric">
+        <button class="btn btn-primary grow" type="submit" {% if not default_variant.in_stock %}disabled{% endif %}>{% icon "bag" %}Add to bag</button>
+      </div>
+      <div id="added" aria-live="polite"></div>
+    </form>
+    {% else %}
+    <p class="note note-warning">This product isn't for sale right now.</p>
+    {% endif %}
+    {% if me %}{% include "bazaar/shop/_save_button.html" with product_id=product.id slug=product.slug %}{% endif %}
+    {% if product.description %}<div class="description">{{ product.description }}</div>{% endif %}
+  </section>
+</div>
+{% endblock %}

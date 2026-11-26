@@ -1,0 +1,87 @@
+{
+  "expo": {
+    "name": "The Bazaar",
+    "slug": "the-bazaar",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "bazaar",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#00679e",
+    "ios": {
+      "bundleIdentifier": "com.thebazaar.app",
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Riders share their location so customers and the dispatch desk can see deliveries coming. Shoppers can drop a pin for their delivery address.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "While you are on shift as a rider, The Bazaar keeps sharing your location with the dispatch desk and your customers, even with the app in your pocket. It stops when you go off shift.",
+        "NSPhotoLibraryUsageDescription": "Stores pick product photos and videos from the library.",
+        "NSCameraUsageDescription": "Stores take product photos.",
+        "UIBackgroundModes": ["location"],
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.thebazaar.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#16130f",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
+      ],
+      "blockedPermissions": ["android.permission.RECORD_AUDIO", "android.permission.READ_CONTACTS"],
+      "allowBackup": false,
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "output": "single",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#00679e",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 96
+        }
+      ],
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true,
+          "isIosBackgroundLocationEnabled": true
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Stores pick product photos and videos from the library.",
+          "cameraPermission": "Stores take product photos.",
+          "microphonePermission": false
+        }
+      ],
+      "expo-video",
+      "@maplibre/maplibre-react-native",
+      [
+        "expo-build-properties",
+        {
+          "android": { "usesCleartextTraffic": false },
+          "ios": {}
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}

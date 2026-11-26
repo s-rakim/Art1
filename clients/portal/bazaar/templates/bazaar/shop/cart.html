@@ -1,0 +1,6 @@
+{% extends "bazaar/base.html" %}
+{% block title %}Your bag{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1 class="heading">Your bag</h1><p>Prices and delivery come from each stall and the shop's current rates.</p></div></div>
+<div id="cart">{% include "bazaar/shop/_cart.html" %}</div>
+{% endblock %}

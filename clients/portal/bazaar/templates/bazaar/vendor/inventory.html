@@ -1,0 +1,17 @@
+{% extends "bazaar/base.html" %}
+{% block title %}Stock{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1 class="heading">Stock</h1><p>Type a new count and press Enter. Changes are logged with the time and who made them.</p></div>
+  <a class="btn" href="{{ hub_url }}inventory">Bulk update from a file</a>
+</div>
+<form class="row filter-row" hx-get="{% url 'vendor:inventory' %}" hx-target="#inv" hx-trigger="input changed delay:300ms from:#iq, change from:#low, submit" hx-push-url="true">
+  <label class="sr-only" for="iq">Search stock</label>
+  <input class="field grow" id="iq" type="search" name="q" value="{{ q }}" placeholder="Search by product or SKU">
+  <label class="check"><input type="checkbox" id="low" name="low" value="1" {% if low %}checked{% endif %}>Running low only</label>
+</form>
+<div class="table-wrap"><table class="table">
+  <thead><tr><th>Product</th><th>Option</th><th>SKU</th><th class="right">Price</th><th class="right">Held in orders</th><th class="right">In stock</th></tr></thead>
+  <tbody id="inv">{% include "bazaar/vendor/_inventory_rows.html" %}</tbody>
+</table></div>
+{% endblock %}

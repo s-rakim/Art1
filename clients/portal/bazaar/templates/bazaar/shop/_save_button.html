@@ -1,0 +1,8 @@
+{% load bazaar %}<form id="save-{{ product_id }}" method="post" action="{% url 'shop:wishlist_toggle' %}" hx-post="{% url 'shop:wishlist_toggle' %}" hx-target="this" hx-swap="outerHTML">
+  {% csrf_token %}
+  <input type="hidden" name="product_id" value="{{ product_id }}">
+  <input type="hidden" name="saved" value="{{ saved|yesno:'1,0' }}">
+  {% if slug %}<input type="hidden" name="slug" value="{{ slug }}">{% endif %}
+  {% if back %}<input type="hidden" name="back" value="{{ back }}">{% endif %}
+  <button class="btn {% if saved %}btn-secondary{% else %}btn-tertiary{% endif %}" type="submit" aria-pressed="{{ saved|yesno:'true,false' }}">{% if saved %}{% icon "heart" %}Saved{% else %}{% icon "heart-outline" %}Save for later{% endif %}</button>
+</form>{% if oob_messages %}{% include "bazaar/_messages.html" %}{% endif %}

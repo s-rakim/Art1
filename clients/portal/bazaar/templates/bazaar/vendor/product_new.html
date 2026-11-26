@@ -1,0 +1,21 @@
+{% extends "bazaar/base.html" %}
+{% block title %}New product{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1 class="heading">New product</h1><p>Start with the basics. You'll add photos, a video and more options on the next page.</p></div></div>
+<form class="form" method="post" novalidate>
+  {% csrf_token %}
+  {% include "bazaar/_field.html" with name="title" label="Title" value=values.title required=1 error=errors.title %}
+  <div class="field-wrap"><label class="label" for="f-description">Description</label><textarea class="field" id="f-description" name="description" rows="5">{{ values.description }}</textarea></div>
+  <div class="grid-2">
+    {% include "bazaar/_field.html" with name="brand" label="Brand (optional)" value=values.brand %}
+    <div class="field-wrap"><label class="label" for="f-cat">Category</label><select class="field" id="f-cat" name="category_id"><option value="">None</option>{% for id, name in categories %}<option value="{{ id }}"{% if values.category_id == id %} selected{% endif %}>{{ name }}</option>{% endfor %}</select></div>
+  </div>
+  <div class="grid-3">
+    {% include "bazaar/_field.html" with name="price" label="Price" value=values.price required=1 inputmode="decimal" error=errors.price hint="Your price, e.g. 25.00" %}
+    {% include "bazaar/_field.html" with name="stock" label="Stock" type="number" value=values.stock|default:"0" required=1 inputmode="numeric" error=errors.stock %}
+    {% include "bazaar/_field.html" with name="sku" label="SKU (optional)" value=values.sku error=errors.sku hint="Made up for you if left empty." %}
+  </div>
+  {% include "bazaar/_field.html" with name="tags" label="Tags (optional)" value=values.tags hint="Separate with commas: linen, summer" %}
+  <div class="row"><button class="btn btn-primary" type="submit">Save draft</button><a class="btn btn-tertiary" href="{% url 'vendor:products' %}">Cancel</a></div>
+</form>
+{% endblock %}

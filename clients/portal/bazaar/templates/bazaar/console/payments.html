@@ -1,0 +1,63 @@
+{% extends "bazaar/base.html" %}
+{% load bazaar %}
+{% block title %}Payments{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1 class="heading">Payments</h1>
+  <p>Every M-Pesa and bank payment into The Bazaar. Riders confirm a delivery by matching the buyer's code or name here. A code works once; unused codes expire.</p></div></div>
+
+<section class="card panel-pad stack-sm" aria-labelledby="import-title">
+  <h2 class="heading section-title" id="import-title">Add payment messages</h2>
+  <form method="post" class="stack-sm">{% csrf_token %}
+    <label class="label" for="pay-text">Paste M-Pesa or bank texts</label>
+    <textarea class="field mono" id="pay-text" name="text" rows="6" maxlength="200000" placeholder="RKT1AB2CD3 Confirmed. Ksh1,250.00 received from JANE WANJIRU…">{{ pasted }}</textarea>
+    <div class="row">
+      {% if preview and preview.rows %}<button class="btn btn-primary" name="commit" value="1">Save {{ preview.rows|length }} payment{{ preview.rows|length|pluralize }}</button>{% endif %}
+      <button class="btn {% if not preview %}btn-primary{% endif %}" name="commit" value="0">Read messages</button>
+    </div>
+  </form>
+  {% if preview %}
+    {% if preview.failed %}<p class="note note-warning small">{{ preview.failed|length }} message{{ preview.failed|length|pluralize }} couldn't be read. They're left out.</p>{% endif %}
+    {% if preview.rows %}
+    <div class="table-wrap"><table class="table">
+      <thead><tr><th>Code</th><th>Paid by</th><th class="right">Amount</th><th>When</th><th>Order</th><th></th></tr></thead>
+      <tbody>{% for r in preview.rows %}<tr><td class="mono">{{ r.code }}</td><td>{{ r.payer_name|default:"" }}</td><td class="right num">{{ r.amount_cents|money:r.currency }}</td><td>{{ r.received_at|when }}</td><td>{{ r.matched_order_number|default:"" }}</td><td>{% if r.duplicate %}<span class="chip chip-warning">Already saved</span>{% endif %}</td></tr>{% endfor %}</tbody>
+    </table></div>
+    {% endif %}
+  {% endif %}
+</section>
+
+<form class="filter-row row section-gap" method="get">
+  <label class="sr-only" for="pq">Search</label><input class="field grow" id="pq" name="q" value="{{ q }}" placeholder="Code, name or order number">
+  <select class="field" name="status" aria-label="Status"><option value="">Any status</option>{% for k, l in statuses %}<option value="{{ k }}" {% if k == status %}selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+  <button class="btn">Show</button>
+</form>
+
+{% if receipts %}
+<div class="stack-sm section-gap">
+{% for r in receipts %}
+<article class="card panel-pad stack-sm">
+  <div class="row-between"><strong class="mono">{{ r.code }}</strong>
+    <span class="chip {% if r.status == 'confirmed' %}chip-success{% elif r.status == 'unconfirmed' %}chip-warning{% else %}chip-secondary{% endif %}">{{ r.status|humanize }}</span></div>
+  <div class="row small"><strong>{{ r.amount_cents|money:r.currency }}</strong><span>{{ r.payer_name|default:"Unknown payer" }}</span><span class="muted">{{ r.provider|humanize }} · {{ r.received_at|when }}</span>
+    {% if r.order_number %}<span>Order {{ r.order_number }}</span>{% endif %}
+    {% if r.confirmed_by_name %}<span class="muted">Confirmed by {{ r.confirmed_by_name }} ({{ r.confirmed_role }}) {{ r.confirmed_at|when }}</span>{% endif %}
+    {% if r.status == "unconfirmed" %}<span class="muted">Expires {{ r.expires_at|when }}</span>{% endif %}</div>
+  {% if r.note %}<p class="small muted">{{ r.note }}</p>{% endif %}
+  {% if r.status == "unconfirmed" %}
+  <div class="row">
+    <form class="row" method="post" action="{% url 'console:payment_action' r.id %}">{% csrf_token %}<input type="hidden" name="action" value="apply">
+      <label class="sr-only" for="on-{{ r.id }}">Order number</label><input class="field" id="on-{{ r.id }}" name="order_number" placeholder="Order number" required>
+      <button class="btn btn-sm">Apply to order</button></form>
+    <form class="row" method="post" action="{% url 'console:payment_action' r.id %}" data-confirm="Void payment {{ r.code }}? Its code can never be used.">{% csrf_token %}<input type="hidden" name="action" value="void">
+      <label class="sr-only" for="vn-{{ r.id }}">Why</label><input class="field" id="vn-{{ r.id }}" name="note" placeholder="Why void it" required>
+      <button class="btn btn-sm btn-tertiary">Void</button></form>
+  </div>
+  {% endif %}
+</article>
+{% endfor %}
+</div>
+<p class="small muted">{{ total }} payment{{ total|pluralize }}.</p>
+{% else %}
+<div class="empty">{% icon "cash" 48 %}<strong>No payments{% if q or status %} match{% else %} yet{% endif %}</strong><p>Paste texts above, or set up the till phone to forward them (see DEPLOY.md).</p></div>
+{% endif %}
+{% endblock %}

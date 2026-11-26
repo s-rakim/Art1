@@ -1,0 +1,236 @@
+# The whole of The Bazaar on one server.
+#
+#   cp .env.example .env      # fill it in (see DEPLOY.md)
+#   docker compose up -d --build
+#
+# One domain: Caddy sends /api/* (and the /api/v1/ws/live websocket) to the
+# API, /portal to the Django portal, /hub to the C# hub and everything else
+# to the web app, so the browser never makes a
+# cross-origin call. Only Caddy publishes ports; everything else talks over
+# the private compose network.
+#
+# Supabase (database, sign-in, file storage) is the hosted service by
+# default. DEPLOY.md explains both setups.
+
+name: bazaar
+
+x-hardening: &hardening
+  restart: unless-stopped
+  read_only: true
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: ["ALL"]
+  tmpfs: ["/tmp:size=64m"]
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "5" }
+
+# Derived from SITE_DOMAIN so the API and the web app always agree on where
+# the site lives. Set in .env only what isn't here.
+x-site: &site
+  ENVIRONMENT: production
+  PUBLIC_API_URL: https://${SITE_DOMAIN:?set SITE_DOMAIN in .env}/api/v1
+  FRONTEND_URL: https://${SITE_DOMAIN}
+  CORS_ORIGINS: https://${SITE_DOMAIN}
+  TRUSTED_HOSTS: ${SITE_DOMAIN}
+
+x-api-image: &api-image
+  image: ${IMAGE_PREFIX:-bazaar}-api:${IMAGE_TAG:-local}
+  build: { context: ./backend, dockerfile: api/Dockerfile }
+
+services:
+  # Applies database migrations, then exits. Everything else waits for it.
+  migrate:
+    <<: *api-image
+    command: ["scripts/migrate.sh"]
+    env_file: .env
+    environment: *site
+    restart: "no"
+    read_only: true
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    depends_on:
+      db: { condition: service_healthy, required: false }
+
+  api:
+    <<: [*hardening, *api-image]
+    env_file: .env
+    environment:
+      <<: *site
+      SEARCH_URL: http://search:8080
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_started }
+    deploy:
+      resources:
+        limits: { memory: 768m }
+
+  # Rider dispatch every 15 seconds, rent, placements, stale orders.
+  worker:
+    <<: [*hardening, *api-image]
+    command: ["python", "-m", "app.worker"]
+    env_file: .env
+    environment: *site
+    healthcheck: { disable: true }
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    deploy:
+      resources:
+        limits: { memory: 256m }
+
+  search:
+    <<: *hardening
+    image: ${IMAGE_PREFIX:-bazaar}-search:${IMAGE_TAG:-local}
+    build: { context: ./backend, dockerfile: search/Dockerfile }
+    # Only the database address: the search service never sees the other secrets.
+    environment:
+      DATABASE_URL: ${SEARCH_DATABASE_URL:-${DATABASE_URL}}
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    deploy:
+      resources:
+        limits: { memory: 512m }
+
+  # The Next.js site. NEXT_PUBLIC_* values are baked into the browser bundle
+  # at build time, so change them in .env and rebuild (docker compose build web).
+  web:
+    image: ${IMAGE_PREFIX:-bazaar}-web:${IMAGE_TAG:-local}
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: https://${SITE_DOMAIN}/api/v1
+        NEXT_PUBLIC_SUPABASE_URL: ${SUPABASE_URL:?set SUPABASE_URL in .env}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:?set SUPABASE_ANON_KEY in .env}
+        NEXT_PUBLIC_STORE_NAME: ${STORE_NAME:-The Bazaar}
+        NEXT_PUBLIC_CURRENCY: ${CURRENCY:-USD}
+        NEXT_PUBLIC_DEMO_DATA: "off"
+        NEXT_PUBLIC_MAP_CENTER: ${MAP_CENTER:-5.6037,-0.1870}
+        NEXT_PUBLIC_MAP_STYLE: ${MAP_STYLE:-}
+        NEXT_PUBLIC_MAP_STYLE_DARK: ${MAP_STYLE_DARK:-}
+        # Extra image host for next/image; the Supabase host is allowed already.
+        NEXT_PUBLIC_IMAGE_HOST: ${IMAGE_HOST:-}
+    # Server-rendered pages call the API over the private network.
+    # Deliberately no env_file: the web app never sees a server secret.
+    environment:
+      API_URL_INTERNAL: http://api:8000/api/v1
+    init: true
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp:size=64m", "/app/.next/cache:size=256m,uid=10001,gid=10001"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    depends_on: [api]
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
+    deploy:
+      resources:
+        limits: { memory: 512m }
+
+  # The Django portal at /portal: server-rendered pages for shoppers,
+  # stalls, riders and admins, for trying ideas fast. It only talks to the
+  # API. Sign-in tokens live in its Redis session, never in the browser.
+  portal:
+    <<: *hardening
+    image: ${IMAGE_PREFIX:-bazaar}-portal:${IMAGE_TAG:-local}
+    build:
+      context: ./clients/portal
+      additional_contexts:
+        frontend: ./frontend
+        brandkit: ./clients/brand
+    # No env_file on purpose: the portal never sees the database URL, the
+    # JWT secret or the service role key.
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN}
+      STORE_NAME: ${STORE_NAME:-The Bazaar}
+      PORTAL_SECRET_KEY: ${PORTAL_SECRET_KEY:?set PORTAL_SECRET_KEY in .env}
+      PORTAL_REDIS_URL: redis://redis:6379/2
+      API_URL_INTERNAL: http://api:8000/api/v1
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+      MAP_CENTER: ${MAP_CENTER:-5.6037,-0.1870}
+      IMAGE_HOST: ${IMAGE_HOST:-}
+      MAX_IMAGE_BYTES: ${MAX_IMAGE_BYTES:-8000000}
+      MAX_VIDEO_BYTES: ${MAX_VIDEO_BYTES:-50000000}
+      PORTAL_TIME_ZONE: ${TIME_ZONE:-UTC}
+    # Video uploads pass through /tmp on their way to the API.
+    tmpfs: ["/tmp:size=160m,uid=10001,gid=10001"]
+    depends_on: [api, redis]
+    deploy:
+      resources:
+        limits: { memory: 384m }
+
+  # The C# integrations hub at /hub: stock spreadsheets in and out, order
+  # exports, the payment message reader and the dispatch board. Stalls and
+  # admins only.
+  hub:
+    <<: *hardening
+    image: ${IMAGE_PREFIX:-bazaar}-hub:${IMAGE_TAG:-local}
+    build:
+      context: ./clients/hub
+      additional_contexts:
+        frontend: ./frontend
+        brandkit: ./clients/brand
+    environment:
+      AllowedHosts: "${SITE_DOMAIN};hub;localhost"
+      Hub__ApiUrl: http://api:8000/
+      Hub__SupabaseUrl: ${SUPABASE_URL}
+      Hub__SupabaseAnonKey: ${SUPABASE_ANON_KEY}
+      Hub__StoreName: ${STORE_NAME:-The Bazaar}
+      Hub__MapCenter: ${MAP_CENTER:-5.6037,-0.1870}
+    volumes: ["hub_keys:/keys"]
+    depends_on: [api]
+    deploy:
+      resources:
+        limits: { memory: 256m }
+
+  redis:
+    <<: *hardening
+    image: redis:7.4-alpine
+    # Rate limit counters and portal sessions: nothing worth keeping across
+    # a restart (people sign in again). protected-mode is
+    # off because redis has no published port; only the API can reach it.
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "128mb",
+              "--maxmemory-policy", "allkeys-lru", "--protected-mode", "no"]
+    user: "999:999"
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    cap_add: ["NET_BIND_SERVICE"]
+    depends_on: [api, web, portal, hub]
+
+  # Only with --profile localdb: Postgres on this box instead of Supabase's.
+  # Sign-in and uploads still need a Supabase project (see DEPLOY.md).
+  db:
+    profiles: ["localdb"]
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: bazaar
+      POSTGRES_USER: bazaar
+      POSTGRES_PASSWORD: ${LOCAL_DB_PASSWORD:-}  # empty refuses to start, on purpose
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bazaar -d bazaar"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    security_opt: ["no-new-privileges:true"]
+    shm_size: 256m
+
+volumes:
+  hub_keys:
+  caddy_data:
+  caddy_config:
+  pgdata:

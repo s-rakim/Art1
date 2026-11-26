@@ -1,0 +1,17 @@
+{% extends "bazaar/base.html" %}
+{% load bazaar %}
+{% block title %}Earnings{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1 class="heading">Earnings</h1><p>Your fee per delivery is set by the market office.</p></div></div>
+<div class="tiles">
+  <div class="card tile tile-lead"><span class="label">Waiting to be paid</span><span class="value">{{ rider.unpaid_earnings_cents|money:rider.currency }}</span></div>
+  <div class="card tile"><span class="label">Earned in total</span><span class="value">{{ rider.earnings_cents|money:rider.currency }}</span></div>
+  <div class="card tile"><span class="label">Deliveries</span><span class="value">{{ rider.completed_deliveries }}</span></div>
+</div>
+<h2 class="heading section-title jobs-title">Recent pay</h2>
+{% if earnings %}
+<div class="table-wrap"><table class="table"><thead><tr><th>Date</th><th class="right">Amount</th><th>Status</th></tr></thead><tbody>
+{% for e in earnings %}<tr><td class="small">{{ e.created_at|when }}</td><td class="right num">{{ e.amount_cents|money:e.currency }}</td><td><span class="chip {% if e.paid_out %}chip-success{% else %}chip-warning{% endif %}">{% if e.paid_out %}Paid{% else %}Unpaid{% endif %}</span></td></tr>{% endfor %}
+</tbody></table></div>
+{% else %}<div class="empty"><strong>No earnings yet</strong><p>Each finished delivery adds a line here.</p></div>{% endif %}
+{% endblock %}

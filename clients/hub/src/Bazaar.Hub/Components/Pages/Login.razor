@@ -1,0 +1,35 @@
+@page "/login"
+@layout Layout.GuestLayout
+@inject IOptions<HubOptions> Options
+
+<PageTitle>Sign in · @Options.Value.StoreName</PageTitle>
+<div class="stack">
+    <img class="guest-logo" src="brand/img/logo.png" alt="The Bazaar" width="190" height="110" />
+    <div>
+        <h1 class="heading page-title">Integrations hub</h1>
+        <p class="muted">For stall owners and the market office. Sign in with your @Options.Value.StoreName account.</p>
+    </div>
+    @if (!string.IsNullOrEmpty(Error))
+    {
+        <div class="note note-error" role="alert" id="login-error">@Error</div>
+    }
+    <form class="form" method="post" action="account/login" novalidate>
+        <AntiforgeryToken />
+        <input type="hidden" name="returnUrl" value="@ReturnUrl" />
+        <div class="field-wrap">
+            <label class="label" for="email">Email</label>
+            <input class="field" id="email" name="email" type="email" autocomplete="email" required autofocus aria-describedby="@(Error is null ? null : "login-error")" />
+        </div>
+        <div class="field-wrap">
+            <label class="label" for="password">Password</label>
+            <input class="field" id="password" name="password" type="password" autocomplete="current-password" required />
+        </div>
+        <button class="btn btn-primary btn-lg btn-wide" type="submit">Sign in</button>
+    </form>
+    <p class="small muted">Shopping or riding? Use the <a class="link" href="@Options.Value.PortalUrl">portal</a> instead.</p>
+</div>
+
+@code {
+    [SupplyParameterFromQuery] public string? Error { get; set; }
+    [SupplyParameterFromQuery] public string? ReturnUrl { get; set; }
+}

@@ -1,0 +1,39 @@
+{% extends "bazaar/base.html" %}
+{% block title %}Site settings{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1 class="heading">Site settings</h1><p>Who shoppers and would-be vendors contact, and who can sign up.</p></div></div>
+<form class="form" method="post" novalidate>
+  {% csrf_token %}
+  <fieldset class="stack-sm"><legend>Market office contact</legend>
+    <p class="small muted">Shown on stall pages instead of rent prices.</p>
+    <div class="grid-2">
+      {% include "bazaar/_field.html" with name="contact_name" label="Name" value=settings.contact_name %}
+      {% include "bazaar/_field.html" with name="contact_email" label="Email" type="email" value=settings.contact_email %}
+      {% include "bazaar/_field.html" with name="contact_phone" label="Phone" type="tel" value=settings.contact_phone %}
+      {% include "bazaar/_field.html" with name="contact_whatsapp" label="WhatsApp" type="tel" value=settings.contact_whatsapp %}
+    </div>
+    <div class="field-wrap"><label class="label" for="f-note">Note</label><textarea class="field" id="f-note" name="contact_note" rows="2">{{ settings.contact_note|default:'' }}</textarea></div>
+  </fieldset>
+  <fieldset class="stack-sm"><legend>Where buyers pay</legend>
+    <p class="small muted">Every payment goes to The Bazaar. Riders show this to the buyer at the door, with the order number as the reference.</p>
+    <div class="grid-2">
+      <div class="field-wrap"><label class="label" for="f-till">M-Pesa till number</label><input class="field" id="f-till" name="mpesa_till" value="{{ settings.mpesa_till|default:'' }}" inputmode="numeric" maxlength="20"></div>
+      <div class="field-wrap"><label class="label" for="f-paybill">M-Pesa paybill</label><input class="field" id="f-paybill" name="mpesa_paybill" value="{{ settings.mpesa_paybill|default:'' }}" inputmode="numeric" maxlength="20"></div>
+      <div class="field-wrap"><label class="label" for="f-accname">Name buyers see</label><input class="field" id="f-accname" name="payment_account_name" value="{{ settings.payment_account_name|default:'' }}" maxlength="120"></div>
+      <div class="field-wrap"><label class="label" for="f-bank">Bank</label><input class="field" id="f-bank" name="bank_name" value="{{ settings.bank_name|default:'' }}" maxlength="120"></div>
+      <div class="field-wrap"><label class="label" for="f-bankname">Bank account name</label><input class="field" id="f-bankname" name="bank_account_name" value="{{ settings.bank_account_name|default:'' }}" maxlength="120"></div>
+      <div class="field-wrap"><label class="label" for="f-bankno">Bank account number</label><input class="field" id="f-bankno" name="bank_account_number" value="{{ settings.bank_account_number|default:'' }}" maxlength="40"></div>
+    </div>
+    <div class="field-wrap"><label class="label" for="f-payinst">Instructions</label><textarea class="field" id="f-payinst" name="payment_instructions" rows="2" maxlength="500">{{ settings.payment_instructions|default:'' }}</textarea></div>
+  </fieldset>
+  <fieldset class="stack-sm"><legend>Sign-ups</legend>
+    <label class="check"><input type="checkbox" name="vendor_signups_open" {% if settings.vendor_signups_open %}checked{% endif %}>Accept new stall applications</label>
+    <label class="check"><input type="checkbox" name="rider_signups_open" {% if settings.rider_signups_open %}checked{% endif %}>Accept new rider applications</label>
+  </fieldset>
+  <fieldset class="stack-sm"><legend>Maintenance</legend>
+    <label class="check"><input type="checkbox" name="maintenance_mode" {% if settings.maintenance_mode %}checked{% endif %}>Close the shop for maintenance</label>
+    <div class="field-wrap"><label class="label" for="f-mm">Message shoppers see</label><input class="field" id="f-mm" name="maintenance_message" value="{{ settings.maintenance_message|default:'' }}"></div>
+  </fieldset>
+  <div><button class="btn btn-primary" type="submit">Save settings</button></div>
+</form>
+{% endblock %}

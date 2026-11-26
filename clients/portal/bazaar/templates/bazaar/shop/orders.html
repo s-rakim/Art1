@@ -1,0 +1,16 @@
+{% extends "bazaar/base.html" %}
+{% load bazaar %}
+{% block title %}My orders{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1 class="heading">My orders</h1><p>{{ total }} order{{ total|pluralize }}</p></div></div>
+{% if orders %}
+<div class="table-wrap"><table class="table">
+  <thead><tr><th>Order</th><th>Placed</th><th>Status</th><th class="right">Items</th><th class="right">Total</th></tr></thead>
+  <tbody>{% for o in orders %}
+  <tr><td><a class="link" href="{% url 'shop:order' o.id %}">{{ o.number }}</a></td><td class="small">{{ o.created_at|when }}</td><td><span class="chip {{ o.status|status_tone }}">{{ o.status|humanize }}</span></td><td class="right num">{{ o.item_count }}</td><td class="right num">{{ o.total_cents|money:o.currency }}</td></tr>
+  {% endfor %}</tbody>
+</table></div>
+{% else %}
+<div class="empty">{% icon "receipt" 48 %}<strong>No orders yet</strong><p>When you buy something it shows up here, with live tracking.</p><a class="btn btn-primary" href="{% url 'shop:home' %}">Start shopping</a></div>
+{% endif %}
+{% endblock %}

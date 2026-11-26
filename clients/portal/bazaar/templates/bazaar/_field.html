@@ -1,0 +1,5 @@
+<div class="field-wrap">
+  <label class="label" for="f-{{ name }}">{{ label }}</label>
+  <input class="field" id="f-{{ name }}" name="{{ name }}" type="{{ type|default:'text' }}" value="{{ value|default:'' }}"{% if required %} required{% endif %}{% if auto %} autocomplete="{{ auto }}"{% endif %}{% if inputmode %} inputmode="{{ inputmode }}"{% endif %}{% if hint or error %} aria-describedby="f-{{ name }}-note"{% endif %}{% if error %} aria-invalid="true"{% endif %}>
+  {% if error %}<span class="field-error" id="f-{{ name }}-note">{{ error }}</span>{% elif hint %}<span class="field-hint" id="f-{{ name }}-note">{{ hint }}</span>{% endif %}
+</div>

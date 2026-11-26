@@ -1,0 +1,41 @@
+{% extends "bazaar/base.html" %}
+{% load bazaar static %}
+{% block title %}Order {{ order.number }}{% endblock %}
+{% block head %}<link rel="stylesheet" href="{% static 'vendor/leaflet-1.9.4/leaflet.css' %}">{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1 class="heading">Order {{ order.number }}</h1><p>Placed {{ order.created_at|when }} · <span class="chip {{ order.status|status_tone }}">{{ order.status|humanize }}</span></p></div>
+  {% if order.status == "pending_payment" or order.status == "pending" or order.status == "awaiting_payment" %}
+  <form method="post" action="{% url 'shop:cancel_order' order.id %}" data-confirm="Cancel order {{ order.number }}? This can't be undone.">{% csrf_token %}<button class="btn btn-error" type="submit">Cancel order</button></form>
+  {% endif %}
+</div>
+
+{% if pay %}<div class="section-gap">{% include "bazaar/shop/_pay_box.html" %}</div>{% endif %}
+
+{% if tracking and tracking.delivery_id or tracking.deliveries %}
+<section class="stack-sm track" aria-labelledby="track-title">
+  <h2 class="heading section-title" id="track-title">Live tracking</h2>
+  {% if tracking.handover_code %}<p class="note note-info">{% icon "information" %}<span>Give the rider this code when your order arrives: <strong class="mono code">{{ tracking.handover_code }}</strong></span></p>{% endif %}
+  <div class="map" data-src="{% url 'shop:tracking_json' order.id %}" data-poll="5" data-center="{{ map_center }}" data-tiles="{{ map_tiles }}" data-attribution="{{ map_attribution }}" role="region" aria-label="Map of your delivery"></div>
+  <div class="row-between"><p class="small muted" id="map-status" aria-live="polite">Loading the map…</p>
+  <div class="legend"><span><span class="pin pin-store"></span>Stall</span><span><span class="pin pin-rider"></span>Rider</span><span><span class="pin pin-home"></span>You</span></div></div>
+</section>
+{% endif %}
+
+<div class="stack">
+{% for s in order.shipments %}
+<section class="card panel-pad stack-sm">
+  <div class="row-between"><strong>{{ s.store.name }}</strong><span class="chip {{ s.status|status_tone }}">{{ s.status|humanize }}</span></div>
+  {% for i in s.items %}<div class="row-between small"><span>{{ i.quantity }} × {{ i.title }}{% if i.variant_title %} · {{ i.variant_title }}{% endif %}</span><span class="num">{{ i.line_total_cents|money:order.currency }}</span></div>{% endfor %}
+</section>
+{% endfor %}
+<div class="card panel-pad totals">
+  <div class="row-between"><span>Subtotal</span><span class="num">{{ order.subtotal_cents|money:order.currency }}</span></div>
+  {% if order.discount_cents %}<div class="row-between"><span>Discount</span><span class="num">−{{ order.discount_cents|money:order.currency }}</span></div>{% endif %}
+  <div class="row-between"><span>Delivery</span><span class="num">{{ order.shipping_cents|money:order.currency }}</span></div>
+  {% if order.tax_cents %}<div class="row-between"><span>Tax</span><span class="num">{{ order.tax_cents|money:order.currency }}</span></div>{% endif %}
+  <div class="row-between"><strong>Total</strong><strong class="num">{{ order.total_cents|money:order.currency }}</strong></div>
+</div>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{% static 'vendor/leaflet-1.9.4/leaflet.js' %}" defer></script><script src="{% static 'map.js' %}" defer></script>{% endblock %}

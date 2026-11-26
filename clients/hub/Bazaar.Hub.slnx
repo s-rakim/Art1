@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Bazaar.Api/Bazaar.Api.csproj" />
+    <Project Path="src/Bazaar.Hub/Bazaar.Hub.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Bazaar.Hub.Tests/Bazaar.Hub.Tests.csproj" />
+  </Folder>
+</Solution>

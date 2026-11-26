@@ -1,0 +1,12 @@
+{% if pay.mpesa_till or pay.mpesa_paybill or pay.bank_account_number %}
+<div class="card panel-pad stack-sm" aria-label="How to pay">
+  <strong>How to pay{% if order %} for order {% firstof order.number order.order_number %}{% endif %}</strong>
+  <ul class="small stack-sm">
+    {% if pay.mpesa_till %}<li>M-Pesa Buy Goods, till <strong class="mono">{{ pay.mpesa_till }}</strong>{% if pay.account_name %} ({{ pay.account_name }}){% endif %}</li>{% endif %}
+    {% if pay.mpesa_paybill %}<li>M-Pesa Paybill <strong class="mono">{{ pay.mpesa_paybill }}</strong>, account {% if order %}<strong class="mono">{% firstof order.number order.order_number %}</strong>{% else %}your order number{% endif %}</li>{% endif %}
+    {% if pay.bank_account_number %}<li>{{ pay.bank_name }}, {{ pay.bank_account_name }}, account <strong class="mono">{{ pay.bank_account_number }}</strong>, reference {% if order %}<strong class="mono">{% firstof order.number order.order_number %}</strong>{% else %}your order number{% endif %}</li>{% endif %}
+  </ul>
+  {% if pay.instructions %}<p class="small muted">{{ pay.instructions }}</p>{% endif %}
+  <p class="small muted">The rider checks your transaction code or name at the door before handing over.</p>
+</div>
+{% endif %}

@@ -1,0 +1,75 @@
+# The Bazaar's front door. TLS certificates for SITE_DOMAIN are fetched and
+# renewed automatically.
+{
+	email {$ACME_EMAIL}
+	# Caddy faces the internet directly, so it trusts no one's
+	# X-Forwarded-For and passes on the real client address. Rate limits in
+	# the API depend on that. Only if you put a CDN such as Cloudflare in
+	# front, uncomment this and list the CDN's address ranges:
+	# servers {
+	# 	trusted_proxies static 173.245.48.0/20 103.21.244.0/22
+	# 	client_ip_headers CF-Connecting-IP
+	# }
+}
+
+{$SITE_DOMAIN} {
+	encode zstd gzip
+
+	# Bodies are capped in the API too; this stops abuse at the edge. Only
+	# product photo and video uploads may be big.
+	@uploads path_regexp ^/(api/v1/seller|portal/vendor)/products/[0-9a-fA-F-]{36}/(images(/[0-9a-fA-F-]{36})?|video)$
+	request_body @uploads {
+		max_size 60MB
+	}
+	@everything_else not path_regexp ^/(api/v1/seller|portal/vendor)/products/[0-9a-fA-F-]{36}/(images(/[0-9a-fA-F-]{36})?|video)$
+	request_body @everything_else {
+		max_size 2MB
+	}
+
+	header {
+		-Server
+		-Via
+	}
+
+	# The API, including the live websocket at /api/v1/ws/live.
+	handle /api/* {
+		reverse_proxy api:8000 {
+			health_uri /healthz
+			health_interval 15s
+			flush_interval -1
+		}
+	}
+
+	# The Django portal. It is written for /portal and gets paths without it.
+	@portal path /portal /portal/*
+	handle @portal {
+		uri strip_prefix /portal
+		reverse_proxy portal:8000
+	}
+
+	# The C# hub keeps the /hub prefix itself.
+	@hub path /hub /hub/*
+	handle @hub {
+		reverse_proxy hub:8080
+	}
+
+	# Everything else is the web app.
+	handle {
+		reverse_proxy web:3000
+	}
+
+	# The till and SMS feed addresses carry a secret; keep it out of logs.
+	log {
+		output stdout
+		format filter {
+			request>uri regexp ^(/api/v1/payments/(?:sms|till)/)[^/?]+ ${1}REDACTED
+			wrap json
+		}
+	}
+}
+
+# Send www. to the bare domain. Needs a DNS record for www too; delete this
+# block if you don't have one.
+www.{$SITE_DOMAIN} {
+	redir https://{$SITE_DOMAIN}{uri} permanent
+}
