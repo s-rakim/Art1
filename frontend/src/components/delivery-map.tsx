@@ -13,8 +13,13 @@ export type MapPin = LatLng & {
   heading?: number | null;
   /** Lets the user drag this pin; the new spot is reported through onPick. */
   draggable?: boolean;
+  /** Rider jobs: yellow waiting to be taken, red on the current run, green delivered. */
+  tone?: "open" | "live" | "done";
+  /** Faded and blurred: out of reach right now. */
+  dim?: boolean;
 };
-export type MapLine = { id: string; from: LatLng; to: LatLng; done?: boolean };
+/** A straight leg, or a whole route through `path` (drawn in order). */
+export type MapLine = { id: string; from: LatLng; to: LatLng; done?: boolean; path?: LatLng[] };
 
 // Material Design Icons paths (Apache 2.0), drawn inside the markers.
 const GLYPH = {
@@ -23,6 +28,7 @@ const GLYPH = {
   dropoff: "M10,20V14H14V20H19V12H22L12,3L2,12H5V20H10Z",
 };
 const LEGEND: Record<MapPin["kind"], string> = { rider: "Rider on a job", idle: "Free rider", pickup: "Shop", dropoff: "Drop-off" };
+const TONE: Record<NonNullable<MapPin["tone"]>, string> = { open: "Waiting", live: "On your run", done: "Delivered" };
 
 const reduceMotion = () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 const darkMode = () => {
@@ -58,11 +64,16 @@ function svg(path: string, size: number) {
 }
 
 /** Builds a marker with DOM calls only. Labels go in as text, never as HTML. */
-function pinElement(pin: MapPin) {
+function pinLabel(pin: MapPin) {
+  return `${pin.tone ? TONE[pin.tone] : LEGEND[pin.kind]}: ${pin.label}`;
+}
+
+function pinElement(pin: MapPin, clickable: boolean) {
   const el = document.createElement("div");
   el.className = `map-pin map-pin-${pin.kind}`;
-  el.setAttribute("role", "img");
-  el.setAttribute("aria-label", `${LEGEND[pin.kind]}: ${pin.label}`);
+  el.setAttribute("role", clickable ? "button" : "img");
+  if (clickable) el.tabIndex = 0;
+  el.setAttribute("aria-label", pinLabel(pin));
   el.title = pin.label;
   if (pin.kind === "rider" || pin.kind === "idle") {
     if (pin.kind === "rider") {
@@ -121,6 +132,7 @@ export function DeliveryMap({
   className = "h-[360px]",
   follow,
   onPick,
+  onPinClick,
   trails = true,
 }: {
   pins: MapPin[];
@@ -129,11 +141,15 @@ export function DeliveryMap({
   follow?: string;
   /** When set, clicking the map (or dragging a draggable pin) reports the spot. */
   onPick?: (p: LatLng) => void;
+  /** Makes pins with a tone into buttons (click, Enter or Space), reporting the pin id. */
+  onPinClick?: (id: string) => void;
   trails?: boolean;
 }) {
   const pickRef = useRef(onPick);
+  const pinClickRef = useRef(onPinClick);
   useEffect(() => {
     pickRef.current = onPick;
+    pinClickRef.current = onPinClick;
   });
   const box = useRef<HTMLDivElement>(null);
   const map = useRef<MLMap | null>(null);
@@ -258,7 +274,21 @@ export function DeliveryMap({
           e = undefined;
         }
         if (!e) {
-          const el = pinElement(pin);
+          const clickable = !!pin.tone && !!pinClickRef.current;
+          const el = pinElement(pin, clickable);
+          if (clickable) {
+            const fire = (ev: Event) => {
+              ev.stopPropagation();
+              pinClickRef.current?.(pin.id);
+            };
+            el.addEventListener("click", fire);
+            el.addEventListener("keydown", (ev) => {
+              if (ev.key === "Enter" || ev.key === " ") {
+                ev.preventDefault();
+                fire(ev);
+              }
+            });
+          }
           const marker = new ml.Marker({ element: el, draggable: !!pin.draggable, anchor: pin.kind === "rider" || pin.kind === "idle" ? "center" : "bottom" }).setLngLat(to).addTo(m);
           if (pin.draggable) {
             marker.on("dragend", () => {
@@ -288,6 +318,11 @@ export function DeliveryMap({
           arrow.style.transform = `rotate(${e.heading ?? 0}deg)`;
         }
         e.el.title = pin.label;
+        e.el.setAttribute("aria-label", pinLabel(pin));
+        if (pin.tone) e.el.dataset.tone = pin.tone;
+        else delete e.el.dataset.tone;
+        if (pin.dim) e.el.dataset.dim = "true";
+        else delete e.el.dataset.dim;
         if (pin.kind === "rider" && trails) {
           const h = history.current.get(pin.id) ?? [];
           const last = h[h.length - 1];
@@ -308,7 +343,10 @@ export function DeliveryMap({
         features: lines.map((l) => ({
           type: "Feature" as const,
           properties: { done: l.done ? 1 : 0 },
-          geometry: { type: "LineString" as const, coordinates: [[l.from.lng, l.from.lat], [l.to.lng, l.to.lat]] },
+          geometry: {
+            type: "LineString" as const,
+            coordinates: l.path && l.path.length > 1 ? l.path.map((p) => [p.lng, p.lat]) : [[l.from.lng, l.from.lat], [l.to.lng, l.to.lat]],
+          },
         })),
       };
       const trailData = {
@@ -331,12 +369,12 @@ export function DeliveryMap({
         m.addLayer({ id: "bz-trails", type: "line", source: "bz-trails", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": primary, "line-width": 4, "line-opacity": 0.35 } });
       }
       if (!m.getLayer("bz-routes-casing")) {
-        m.addLayer({ id: "bz-routes-casing", type: "line", source: "bz-routes", layout: { "line-cap": "round" }, paint: { "line-color": "#ffffff", "line-width": 7, "line-opacity": 0.85 } });
+        m.addLayer({ id: "bz-routes-casing", type: "line", source: "bz-routes", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#ffffff", "line-width": 7, "line-opacity": 0.85 } });
         m.addLayer({
           id: "bz-routes",
           type: "line",
           source: "bz-routes",
-          layout: { "line-cap": "butt" },
+          layout: { "line-cap": "butt", "line-join": "round" },
           paint: { "line-color": ["case", ["==", ["get", "done"], 1], success, primary], "line-width": 4, "line-dasharray": DASHES[0] },
         });
       }
@@ -358,19 +396,26 @@ export function DeliveryMap({
     };
   }, [pins, lines, styleTick, follow, trails]);
 
-  const kinds = (["rider", "idle", "pickup", "dropoff"] as const).filter((k) => pins.some((p) => p.kind === k));
+  const kinds = (["rider", "idle", "pickup", "dropoff"] as const).filter((k) => pins.some((p) => p.kind === k && !p.tone));
+  const tones = (["open", "live", "done"] as const).filter((t) => pins.some((p) => p.tone === t));
 
   return (
     <div className={`bz-map relative overflow-hidden rounded-container border border-border-dark bg-background-hover ${onPick ? "[&_canvas]:cursor-crosshair" : ""} ${className}`}>
       {/* Inline size: maplibre-gl.css is unlayered and would override a Tailwind utility here. */}
       <div ref={box} style={{ position: "absolute", inset: 0 }} />
       {failed && <p className="absolute inset-0 flex items-center justify-center p-6 text-center text-[13px] text-maxcontrast">The map couldn&apos;t load in this browser. Delivery status is still shown alongside.</p>}
-      {kinds.length > 0 && (
+      {kinds.length + tones.length > 0 && (
         <ul className="pointer-events-none absolute bottom-2 left-2 flex flex-wrap gap-1 text-[12px]">
           {kinds.map((k) => (
             <li key={k} className="flex items-center gap-1.5 rounded-pill bg-main-background/95 px-2 py-0.5 shadow-sm">
               <span className={`map-key map-key-${k}`} />
               {LEGEND[k]}
+            </li>
+          ))}
+          {tones.map((t) => (
+            <li key={t} className="flex items-center gap-1.5 rounded-pill bg-main-background/95 px-2 py-0.5 shadow-sm">
+              <span className={`map-key map-key-tone-${t}`} />
+              {TONE[t]}
             </li>
           ))}
         </ul>

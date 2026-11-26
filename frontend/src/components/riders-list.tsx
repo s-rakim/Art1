@@ -1,21 +1,12 @@
 "use client";
 import { useMemo, useState, type ReactNode } from "react";
+import { ago } from "@/lib/format";
 import type { Rider } from "@/lib/types";
 import { DeliveryMap, type MapPin } from "./delivery-map";
 import { ChevronDown } from "./icons";
 import { StatusTag } from "./status-tag";
 
 const vehicle = (v: string) => (v ? v.replace(/_/g, " ") : "Vehicle not given");
-
-function seen(at: string | null | undefined) {
-  if (!at) return null;
-  const t = Date.parse(at);
-  if (!Number.isFinite(t)) return null;
-  const mins = Math.round((Date.now() - t) / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins} min ago`;
-  return new Date(t).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-}
 
 function State({ r }: { r: Rider }) {
   if (r.status !== "active") return <StatusTag status={r.status} />;
@@ -56,7 +47,7 @@ export function RidersList({
     <ul className="divide-y divide-border overflow-hidden rounded-container border border-border-dark bg-main-background">
       {riders.map((r) => {
         const expanded = open === r.id;
-        const last = seen(r.position?.at);
+        const last = ago(r.position?.at);
         return (
           <li key={r.id}>
             <button
@@ -98,7 +89,7 @@ function Details({ id, r, showDistance, showLicence, actions }: { id: string; r:
     () => (r.position ? [{ id: r.id, kind: r.active_deliveries > 0 ? "rider" : "idle", label: r.full_name, lat: r.position.lat, lng: r.position.lng, heading: r.position.heading }] : []),
     [r.id, r.full_name, r.active_deliveries, r.position],
   );
-  const last = seen(r.position?.at);
+  const last = ago(r.position?.at);
   return (
     <div id={id} className="grid gap-4 border-t border-border bg-background-hover/40 px-4 py-4 md:grid-cols-[1fr_280px]">
       {r.position ? (

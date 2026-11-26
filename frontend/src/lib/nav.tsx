@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import {
-  AdminIcon, Archive, ArrowLeft, Bike, Cash, Chart, Fire, Grid, Heart, Help, Home, Megaphone, Message, Receipt, Settings, Sparkle,
+  AdminIcon, Archive, ArrowLeft, Bike, Cash, Chart, Fire, Grid, Heart, Help, Home, List, Megaphone, Message, Receipt, Settings, Sparkle,
   Store, Tools, Truck, User, Wallet, Box,
 } from "@/components/icons";
 
@@ -53,6 +53,7 @@ export const VENDOR: Area = {
         { href: "/seller/orders", label: "Orders and payments", icon: <Wallet />, blurb: "Pack, ship and get paid" },
         { href: "/seller/deliveries", label: "Dispatch and map", icon: <Truck />, blurb: "Riders on the way, live" },
         { href: "/seller/riders", label: "Riders", icon: <Bike />, blurb: "Who is near your stall right now" },
+        { href: "/seller/ledger", label: "Ledger", icon: <List />, blurb: "Your sales, payments and stock sheets, and your own entries" },
       ],
     },
     {
@@ -79,7 +80,14 @@ export const RIDER: Area = {
   icon: <Bike />,
   href: "/rider",
   role: "rider",
-  sections: [{ items: [{ href: "/rider", label: "My deliveries", icon: <Truck />, exact: true, blurb: "Jobs offered to you and the route" }] }],
+  sections: [
+    {
+      items: [
+        { href: "/rider", label: "My deliveries", icon: <Truck />, exact: true, blurb: "Open jobs, your run and the route" },
+        { href: "/rider/activity", label: "Activity and earnings", icon: <Chart />, blurb: "What you've delivered and earned" },
+      ],
+    },
+  ],
 };
 
 export const ADMIN: Area = {
@@ -96,8 +104,15 @@ export const ADMIN: Area = {
       items: [
         { href: "/admin/stores", label: "Stores", icon: <Store />, blurb: "Applications and live stalls" },
         { href: "/admin/space", label: "Store space", icon: <Megaphone />, blurb: "Plans and featured placements" },
-        { href: "/admin/pricing", label: "Fees and contact", icon: <Cash />, blurb: "Delivery fees, tax and who sellers call" },
+        { href: "/admin/pricing", label: "Fees and settings", icon: <Cash />, blurb: "Fees, where shoppers pay, and rider rules" },
         { href: "/admin/orders", label: "Orders", icon: <Receipt />, blurb: "Every order across the market" },
+      ],
+    },
+    {
+      caption: "Money",
+      items: [
+        { href: "/admin/payments", label: "Payments and payouts", icon: <Wallet />, blurb: "The till's payments, codes and what stalls are owed" },
+        { href: "/admin/ledger", label: "Ledger", icon: <List />, blurb: "Every stall's sheets, and rows waiting for you to confirm" },
       ],
     },
     {

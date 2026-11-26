@@ -589,6 +589,38 @@ html[data-shader="on"] .wallpaper {
 .map-key-idle { background: var(--color-maxcontrast); }
 .map-key-pickup { background: var(--color-main-text); }
 .map-key-dropoff { background: var(--color-element-success); }
+/* Rider job pins: yellow waiting, red on the run, green delivered; faded when out of reach.
+   The job list on the rider page uses the same three colours for its dots. */
+:root { --job-open: #f2b705; --job-open-ink: #3d2e00; --job-live: #d32f2f; --job-done: #2e8b3e; }
+.map-pin[data-tone="open"] .map-pin-face { background: var(--job-open); color: var(--job-open-ink); }
+.map-pin[data-tone="live"] .map-pin-face { background: var(--job-live); color: #fff; }
+.map-pin[data-tone="done"] .map-pin-face { background: var(--job-done); color: #fff; }
+.map-pin[role="button"] { cursor: pointer; }
+.map-pin[role="button"]:focus-visible .map-pin-face { outline: 3px solid var(--color-primary-element); outline-offset: 2px; }
+.map-pin[data-dim] { opacity: 0.35; filter: blur(1.5px) grayscale(0.6); }
+.map-key-tone-open, .job-dot[data-tone="open"] { background: var(--job-open); }
+.map-key-tone-live, .job-dot[data-tone="live"] { background: var(--job-live); }
+.map-key-tone-done, .job-dot[data-tone="done"] { background: var(--job-done); }
+.job-dot { display: inline-block; width: 10px; height: 10px; flex: none; border-radius: 50%; box-shadow: 0 0 0 2px var(--color-main-background); }
+
+/* Rider job board. A job that can't join the current run is blurred and locked, and the reason
+   sits on top of it in plain text. The one picked on the map gets a red edge, like its pin. */
+.job-card { position: relative; border-radius: 16px; border: 1px solid var(--gd-line, var(--color-border)); background: var(--gd-card, var(--color-main-background)); }
+.job-card + .job-card { margin-top: 8px; }
+.job-card[data-picked] { border-color: var(--job-live); box-shadow: 0 0 0 1px var(--job-live); }
+.job-card-lock { display: none; }
+.job-card[data-blocked] .job-card-body { filter: blur(3px); opacity: 0.5; user-select: none; pointer-events: none; }
+.job-card[data-blocked] .job-card-lock {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 16px;
+  text-align: center; font-size: 13px; font-weight: 600; text-wrap: balance;
+}
+.job-pick { display: block; width: 100%; padding: 12px 14px 8px; text-align: left; border-radius: 16px 16px 0 0; }
+.job-pick:focus-visible { outline: 2px solid var(--color-primary-element); outline-offset: -2px; }
+.job-facts { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 13px; color: var(--color-maxcontrast); font-variant-numeric: tabular-nums; }
+@media (forced-colors: active) {
+  .job-dot, .map-pin[data-tone] .map-pin-face { forced-color-adjust: none; }
+  .job-card[data-picked] { outline: 3px solid Highlight; }
+}
 .bz-map .maplibregl-ctrl-group { border-radius: var(--radius-element); box-shadow: 0 1px 4px rgb(0 0 0 / 0.2); }
 
 /* ---------------------------------------------------------------------------------------
@@ -829,6 +861,19 @@ html[data-shader="on"] {
   .gd-work strong { font-size: 13px; font-weight: 700; }
   .gd-work-detail { font-size: 12px; line-height: 1.4; color: var(--color-maxcontrast); }
   .gd-work-meta { display: flex; justify-content: space-between; gap: 6px; font-size: 11px; font-weight: 600; color: var(--color-maxcontrast); font-variant-numeric: tabular-nums; }
+
+  /* Ledger sheets: spreadsheet lines, a header that stays put, a totals row, inputs that sit in the grid. */
+  .sheet-grid { max-height: min(70vh, 720px); overflow: auto; border: 1px solid var(--gd-line); border-radius: 12px; }
+  .sheet-grid table { border-collapse: separate; }
+  .sheet-grid th { position: sticky; top: 0; z-index: 1; border-radius: 0 !important; background: var(--color-main-background); box-shadow: inset 0 -1px var(--gd-line); }
+  .sheet-grid td + td, .sheet-grid th + th { border-left: 1px solid var(--gd-line); }
+  .sheet-grid tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--gd-inner) 55%, transparent); }
+  .sheet-grid tfoot td { position: sticky; bottom: 0; font-weight: 700; background: var(--color-main-background); box-shadow: inset 0 1px var(--gd-line); }
+  .sheet-grid tr[data-locked] td { color: var(--color-maxcontrast); }
+  .sheet-grid .sheet-new td { background: color-mix(in srgb, var(--color-primary-element-light) 60%, transparent); }
+  .sheet-input { min-height: 32px; width: 100%; padding: 0 6px; border-radius: 6px; border: 1px solid var(--gd-line); background: var(--color-main-background); color: var(--color-main-text); font-size: 13px; }
+  .sheet-input:focus { outline: 2px solid var(--color-primary-element); outline-offset: 0; }
+  .gd-filter input[type="date"] { min-height: 34px; border: 0; background: transparent; color: var(--color-main-text); font-size: 13px; outline: none; }
 
   /* The dock floats at the bottom of the screen while the stage is in view. */
   .gd-dock-wrap { position: sticky; bottom: max(10px, env(safe-area-inset-bottom)); z-index: 5; display: flex; justify-content: center; margin-top: 18px; pointer-events: none; }

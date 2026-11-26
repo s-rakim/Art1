@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Delivery, LiveRider } from "@/lib/types";
 import { useApi } from "@/lib/use-api";
 import { useLiveTracking, type LiveEvent } from "@/lib/live";
@@ -10,7 +10,7 @@ import { StatusTag } from "./status-tag";
 
 export type Board = { deliveries: Delivery[]; riders?: LiveRider[] };
 
-const ACTIVE = new Set(["awaiting_rider", "assigned", "accepted", "picked_up"]);
+const ACTIVE = new Set(["awaiting_rider", "assigned", "accepted", "picked_up", "arrived"]);
 
 /**
  * Map plus list of deliveries on the road. Positions stream in over the tracking websocket
@@ -22,11 +22,14 @@ export function DeliveriesBoard({
   admin = false,
   showStore = false,
   onCancel,
+  summary,
 }: {
   load: (token: string | null) => Promise<Board>;
   admin?: boolean;
   showStore?: boolean;
   onCancel?: (token: string | null, id: string) => Promise<unknown>;
+  /** Drawn above the map from the same data, so the headline numbers never disagree with it. */
+  summary?: (board: Board & { live: boolean }) => ReactNode;
 }) {
   const { data, setData, error, reload, token } = useApi(load);
   const [focus, setFocus] = useState<string | null>(null);
@@ -96,21 +99,24 @@ export function DeliveriesBoard({
   return (
     <>
       <ErrorLine error={error ?? actionError} />
-      <p className="mb-3 flex items-center gap-1.5 tabular-nums text-[12px] text-maxcontrast">
-        <span className={`rounded-full inline-block h-2 w-2 ${live ? "bg-success" : "bg-border-dark"}`} />
+      <p className="gd-live mb-3 w-fit" data-live={live || undefined} role="status">
+        <i aria-hidden />
         {live ? "Live" : "Refreshing every 15 seconds"}
       </p>
-      <div className="grid gap-4 xl:grid-cols-[1fr_380px]">
-        <DeliveryMap pins={pins} lines={lines} className="h-[420px] xl:h-[560px]" />
-        <ul className="rounded-element max-h-[560px] divide-y divide-border overflow-y-auto border border-border-dark bg-main-background">
+      {summary && data && <div className="mb-3">{summary({ ...data, live })}</div>}
+      <div className="grid gap-3 xl:grid-cols-[1fr_380px]">
+        <div className="gd-panel overflow-hidden p-1.5">
+          <DeliveryMap pins={pins} lines={lines} className="h-[420px] rounded-[15px] xl:h-[560px]" />
+        </div>
+        <ul className="gd-panel max-h-[572px] divide-y divide-border overflow-y-auto p-0">
           {focus && (
             <li><button onClick={() => setFocus(null)} className="w-full px-4 py-2 text-left text-[13px] underline">Show all deliveries</button></li>
           )}
           {active.map((d) => (
-            <li key={d.id} className={focus === d.id ? "bg-background-hover" : ""}>
-              <button onClick={() => setFocus(d.id)} className="w-full px-4 pt-3 pb-2 text-left text-[14px] hover:bg-background-hover">
+            <li key={d.id} className={focus === d.id ? "bg-primary-element-light" : ""}>
+              <button onClick={() => setFocus(d.id)} aria-pressed={focus === d.id} className="w-full px-4 pt-3 pb-2 text-left text-[14px] hover:bg-background-hover">
                 <span className="flex items-center justify-between gap-2">
-                  <span className="tabular-nums text-[13px]">{d.order_number || d.id.slice(0, 8)}</span>
+                  <span className="tabular-nums text-[13px] font-semibold">{d.order_number || d.id.slice(0, 8)}</span>
                   <StatusTag status={d.status} />
                 </span>
                 {showStore && d.store_name && <span className="mt-1 block text-[12px] text-maxcontrast">{d.store_name}</span>}
@@ -136,11 +142,6 @@ export function DeliveriesBoard({
           {active.length === 0 && <li className="px-4 py-8 text-center text-[14px] text-maxcontrast">No deliveries on the road.</li>}
         </ul>
       </div>
-      {admin && data?.riders && (
-        <p className="mt-3 text-[13px] text-maxcontrast">
-          {data.riders.length} riders on shift, {data.riders.filter((r) => r.busy).length} on a job.
-        </p>
-      )}
     </>
   );
 }

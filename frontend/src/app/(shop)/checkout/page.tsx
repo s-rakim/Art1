@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { DropoffPicker } from "@/components/dropoff-picker";
+import { PayTo } from "@/components/pay-to";
 import { ProductImage } from "@/components/product-image";
 import { DemoNotice, Empty } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
@@ -11,7 +12,7 @@ import { AUTH_ENABLED } from "@/lib/config";
 import { useSite } from "@/components/site-context";
 import { COUNTRIES } from "@/lib/countries";
 import { money } from "@/lib/format";
-import { cartSubtotal, useCart } from "@/store/cart";
+import { cartSubtotal, ticked, useCart } from "@/store/cart";
 import type { Address } from "@/lib/types";
 import { useHydrated } from "@/lib/hooks";
 
@@ -21,9 +22,10 @@ const methods = [
   { id: "express", label: "Express", note: "Tracked, 2 to 4 days where the store offers it", fee: "express_shipping_cents" },
 ] as const;
 
+// Every payment goes to the market's own till or bank account, never to a shop or the rider.
 const payments = [
-  { id: "cod", label: "Cash on delivery", note: "Pay the rider when your parcel arrives. Have the exact amount ready if you can." },
-  { id: "bank_transfer", label: "Bank transfer", note: "Each store sends its account details. Your order ships once the store confirms the money arrived." },
+  { id: "cod", label: "Pay on arrival by M-Pesa or bank", note: "Pay into The Bazaar's till when the rider gets to you, with your order number as the reference. The rider checks it came through before handing over." },
+  { id: "bank_transfer", label: "Bank transfer before delivery", note: "Pay The Bazaar's account first, with your order number as the reference. Shops send your order once the money lands." },
 ] as const;
 
 const empty: Address = { full_name: "", line1: "", line2: "", city: "", region: "", postal_code: "", country: "US", phone: "", lat: null, lng: null };
@@ -32,12 +34,15 @@ export default function CheckoutPage() {
   const router = useRouter();
   const { token, email, ready } = useAuth();
   const h = useHydrated();
-  const { lines, clear } = useCart();
+  const { lines: bag, unticked, removeMany } = useCart();
+  // Only the ticked lines are bought; the rest stay in the bag.
+  const lines = ticked(bag, unticked);
   const [addr, setAddr] = useState<Address>(empty);
   const site = useSite();
   const [method, setMethod] = useState<(typeof methods)[number]["id"]>("standard");
   const [payment, setPayment] = useState<(typeof payments)[number]["id"]>("cod");
   const [coupon, setCoupon] = useState("");
+  const [riderNote, setRiderNote] = useState("");
   const [locating, setLocating] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -46,7 +51,11 @@ export default function CheckoutPage() {
   if (lines.length === 0)
     return (
       <div className="px-4 py-5 md:px-6">
-        <Empty title="Nothing to check out" action={<Link href="/" className="btn btn-primary">Keep shopping</Link>} />
+        <Empty
+          title="Nothing to check out"
+          body={bag.length ? "Everything in your bag is unticked. Tick what you want to buy." : undefined}
+          action={<Link href={bag.length ? "/cart" : "/"} className="btn btn-primary">{bag.length ? "Back to your bag" : "Keep shopping"}</Link>}
+        />
       </div>
     );
 
@@ -110,7 +119,12 @@ export default function CheckoutPage() {
         window.location.assign(u.toString());
         return;
       }
-      clear();
+      // The rider's note rides on the drop-off pin. The order is placed either way, so a failure
+      // here only loses the note, and the order page lets them set the pin and note again.
+      const note = riderNote.trim();
+      if (note && addr.lat != null && addr.lng != null)
+        await api.moveDropoff(token, res.order_id, { lat: addr.lat, lng: addr.lng, note }).catch(() => {});
+      removeMany(lines.map((l) => l.id));
       router.push(`/orders/${encodeURIComponent(res.order_id)}?placed=1`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : err instanceof Error && err.message.includes("secure") ? err.message : "We couldn't reach the store just now. Nothing was charged. Try again in a minute.");
@@ -149,6 +163,13 @@ export default function CheckoutPage() {
                 onLocate={pin}
                 locating={locating}
               />
+              {addr.lat != null && addr.lng != null && (
+                <label className="sm:col-span-2">
+                  <span className="label">Note for the rider (optional)</span>
+                  <input maxLength={500} autoComplete="off" className="field mt-1" value={riderNote} onChange={(e) => setRiderNote(e.target.value)} placeholder="Blue gate, call when you're outside" />
+                  <span className="mt-1 block text-[12px] text-maxcontrast">Only the rider who takes your parcel sees it, once they&apos;ve accepted the job.</span>
+                </label>
+              )}
             </div>
           </fieldset>
 
@@ -188,6 +209,7 @@ export default function CheckoutPage() {
                 </span>
               </div>
             </div>
+            <PayTo className="mt-3" />
             <label className="mt-6 block max-w-xs">
               <span className="label">Coupon code</span>
               <input maxLength={40} pattern="[A-Za-z0-9_\-]{2,40}" autoComplete="off" className="field mt-1 tabular-nums" value={coupon} onChange={(e) => setCoupon(e.target.value)} />
@@ -222,7 +244,11 @@ export default function CheckoutPage() {
             <div className="px-5 pb-5">
               {error && <p role="alert" className="mb-3 note note-error text-[14px]">{error}</p>}
               <button disabled={busy} className="btn btn-primary btn-lg w-full">{busy ? "Placing order…" : "Place order"}</button>
-              <p className="mt-3 text-[12px] text-maxcontrast">By placing the order you agree to each store&apos;s returns policy and our buyer protection terms.</p>
+              <p className="mt-3 text-[12px] text-maxcontrast">
+                {stores.size > 1 && `${stores.size} shops, so ${stores.size} parcels. `}
+                {bag.length > lines.length && `${bag.length - lines.length} unticked item${bag.length - lines.length === 1 ? " stays" : "s stay"} in your bag. `}
+                By placing the order you agree to each store&apos;s returns policy and our buyer protection terms.
+              </p>
             </div>
           </div>
         </aside>
@@ -230,3 +256,5 @@ export default function CheckoutPage() {
     </div>
   );
 }
+
+/** The market's till and bank details, as the admin set them. */

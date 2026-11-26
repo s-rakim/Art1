@@ -16,8 +16,21 @@ export function ProductImage({
   const url = safeImageUrl(src);
   const [failed, setFailed] = useState<string | null>(null);
   if (url && failed !== url) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={url} alt={alt} referrerPolicy="no-referrer" loading="lazy" onError={() => setFailed(url)} className={`h-full w-full object-cover ${className ?? ""}`} />;
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={url}
+        alt={alt}
+        referrerPolicy="no-referrer"
+        loading="lazy"
+        onError={() => setFailed(url)}
+        // A server-rendered image can fail before React is listening; catch that on mount.
+        ref={(el) => {
+          if (el && el.complete && el.naturalWidth === 0) setFailed(url);
+        }}
+        className={`h-full w-full object-cover ${className ?? ""}`}
+      />
+    );
   }
   return <ProductArt art={art} label={alt} className={`h-full w-full ${className ?? ""}`} />;
 }

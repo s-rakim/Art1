@@ -40,13 +40,13 @@ export async function requireUser(nextPath: string, gate?: Gate): Promise<Guarde
   const raw = Array.isArray(meta.roles) ? meta.roles : typeof meta.role === "string" ? [meta.role] : [];
   let roles = raw.filter((r): r is string => typeof r === "string").map(norm);
 
-  // Rider applicants can't use the site until they're hired. The API refuses them anyway
-  // (403 rider_not_hired); this just sends them to the page that explains where they stand.
-  if (data.user.user_metadata?.requested_role === "rider" && !roles.some((r) => r === "rider" || r === "vendor" || r === "admin")) {
-    redirect("/rider/apply");
-  }
+  const staff = (rs: string[]) => rs.some((r) => r === "rider" || r === "vendor" || r === "admin");
+  // Someone who signed up to ride looks like an applicant until the token carries their role.
+  const applicant = data.user.user_metadata?.requested_role === "rider" && !staff(roles);
 
-  if (gate && !allowed(roles, gate)) {
+  // The token's roles can be missing or stale (the mirror lags, or failed). Before turning
+  // anyone away, ask the API, which reads its own profiles table and is the real authority.
+  if ((gate && !allowed(roles, gate)) || applicant) {
     const token = await serverToken();
     const me = token ? await api.me(token).catch(() => null) : null;
     if (me) roles = Array.from(new Set([...roles, norm(me.role)]));
@@ -58,6 +58,9 @@ export async function requireUser(nextPath: string, gate?: Gate): Promise<Guarde
     }
   }
 
+  // Rider applicants can't use the site until they're hired. The API refuses them anyway
+  // (403 rider_not_hired); this just sends them to the page that explains where they stand.
+  if (applicant && !staff(roles)) redirect("/rider/apply");
   if (gate === "admin" && !allowed(roles, "admin")) notFound();
   if (gate === "vendor" && !allowed(roles, "vendor")) redirect("/sell/apply");
   if (gate === "rider" && !allowed(roles, "rider")) redirect("/rider/apply");
