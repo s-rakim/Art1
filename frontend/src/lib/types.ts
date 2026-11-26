@@ -331,6 +331,8 @@ export type Rider = {
   licence_number?: string | null;
   /** Vendor view: why this rider is listed (carrying an order now, delivered lately, or just near). */
   relation?: "on_job" | "recent" | "nearby";
+  ride_status?: RideStatus | null;
+  rules?: RiderRules | null;
   /** Vendor view: this rider's latest jobs for the store. */
   jobs?: { delivery_id: string; order_number: string; status: string; assigned_at: string; delivered_at: string | null }[];
 };
@@ -355,7 +357,49 @@ export type Delivery = {
   customer_phone?: string | null;
   items?: number;
   created_at: string;
+  /** Rider view: when the shopper placed the order, the shop, the shopper's note and the money side. */
+  placed_at?: string | null;
+  store_id?: string | null;
+  customer_note?: string | null;
+  earning_cents?: number | null;
+  amount_due_cents?: number | null;
+  payment_confirmed?: boolean;
+  arrived_at?: string | null;
+  delivered_at?: string | null;
 };
+
+export type RideStatus = "offline" | "idle" | "delivering";
+export type RiderRules = { pool_radius_km: number; batch_radius_km: number; pickup_radius_km: number; max_batch: number; commission_rate: number };
+
+/** A job a rider can take: from the pool near them, or offered to them by automatic dispatch. */
+export type OpenJob = {
+  id: string;
+  delivery_id: string | null;
+  offered: boolean;
+  offer_expires_at: string | null;
+  order_number: string;
+  placed_at: string;
+  store: { id: string; slug: string; name: string };
+  pickup: MapPoint | null;
+  /** Rounded to about a kilometre until the rider takes the job. */
+  dropoff: MapPoint | null;
+  area: string | null;
+  earning_cents: number;
+  items: number;
+  amount_due_cents: number;
+  distance_km: number | null;
+  trip_km: number | null;
+  batchable: boolean;
+  blocked_reason: "batch_full" | "on_run_far" | "pickup_far" | null;
+};
+
+export type OpenJobs = { items: OpenJob[]; ride_status: RideStatus | null; rules: RiderRules | null };
+
+export type Waypoint = { kind: "rider" | "pickup" | "dropoff"; lat: number; lng: number; label: string | null; delivery_ids: string[] };
+export type Run = { run_id: string | null; stops: Delivery[]; route: Waypoint[] };
+
+export type PaymentMatch = { receipt_id: string; code: string; payer_name: string | null; amount_cents: number; currency: string; received_at: string; used: boolean; enough: boolean };
+export type PaymentCheck = { due_cents: number; paid_cents: number; payment_confirmed: boolean; currency: string; matches: PaymentMatch[] };
 
 export type LiveRider = { id: string; name: string; vehicle: string; lat: number | null; lng: number | null; busy: boolean; heading?: number | null };
 
@@ -450,18 +494,143 @@ export type Contact = {
   contact_note: string | null;
 };
 
-/** Public site state every page can read: maintenance switch, fees and the market contact. */
-export type SiteInfo = { maintenance_mode: boolean; maintenance_message: string } & Fees & Contact;
+/** Where shoppers pay on arrival: the market's own M-Pesa till or bank account, never a vendor's. */
+export type PayInfo = {
+  mpesa_till: string | null;
+  mpesa_paybill: string | null;
+  account_name: string | null;
+  bank_name: string | null;
+  bank_account_name: string | null;
+  bank_account_number: string | null;
+  instructions: string | null;
+};
+
+/** Public site state every page can read: maintenance switch, fees, the market contact and where to pay. */
+export type SiteInfo = { maintenance_mode: boolean; maintenance_message: string; payment: PayInfo | null } & Fees & Contact;
 
 export type Settings = {
   maintenance_mode: boolean;
   maintenance_message: string;
   vendor_signups_open: boolean;
   rider_signups_open: boolean;
-} & Partial<Fees & Contact>;
+  /** The API knows the rider, till and payout settings below (older ones don't, and reject them). */
+  extended?: boolean;
+} & Partial<Fees & Contact & RiderSettings & PaySettings>;
+
+/** How riders are paid and how far jobs can be batched. Set by the admin. */
+export type RiderSettings = {
+  /** 0.8 = the rider keeps 80% of the delivery fee. */
+  rider_commission_rate: number | null;
+  rider_pool_radius_km: number | null;
+  rider_batch_radius_km: number | null;
+  rider_pickup_radius_km: number | null;
+  rider_max_batch: number | null;
+};
+
+/** The market's till and bank, and how often stalls are paid. Set by the admin. */
+export type PaySettings = {
+  payout_interval_days: number | null;
+  payment_code_ttl_hours: number | null;
+  mpesa_till: string | null;
+  mpesa_paybill: string | null;
+  payment_account_name: string | null;
+  bank_name: string | null;
+  bank_account_name: string | null;
+  bank_account_number: string | null;
+  payment_instructions: string | null;
+};
 
 // Visual stand-in for a product photo when the seller hasn't uploaded one.
 export type ProductArt = { shape: ArtShape; bg: string; fg: string };
 export type ArtShape =
   | "dress" | "tee" | "sneaker" | "bag" | "lamp" | "mug" | "headphones"
   | "chair" | "plant" | "watch" | "jacket" | "glasses" | "bottle" | "phone";
+
+// ---------------------------------------------------------------------------------------
+// Central payments. Shoppers pay the market's till; the market pays the stalls on a schedule.
+
+export type ReceiptStatus = "unconfirmed" | "confirmed" | "expired" | "void";
+
+/** One M-Pesa or bank payment the market received, read from its SMS or the Daraja callback. */
+export type PaymentReceipt = {
+  id: string;
+  code: string;
+  payer_name: string | null;
+  payer_phone: string | null;
+  amount_cents: number;
+  currency: string;
+  received_at: string;
+  provider: string | null;
+  account_ref: string | null;
+  status: ReceiptStatus;
+  order_number: string | null;
+  used_at: string | null;
+  /** Who confirmed it, and whether at the door (rider) or from the console (admin). */
+  confirmed_by: string | null;
+  expires_at: string | null;
+  note: string | null;
+};
+
+/** A message the import tool read, before or after saving. `id` is set once stored. */
+export type ImportedPayment = Omit<PaymentReceipt, "id" | "status" | "order_number" | "used_at" | "confirmed_by" | "expires_at" | "note"> & {
+  id: string | null;
+  matched_order_number: string | null;
+  duplicate: boolean;
+};
+export type PaymentImport = { rows: ImportedPayment[]; stored: number; failed: string[] };
+
+/** What the market owes one stall, after rent, commission and delivery. */
+export type Settlement = {
+  store_id: string;
+  store_name: string;
+  store_slug: string | null;
+  /** Available to pay out now. */
+  owed_cents: number;
+  /** Still on hold: orders not yet delivered and paid. */
+  held_cents: number;
+  sales_cents: number;
+  rent_due_cents: number;
+  commission_cents: number;
+  /** Payment and processing fees. */
+  fees_cents: number;
+  delivery_cents: number;
+  paid_out_cents: number;
+  net_cents: number;
+  books_balanced: boolean;
+  blockers: string[];
+  next_payout_at: string | null;
+  last_payout_at: string | null;
+};
+
+// ---------------------------------------------------------------------------------------
+// Ledger sheets. Read-only sheets come from the books; the vendor's own sheet is typed in
+// by hand and reaches the books only once the admin confirms each row against a key.
+
+export type SheetName = "ledger" | "sales" | "payments" | "inventory" | "payouts" | "entries";
+export type SheetColumn = { key: string; label: string; type: "text" | "date" | "money" | "number" };
+export type SheetCell = string | number | boolean | null;
+export type Sheet = { sheet: SheetName; columns: SheetColumn[]; rows: Record<string, SheetCell>[]; total: number; page: number; page_size: number };
+
+export type EntryKind = "sale" | "expense" | "stock_in" | "stock_out" | "payment" | "other";
+export type EntryStatus = "pending" | "confirmed" | "rejected";
+export type SheetEntry = {
+  id: string;
+  entry_date: string;
+  kind: EntryKind;
+  description: string;
+  quantity: number | null;
+  amount_cents: number;
+  reference: string | null;
+  status: EntryStatus;
+  admin_note: string | null;
+  created_at: string;
+  updated_at: string | null;
+  confirmed_at: string | null;
+  /** Admin view only: whose stall the row belongs to. */
+  store_id: string | null;
+  store_name: string | null;
+};
+export type EntryInput = { entry_date: string; kind: EntryKind; description: string; quantity: number | null; amount_cents: number; reference: string };
+
+/** One line of the append-only audit log. */
+export type AuditEvent = { id: string; at: string; actor: string | null; action: string; entity: string | null; entity_id: string | null; store_id: string | null; detail: string | null };

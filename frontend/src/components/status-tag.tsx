@@ -12,6 +12,7 @@ const style: Record<string, string> = {
   accepted: "chip-info",
   partially_fulfilled: "chip-info",
   picked_up: "chip-success",
+  arrived: "chip-success",
   shipped: "chip-success",
   delivered: "chip-success",
   fulfilled: "chip-success",
@@ -27,6 +28,7 @@ const label: Record<string, string> = {
   pending_payment: "awaiting payment",
   partially_fulfilled: "part shipped",
   picked_up: "picked up",
+  arrived: "at the door",
   awaiting_rider: "needs rider",
   applicant: "applied",
 };

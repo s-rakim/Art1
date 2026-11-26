@@ -10,7 +10,7 @@ export default async function RiderLayout({ children }: { children: React.ReactN
   const user = await requireUser("/rider", "rider");
   return (
     <AppFrame nav={RIDER.sections} navFooter={{ items: [BACK_TO_SHOP] }} navLabel={RIDER.title} footer={false}>
-      <div className="mx-auto max-w-3xl px-4 py-5">
+      <div className="mx-auto max-w-6xl px-3 py-4 sm:px-4 sm:py-5">
         {user.demo && <DemoNotice what="the rider app with sample deliveries" />}
         {children}
       </div>

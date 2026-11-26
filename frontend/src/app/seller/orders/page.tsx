@@ -2,7 +2,6 @@
 import { useMemo, useState } from "react";
 import { ErrorLine, PageTitle, Table } from "@/components/dash";
 import { StatusTag } from "@/components/status-tag";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Modal, ModalFooter } from "@/components/ui/modal";
 import { api, ApiError } from "@/lib/api";
 import { money, shortDate } from "@/lib/format";
@@ -11,15 +10,16 @@ import { useApi } from "@/lib/use-api";
 import { LiveDot } from "@/components/live-refresh";
 import { useLiveReload } from "@/lib/live";
 
-const payLabel: Record<string, string> = { cod: "Cash on delivery", bank_transfer: "Bank transfer", card: "Card" };
-const ACTIVE_DELIVERY = new Set(["assigned", "accepted", "picked_up"]);
+// Shoppers pay the market's own till or bank account; the rider (or the admin) confirms it.
+// Vendors never confirm payments, and the market pays them out on its schedule.
+const payLabel: Record<string, string> = { cod: "Pay on arrival", bank_transfer: "Bank transfer to the market", card: "Card" };
+const ACTIVE_DELIVERY = new Set(["assigned", "accepted", "picked_up", "arrived"]);
 
 /** What the vendor still has to do on this order, if anything. */
 function needs(o: SellerOrder) {
-  const canConfirm = !o.paid && o.payment_method !== "card" && o.status !== "canceled";
   const onTheRoad = o.delivery && ACTIVE_DELIVERY.has(o.delivery.status);
   const canDispatch = o.status === "processing" && !onTheRoad;
-  return { canConfirm, canDispatch, any: canDispatch || (canConfirm && o.payment_method === "bank_transfer") };
+  return { canDispatch, any: canDispatch };
 }
 
 export default function SellerOrders() {
@@ -28,25 +28,11 @@ export default function SellerOrders() {
   const live = useLiveReload(["order", "job"], reload, 30000);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
-  const [confirming, setConfirming] = useState<SellerOrder | null>(null);
   const [dispatching, setDispatching] = useState<SellerOrder | null>(null);
   const [filter, setFilter] = useState<"all" | "action">("action");
 
   const update = (o: Partial<SellerOrder> & { id: string }) =>
     setData((d) => (d ? { ...d, items: d.items.map((x) => (x.id === o.id ? { ...x, ...Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) } : x)) } : d));
-
-  async function confirm(o: SellerOrder) {
-    setBusy(o.id);
-    setMsg(null);
-    try {
-      update(await api.confirmPayment(token, o.id));
-      setConfirming(null);
-    } catch (e) {
-      setMsg(e instanceof ApiError ? e.message : "Couldn't confirm that payment. Try again.");
-    } finally {
-      setBusy(null);
-    }
-  }
 
   async function delivered(o: SellerOrder) {
     setBusy(o.id);
@@ -65,7 +51,7 @@ export default function SellerOrders() {
   return (
     <>
       <PageTitle
-        kicker="Card payments aren't live yet, so you confirm cash and transfers yourself"
+        kicker="Shoppers pay the market at the door; the rider confirms it and the market pays you out"
         title="Orders & payments"
         action={
           <>
@@ -91,7 +77,7 @@ export default function SellerOrders() {
               <td className="price px-3 py-3">{money(o.total_cents, o.currency)}<span className="block text-[12px] text-maxcontrast">you get {money(o.payout_cents, o.currency)}</span></td>
               <td className="px-3 py-3 text-[13px]">
                 {payLabel[o.payment_method] ?? o.payment_method}
-                <span className={`block text-[12px] ${o.paid ? "text-text-success" : "text-maxcontrast"}`}>{o.paid ? "Received" : "Not yet"}</span>
+                <span className={`block text-[12px] ${o.paid ? "text-text-success" : "text-maxcontrast"}`}>{o.paid ? "Paid to the market" : "Not yet"}</span>
               </td>
               <td className="px-3 py-3">
                 <StatusTag status={o.status} />
@@ -104,7 +90,6 @@ export default function SellerOrders() {
               </td>
               <td className="space-y-1.5 px-3 py-3 text-right">
                 {n.canDispatch && <button onClick={() => setDispatching(o)} className="btn btn-sm w-full">Choose rider or courier</button>}
-                {n.canConfirm && <button disabled={busy === o.id} onClick={() => setConfirming(o)} className="btn btn-secondary btn-sm w-full">Confirm payment</button>}
                 {o.status === "shipped" && !o.delivery && (
                   <button disabled={busy === o.id} onClick={() => delivered(o)} className="btn btn-secondary btn-sm w-full">Mark delivered</button>
                 )}
@@ -114,24 +99,6 @@ export default function SellerOrders() {
         })}
         {items.length === 0 && <tr><td colSpan={8} className="px-3 py-8 text-center text-maxcontrast">{filter === "action" ? "Nothing needs you right now." : "No orders yet."}</td></tr>}
       </Table>
-
-      <ConfirmDialog
-        open={!!confirming}
-        title={confirming ? `Payment for ${confirming.number}` : ""}
-        confirm="Yes, I've been paid"
-        cancel="Not yet"
-        tone="primary"
-        busy={!!confirming && busy === confirming.id}
-        onConfirm={() => confirming && confirm(confirming)}
-        onClose={() => setConfirming(null)}
-      >
-        {confirming?.payment_method === "cod"
-          ? `Only confirm once the rider has handed you the cash: ${money(confirming.total_cents, confirming.currency)}.`
-          : confirming
-            ? `Only confirm once ${money(confirming.total_cents, confirming.currency)} has actually landed in your account. A screenshot from the customer isn't proof.`
-            : null}{" "}
-        This can&apos;t be undone from here.
-      </ConfirmDialog>
 
       {dispatching && (
         <DispatchDialog
@@ -203,7 +170,7 @@ function DispatchDialog({ order, token, onClose, onDone }: { order: SellerOrder;
         <div className="p-4">
           <p className="mb-3 text-[14px] text-maxcontrast">Deliver to {to || "the customer"}.</p>
           {!order.paid && order.payment_method === "cod" && (
-            <p className="note note-warning mb-3 text-[14px]"><span>Cash on delivery: the rider collects {money(order.total_cents, order.currency)} and brings it back to you.</span></p>
+            <p className="note note-info mb-3 text-[14px]"><span>Pay on arrival: the customer pays {money(order.total_cents, order.currency)} into the market&apos;s till when the rider gets there. The rider confirms it, and your share comes in your next payout.</span></p>
           )}
           {queued ? (
             <p role="status" className="note note-info text-[14px]">

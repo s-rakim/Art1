@@ -2,15 +2,16 @@
 // openapi.ts). Responses are mapped into the view models in types.ts. Public reads fall
 // back to bundled demo data when the API is unreachable; set NEXT_PUBLIC_DEMO_DATA=off
 // to disable that. Signed-in calls and writes only fall back when Supabase isn't set up.
-import { apiBase, AUTH_ENABLED, DEMO_DATA } from "./config";
+import { apiBase, AUTH_ENABLED, CURRENCY, DEMO_DATA } from "./config";
 import * as demo from "./mock/data";
 import * as logi from "./mock/logistics";
 import type { components } from "./openapi";
 import type {
   AdminOrder, AdminStats, AdminStore, AvailableRider, BookedPlacement, Category, Delivery, DeliveryTrack, Income,
-  InventoryRow, LiveRider, MapPoint, Order, OrderLine, OrderSummary, Paged, PlacementBooking, PlacementSlot, Plan,
-  Product, ProductCard, Review, Rider, SellerOrder, SellerProductRow, SellerProfile, SellerStats, Settings, SiteInfo, Store,
-  Tracking,
+  InventoryRow, LiveRider, MapPoint, OpenJob, OpenJobs, Order, OrderLine, OrderSummary, Paged, PaymentCheck, PlacementBooking,
+  PlacementSlot, Plan, Product, ProductCard, Review, RideStatus, Rider, RiderRules, Run, SellerOrder, SellerProductRow,
+  PayInfo, PaySettings, RiderSettings, SellerProfile, SellerStats, Settings, SiteInfo, Store, Tracking, Waypoint,
+  AuditEvent, EntryInput, ImportedPayment, PaymentImport, PaymentReceipt, ReceiptStatus, Settlement, Sheet, SheetCell, SheetColumn, SheetEntry, SheetName,
 } from "./types";
 
 type S = components["schemas"];
@@ -380,6 +381,7 @@ export const EMPTY_SITE: SiteInfo = {
   standard_shipping_cents: null, express_shipping_cents: null, free_shipping_over_cents: null,
   rider_fee_cents: null, tax_rate: null,
   contact_name: null, contact_email: null, contact_phone: null, contact_whatsapp: null, contact_note: null,
+  payment: null,
 };
 
 const cents = (v: unknown) => (typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= 100_000_000 ? v : null);
@@ -402,12 +404,52 @@ function siteFields(raw: Record<string, unknown>) {
   };
 }
 
+/** The market's till and bank details. Null when the admin hasn't filled any of them in. */
+function toPayInfo(v: unknown): PayInfo | null {
+  if (!v || typeof v !== "object") return null;
+  const o = v as Record<string, unknown>;
+  const info: PayInfo = {
+    mpesa_till: line(o.mpesa_till, 20),
+    mpesa_paybill: line(o.mpesa_paybill, 20),
+    account_name: line(o.account_name, 120),
+    bank_name: line(o.bank_name, 120),
+    bank_account_name: line(o.bank_account_name, 120),
+    bank_account_number: line(o.bank_account_number, 40),
+    instructions: line(o.instructions, 600),
+  };
+  return Object.values(info).some(Boolean) ? info : null;
+}
+
 function toSite(s: S["SiteStatus"]): SiteInfo {
-  return { maintenance_mode: s.maintenance_mode, maintenance_message: s.maintenance_message ?? "", ...siteFields(s as unknown as Record<string, unknown>) };
+  const raw = s as unknown as Record<string, unknown>;
+  return { maintenance_mode: s.maintenance_mode, maintenance_message: s.maintenance_message ?? "", ...siteFields(raw), payment: toPayInfo(raw.payment) };
+}
+
+const between = (v: unknown, lo: number, hi: number) => (typeof v === "number" && Number.isFinite(v) && v >= lo && v <= hi ? v : null);
+
+/** Rider pay, batching and the market's till and bank. Older APIs leave these out, and they read as null. */
+function riderPayFields(raw: Record<string, unknown>) {
+  return {
+    rider_commission_rate: between(raw.rider_commission_rate, 0, 1),
+    rider_pool_radius_km: between(raw.rider_pool_radius_km, 0, 500),
+    rider_batch_radius_km: between(raw.rider_batch_radius_km, 0, 500),
+    rider_pickup_radius_km: between(raw.rider_pickup_radius_km, 0, 500),
+    rider_max_batch: between(raw.rider_max_batch, 1, 50),
+    payout_interval_days: between(raw.payout_interval_days, 1, 365),
+    payment_code_ttl_hours: between(raw.payment_code_ttl_hours, 1, 24 * 365),
+    mpesa_till: line(raw.mpesa_till, 20),
+    mpesa_paybill: line(raw.mpesa_paybill, 20),
+    payment_account_name: line(raw.payment_account_name, 120),
+    bank_name: line(raw.bank_name, 120),
+    bank_account_name: line(raw.bank_account_name, 120),
+    bank_account_number: line(raw.bank_account_number, 40),
+    payment_instructions: line(raw.payment_instructions, 600),
+  };
 }
 
 function toSettings(s: S["SiteSettings"]): Settings {
-  return { ...s, maintenance_message: s.maintenance_message ?? "", ...siteFields(s as unknown as Record<string, unknown>) };
+  const raw = s as unknown as Record<string, unknown>;
+  return { ...s, maintenance_message: s.maintenance_message ?? "", ...siteFields(raw), ...riderPayFields(raw), extended: "rider_commission_rate" in raw };
 }
 
 type SellerRiderRaw = {
@@ -459,6 +501,8 @@ function toRider(r: S["AdminRider"] | S["RiderMe"]): Rider {
     applied_at: a.created_at ?? r.last_seen_at ?? "",
     review_note: r.review_note,
     licence_number: a.licence_number ?? null,
+    ride_status: rideStatus((r as unknown as Record<string, unknown>).ride_status),
+    rules: toRules((r as unknown as Record<string, unknown>).rules),
   };
 }
 
@@ -481,7 +525,261 @@ function toRiderDelivery(d: S["RiderDelivery"]): Delivery {
     customer_phone: d.customer_phone,
     items: d.items,
     created_at: d.assigned_at,
+    ...riderExtras(d as unknown as Record<string, unknown>),
   };
+}
+
+// Fields the rider run added to RiderDelivery. Read defensively until openapi.ts is regenerated
+// from the backend that ships them, so an older API simply leaves them out.
+const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+const text = (v: unknown, max = 500) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null);
+function riderExtras(d: Record<string, unknown>) {
+  const store = (d.store ?? {}) as Record<string, unknown>;
+  return {
+    placed_at: text(d.placed_at, 40),
+    store_id: text(store.id, 64),
+    customer_note: text(d.customer_note),
+    earning_cents: num(d.earning_cents) ?? num(d.fee_cents),
+    amount_due_cents: num(d.amount_due_cents) ?? num(d.cash_to_collect_cents),
+    payment_confirmed: d.payment_confirmed === true,
+    arrived_at: text(d.arrived_at, 40),
+    delivered_at: text(d.delivered_at, 40),
+  };
+}
+
+const RULE_KEYS = ["pool_radius_km", "batch_radius_km", "pickup_radius_km", "max_batch", "commission_rate"] as const;
+function toRules(v: unknown): RiderRules | null {
+  if (!v || typeof v !== "object") return null;
+  const o = v as Record<string, unknown>;
+  const out = {} as RiderRules;
+  for (const k of RULE_KEYS) {
+    const n = num(o[k]);
+    if (n === null) return null;
+    out[k] = n;
+  }
+  return out;
+}
+const rideStatus = (v: unknown): RideStatus | null => (v === "offline" || v === "idle" || v === "delivering" ? v : null);
+const BLOCKS = ["batch_full", "on_run_far", "pickup_far"] as const;
+
+function toOpenJob(raw: unknown): OpenJob | null {
+  const o = (raw ?? {}) as Record<string, unknown>;
+  const store = (o.store ?? {}) as Record<string, unknown>;
+  const id = text(o.id, 64);
+  if (!id) return null;
+  return {
+    id,
+    delivery_id: text(o.delivery_id, 64),
+    offered: o.offered === true,
+    offer_expires_at: text(o.offer_expires_at, 40),
+    order_number: text(o.order_number, 40) ?? id.slice(0, 8),
+    placed_at: text(o.placed_at, 40) ?? new Date().toISOString(),
+    store: { id: text(store.id, 64) ?? "", slug: text(store.slug, 120) ?? "", name: text(store.name, 120) ?? "Shop" },
+    pickup: point(o.pickup as { lat: number; lng: number } | null),
+    dropoff: point(o.dropoff as { lat: number; lng: number } | null),
+    area: text(o.area, 120),
+    earning_cents: num(o.earning_cents) ?? 0,
+    items: num(o.items) ?? 0,
+    amount_due_cents: num(o.amount_due_cents) ?? 0,
+    distance_km: num(o.distance_km),
+    trip_km: num(o.trip_km),
+    batchable: o.batchable !== false,
+    blocked_reason: BLOCKS.find((b) => b === o.blocked_reason) ?? null,
+  };
+}
+
+function toWaypoint(raw: unknown): Waypoint | null {
+  const o = (raw ?? {}) as Record<string, unknown>;
+  const lat = num(o.lat);
+  const lng = num(o.lng);
+  if (lat === null || lng === null || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  const kind = o.kind === "rider" || o.kind === "pickup" || o.kind === "dropoff" ? o.kind : null;
+  if (!kind) return null;
+  return { kind, lat, lng, label: text(o.label, 200), delivery_ids: Array.isArray(o.delivery_ids) ? o.delivery_ids.filter((x): x is string => typeof x === "string").slice(0, 20) : [] };
+}
+
+function toPaymentCheck(raw: unknown): PaymentCheck {
+  const o = (raw ?? {}) as Record<string, unknown>;
+  const matches = Array.isArray(o.matches) ? o.matches : [];
+  return {
+    due_cents: num(o.due_cents) ?? 0,
+    paid_cents: num(o.paid_cents) ?? 0,
+    payment_confirmed: o.payment_confirmed === true,
+    currency: text(o.currency, 8) ?? CURRENCY,
+    matches: matches.slice(0, 10).flatMap((m) => {
+      const r = (m ?? {}) as Record<string, unknown>;
+      const id = text(r.receipt_id, 64);
+      const code = text(r.code, 40);
+      if (!id || !code) return [];
+      return [{
+        receipt_id: id, code, payer_name: text(r.payer_name, 120), amount_cents: num(r.amount_cents) ?? 0,
+        currency: text(r.currency, 8) ?? CURRENCY, received_at: text(r.received_at, 40) ?? "", used: r.used === true, enough: r.enough === true,
+      }];
+    }),
+  };
+}
+
+// ---------------------------------------------------------------------------------------
+// Central payments, settlements and ledger sheets. Read field by field, so a field the API
+// leaves out reads as empty instead of breaking a page, and nothing unexpected gets through.
+
+const obj = (v: unknown) => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
+const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : Array.isArray(obj(v).items) ? (obj(v).items as unknown[]) : []);
+const words = (v: unknown, max = 40, cap = 20) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string").slice(0, cap).map((x) => x.slice(0, max)) : []);
+function pageOf<T>(raw: unknown, f: (x: unknown) => T | null): Paged<T> {
+  const o = obj(raw);
+  const items = list(raw).slice(0, 500).map(f).filter((x): x is T => x !== null);
+  return { items, total: num(o.total) ?? items.length, page: num(o.page) ?? 1, page_size: num(o.page_size) ?? items.length };
+}
+function must<T>(v: T | null): T {
+  if (v === null) throw new ApiError(502, "The server sent something unexpected. Reload and try again.");
+  return v;
+}
+
+const RECEIPT_STATES = ["unconfirmed", "confirmed", "expired", "void"] as const;
+function paymentFields(o: Record<string, unknown>) {
+  return {
+    code: text(o.code, 40) ?? "",
+    payer_name: text(o.payer_name, 120),
+    payer_phone: text(o.payer_phone, 32),
+    amount_cents: num(o.amount_cents) ?? 0,
+    currency: text(o.currency, 8) ?? CURRENCY,
+    received_at: text(o.received_at, 40) ?? "",
+    provider: text(o.provider, 40),
+    account_ref: text(o.account_ref, 80),
+  };
+}
+function toReceipt(raw: unknown): PaymentReceipt | null {
+  const o = obj(raw);
+  const id = text(o.id, 64);
+  if (!id) return null;
+  return {
+    id,
+    ...paymentFields(o),
+    status: RECEIPT_STATES.find((x) => x === o.status) ?? "unconfirmed",
+    order_number: text(o.order_number, 40) ?? text(obj(o.order).number, 40),
+    used_at: text(o.used_at, 40) ?? text(o.confirmed_at, 40),
+    confirmed_by: [text(o.confirmed_by_name, 120), text(o.confirmed_role, 20)].filter(Boolean).join(", ") || null,
+    expires_at: text(o.expires_at, 40),
+    note: text(o.note),
+  };
+}
+function toImport(raw: unknown): PaymentImport {
+  const o = obj(raw);
+  return {
+    rows: list(o.rows).slice(0, 500).map((r): ImportedPayment => {
+      const x = obj(r);
+      return { id: text(x.id, 64), ...paymentFields(x), matched_order_number: text(x.matched_order_number, 40), duplicate: x.duplicate === true };
+    }),
+    stored: num(o.stored) ?? 0,
+    failed: words(o.failed, 300, 100),
+  };
+}
+function toSettlement(raw: unknown): Settlement | null {
+  const o = obj(raw);
+  const store = obj(o.store);
+  const id = text(o.store_id, 64) ?? text(store.id, 64);
+  if (!id) return null;
+  return {
+    store_id: id,
+    store_name: text(o.store_name, 120) ?? text(store.name, 120) ?? "Stall",
+    store_slug: text(o.store_slug, 120) ?? text(store.slug, 120),
+    owed_cents: num(o.owed_cents) ?? 0,
+    held_cents: num(o.held_cents) ?? 0,
+    sales_cents: num(o.sales_cents) ?? 0,
+    rent_due_cents: num(o.rent_cents) ?? num(o.rent_due_cents) ?? 0,
+    commission_cents: num(o.commission_cents) ?? 0,
+    fees_cents: num(o.fees_cents) ?? 0,
+    delivery_cents: num(o.delivery_cents) ?? 0,
+    paid_out_cents: num(o.paid_out_cents) ?? 0,
+    net_cents: num(o.net_cents) ?? 0,
+    books_balanced: o.books_balanced === true,
+    blockers: words(o.blockers, 200),
+    next_payout_at: text(o.next_payout_at, 40),
+    last_payout_at: text(o.last_payout_at, 40),
+  };
+}
+
+const COLUMN_TYPES = ["text", "date", "money", "number"] as const;
+function toSheet(raw: unknown, sheet: SheetName): Sheet {
+  const o = obj(raw);
+  const columns = list(o.columns).slice(0, 40).flatMap((c): SheetColumn[] => {
+    const x = obj(c);
+    const key = text(x.key, 64);
+    return key ? [{ key, label: text(x.label, 80) ?? key, type: COLUMN_TYPES.find((t) => t === x.type) ?? "text" }] : [];
+  });
+  const rows = list(o.rows).slice(0, 1000).map((r) => {
+    const x = obj(r);
+    const out: Record<string, SheetCell> = {};
+    for (const c of columns) {
+      const v = x[c.key];
+      out[c.key] = typeof v === "string" ? v.slice(0, 500) : typeof v === "number" && Number.isFinite(v) ? v : typeof v === "boolean" ? v : null;
+    }
+    return out;
+  });
+  return { sheet, columns, rows, total: num(o.total) ?? rows.length, page: num(o.page) ?? 1, page_size: num(o.page_size) ?? rows.length };
+}
+
+const ENTRY_KINDS = ["sale", "expense", "stock_in", "stock_out", "payment", "other"] as const;
+const ENTRY_STATES = ["pending", "confirmed", "rejected"] as const;
+function toEntry(raw: unknown): SheetEntry | null {
+  const o = obj(raw);
+  const id = text(o.id, 64);
+  if (!id) return null;
+  const store = obj(o.store);
+  return {
+    id,
+    entry_date: text(o.entry_date, 40) ?? "",
+    kind: ENTRY_KINDS.find((k) => k === o.kind) ?? "other",
+    description: text(o.description, 500) ?? "",
+    quantity: num(o.quantity),
+    amount_cents: num(o.amount_cents) ?? 0,
+    reference: text(o.reference, 64),
+    status: ENTRY_STATES.find((k) => k === o.status) ?? "pending",
+    admin_note: text(o.admin_note),
+    created_at: text(o.created_at, 40) ?? "",
+    updated_at: text(o.updated_at, 40),
+    confirmed_at: text(o.confirmed_at, 40),
+    store_id: text(o.store_id, 64) ?? text(store.id, 64),
+    store_name: text(o.store_name, 120) ?? text(store.name, 120),
+  };
+}
+function toAudit(raw: unknown): AuditEvent | null {
+  const o = obj(raw);
+  const id = text(o.id, 64) ?? (num(o.id) !== null ? String(o.id) : null);
+  if (!id) return null;
+  return {
+    id,
+    at: text(o.at, 40) ?? text(o.created_at, 40) ?? "",
+    actor: text(o.actor_name, 120) ?? text(o.actor, 120),
+    action: text(o.action, 60) ?? "change",
+    entity: text(o.entity, 60),
+    entity_id: text(o.entity_id, 64),
+    store_id: text(o.store_id, 64),
+    detail: changes(obj(o.before), obj(o.after)) ?? text(o.detail, 400),
+  };
+}
+
+/** "amount: 1200 → 1500; status: pending → confirmed", from an audit row's before and after. */
+function changes(before: Record<string, unknown>, after: Record<string, unknown>) {
+  const show = (v: unknown) => (v === null || v === undefined ? "–" : typeof v === "object" ? JSON.stringify(v) : String(v)).slice(0, 60);
+  const keys = [...new Set([...Object.keys(before), ...Object.keys(after)])].filter((k) => !/(_at|^id)$/.test(k) && JSON.stringify(before[k]) !== JSON.stringify(after[k]));
+  if (!keys.length) return null;
+  return keys.slice(0, 12).map((k) => (k in before ? `${k.replace(/_/g, " ")}: ${show(before[k])} → ${show(after[k])}` : `${k.replace(/_/g, " ")}: ${show(after[k])}`)).join("; ").slice(0, 400);
+}
+
+/** A file the API builds, such as a whole sheet as CSV (every row, not only the page on screen). */
+async function download(path: string, token: string | null): Promise<Blob> {
+  const res = await fetch(`${apiBase()}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    cache: "no-store",
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!res.ok) {
+    const { message, code } = readError(await res.json().catch(() => null));
+    throw new ApiError(res.status, message ?? "The download didn't work.", code);
+  }
+  return res.blob();
 }
 
 function toLive(m: S["LiveMap"]): { deliveries: Delivery[]; riders: LiveRider[] } {
@@ -646,8 +944,10 @@ export const api = {
       () => demoSearch(query),
     );
   },
+  // Never cached: stock, price, photos and the video change while a shopper is looking, and a
+  // vendor checking their listing right after an upload should see it.
   product: (slug: string) =>
-    notFoundToNull(get<S["ProductDetail"], Product | null>(`/products/${enc(slug)}`, {}, toProduct, () => demo.products.find((p) => p.slug === slug) ?? null)),
+    notFoundToNull(get<S["ProductDetail"], Product | null>(`/products/${enc(slug)}`, { revalidate: 0 }, toProduct, () => demo.products.find((p) => p.slug === slug) ?? null)),
   reviews: (slug: string) =>
     get<S["Page_Review_"], Paged<Review>>(`/products/${enc(slug)}/reviews`, {}, (p) => mapPage(p, toReview), () => {
       const p = demo.products.find((x) => x.slug === slug);
@@ -781,16 +1081,13 @@ export const api = {
     get<S["Page_StoreOrder_"], Paged<SellerOrder>>(`/seller/orders${qs({ page_size: 100 })}`, { token, authed: true }, (p) => mapPage(p, toSellerOrder),
       () => page(demo.demoOrders().map((o, i): SellerOrder => ({
         id: `so${i}`, order_id: o.id, number: o.number,
-        // Cash on delivery starts ready to dispatch; a bank transfer waits for the store to confirm it.
+        // Pay on arrival starts ready to dispatch; a bank transfer waits until the market sees it.
         status: ["processing", "processing", "pending", "delivered", "canceled"][i],
         paid: i === 1 || i === 3, payment_method: ["cod", "bank_transfer", "bank_transfer", "cod", "cod"][i], payment_status: i === 1 || i === 3 ? "paid" : "unpaid",
         total_cents: o.total_cents, payout_cents: Math.round(o.subtotal_cents * 0.92), currency: o.currency,
         ship_to: o.shipping_address, items: o.lines.map((l) => ({ id: l.id, title: l.title, variant_label: l.variant_label, quantity: l.quantity, unit_price_cents: l.unit_price_cents })),
         delivery: i === 3 ? { id: "d1", status: "delivered", rider_name: "Tomás Reyes", rider_vehicle: "motorbike" } : null, created_at: o.created_at,
       })), 1, 50)),
-  confirmPayment: (token: string | null, storeOrderId: string) =>
-    get<S["StoreOrder"], SellerOrder>(`/seller/orders/${enc(storeOrderId)}/confirm-payment`, { token, method: "POST", body: {}, authed: true }, toSellerOrder,
-      () => ({ id: storeOrderId, paid: true, payment_status: "paid", status: "processing" }) as SellerOrder),
   /** Ship by courier instead of a rider (needs a tracking number), or mark a courier parcel delivered. */
   updateSellerOrder: (token: string | null, storeOrderId: string, body: S["StoreOrderUpdate"]) =>
     get<S["StoreOrder"], SellerOrder>(`/seller/orders/${enc(storeOrderId)}`, { token, method: "PATCH", body, authed: true }, toSellerOrder,
@@ -872,17 +1169,100 @@ export const api = {
   riderStatus: (token: string | null) => request<S["RiderMe"]>(`/rider/me`, { token, authed: true }),
   riderShift: (token: string | null, online: boolean) =>
     get<S["RiderMe"], Rider>(`/rider/shift`, { token, method: "POST", body: { online }, authed: true }, toRider, () => ({ ...logi.riders[0], on_shift: online })),
-  riderDeliveries: (token: string | null) =>
-    get<S["Page_RiderDelivery_"], Paged<Delivery>>(`/rider/deliveries${qs({ page_size: 50 })}`, { token, authed: true }, (p) => mapPage(p, toRiderDelivery),
-      () => page(logi.deliveries.filter((d) => d.rider?.id === "r1" || d.status === "assigned"), 1, 50)),
+  /** "active": jobs on the go. "history": delivered, failed, declined and canceled, newest first. */
+  riderDeliveries: (token: string | null, scope: "active" | "history" = "active") =>
+    get<S["Page_RiderDelivery_"], Paged<Delivery>>(`/rider/deliveries${qs({ scope, page_size: 100 })}`, { token, authed: true }, (p) => mapPage(p, toRiderDelivery),
+      () => page(logi.deliveries.filter((d) => (d.rider?.id === "r1" || d.status === "assigned") && (scope === "history") === ["delivered", "failed", "declined", "canceled"].includes(d.status)), 1, 100)),
+  /** What the rider has earned, delivery by delivery, and whether the market has paid it out yet. */
+  riderEarnings: (token: string | null) =>
+    get<S["Page_Earning_"], Paged<S["Earning"]>>(`/rider/earnings${qs({ page_size: 100 })}`, { token, authed: true }, (p) => p, () => page([], 1, 100)),
   riderAction: (token: string | null, id: string, action: S["DeliveryActionIn"]["action"], extra: { code?: string; note?: string } = {}) =>
     get<S["RiderDelivery"], Delivery>(`/rider/deliveries/${enc(id)}`, { token, method: "PATCH", body: { action, code: extra.code ?? null, note: extra.note ?? null }, authed: true }, toRiderDelivery, () => {
       const d = logi.deliveries.find((x) => x.id === id)!;
       const next = { accept: "accepted", decline: "declined", picked_up: "picked_up", delivered: "delivered", failed: "failed" } as const;
       return { ...d, status: next[action], dropoff: d.dropoff ?? { lat: 30.29, lng: -97.74, label: "2200 Guadalupe St" } };
     }),
+  /** Jobs near the rider, plus offers made to them. An API without the pool yet returns nothing here. */
+  riderOpenJobs: async (token: string | null): Promise<OpenJobs> => {
+    if (!AUTH_ENABLED) return { items: [], ride_status: "idle", rules: null };
+    try {
+      const raw = await request<Record<string, unknown>>(`/rider/open-jobs`, { token, authed: true });
+      const items = Array.isArray(raw.items) ? raw.items.map(toOpenJob).filter((j): j is OpenJob => j !== null) : [];
+      return { items, ride_status: rideStatus(raw.ride_status), rules: toRules(raw.rules) };
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) return { items: [], ride_status: null, rules: null };
+      throw e;
+    }
+  },
+  riderClaim: (token: string | null, id: string) =>
+    request<S["RiderDelivery"]>(`/rider/open-jobs/${enc(id)}/claim`, { token, method: "POST", body: {} }).then(toRiderDelivery),
+  riderSkip: (token: string | null, id: string) =>
+    request<unknown>(`/rider/open-jobs/${enc(id)}/skip`, { token, method: "POST", body: {} }),
+  riderRun: async (token: string | null): Promise<Run> => {
+    if (!AUTH_ENABLED) return { run_id: null, stops: [], route: [] };
+    try {
+      const raw = await request<Record<string, unknown>>(`/rider/run`, { token, authed: true });
+      return {
+        run_id: text(raw.run_id, 64),
+        stops: Array.isArray(raw.stops) ? (raw.stops as S["RiderDelivery"][]).map(toRiderDelivery) : [],
+        route: Array.isArray(raw.route) ? raw.route.map(toWaypoint).filter((w): w is Waypoint => w !== null) : [],
+      };
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) return { run_id: null, stops: [], route: [] };
+      throw e;
+    }
+  },
+  riderArrived: (token: string | null, id: string) =>
+    request<S["RiderDelivery"]>(`/rider/deliveries/${enc(id)}/arrived`, { token, method: "POST", body: {} }).then(toRiderDelivery),
+  /** Look up the shopper's payment by transaction code or payer name. */
+  riderPayment: (token: string | null, id: string, q: string) =>
+    request<unknown>(`/rider/deliveries/${enc(id)}/payment${qs({ q: q.trim().slice(0, 80) })}`, { token, authed: true }).then(toPaymentCheck),
+  riderConfirmPayment: (token: string | null, id: string, body: { code: string } | { receipt_id: string }) =>
+    request<unknown>(`/rider/deliveries/${enc(id)}/payment`, { token, method: "POST", body }).then(toPaymentCheck),
   riderLocation: (token: string | null, body: S["LocationIn"]) =>
     request<unknown>(`/rider/location`, { token, method: "POST", body, authed: true }, () => undefined),
+
+  // Central payments: the market's till, the receipts databank and payouts to stalls (admin).
+  /** Reads pasted M-Pesa or bank messages. With commit false nothing is saved: it's a preview. */
+  adminImportPayments: (token: string | null, text: string, commit: boolean) =>
+    request<unknown>(`/admin/payments/import`, { token, method: "POST", body: { text: text.slice(0, 50000), commit } }).then(toImport),
+  adminPayments: (token: string | null, status: ReceiptStatus, q = "") =>
+    request<unknown>(`/admin/payments${qs({ status, q: q.trim().slice(0, 80), page_size: 100 })}`, { token, authed: true }).then((r) => pageOf(r, toReceipt)),
+  /** Counts a payment toward an order, under the same rules as the rider's check at the door. */
+  adminApplyPayment: (token: string | null, id: string, orderNumber: string) =>
+    request<unknown>(`/admin/payments/${enc(id)}`, { token, method: "PATCH", body: { order_number: orderNumber.trim().slice(0, 40) } }).then((r) => must(toReceipt(r))),
+  adminVoidPayment: (token: string | null, id: string, note: string) =>
+    request<unknown>(`/admin/payments/${enc(id)}`, { token, method: "PATCH", body: { status: "void", note: note.slice(0, 300) } }).then((r) => must(toReceipt(r))),
+  adminSettlements: (token: string | null) =>
+    request<unknown>(`/admin/settlements`, { token, authed: true }).then((r) => list(r).slice(0, 500).map(toSettlement).filter((x): x is Settlement => x !== null)),
+  /** Records money sent to a stall. The API refuses while the books don't balance, unless forced with a note. */
+  adminRecordPayout: (token: string | null, storeId: string, body: { amount_cents?: number; reference: string; note?: string; force?: boolean }) =>
+    request<unknown>(`/admin/settlements/${enc(storeId)}`, { token, method: "POST", body }),
+
+  // Ledger sheets. "seller" reads only the signed-in vendor's stall; "admin" reads every stall.
+  sheet: (token: string | null, scope: "seller" | "admin", sheet: SheetName, f: { from?: string; to?: string; store_id?: string; page?: number } = {}) =>
+    request<unknown>(`/${scope}/sheets/${sheet}${qs({ ...f, page_size: 100 })}`, { token, authed: true }).then((r) => toSheet(r, sheet)),
+  sheetCsv: (token: string | null, scope: "seller" | "admin", sheet: SheetName, f: { from?: string; to?: string; store_id?: string } = {}) =>
+    download(`/${scope}/sheets/${sheet}${qs({ ...f, format: "csv" })}`, token),
+  sellerEntries: (token: string | null) =>
+    request<unknown>(`/seller/sheet-entries${qs({ page_size: 100 })}`, { token, authed: true }).then((r) => pageOf(r, toEntry)),
+  sellerAddEntry: (token: string | null, body: EntryInput) =>
+    request<unknown>(`/seller/sheet-entries`, { token, method: "POST", body }).then((r) => must(toEntry(r))),
+  sellerUpdateEntry: (token: string | null, id: string, body: Partial<EntryInput>) =>
+    request<unknown>(`/seller/sheet-entries/${enc(id)}`, { token, method: "PATCH", body }).then((r) => must(toEntry(r))),
+  sellerDeleteEntry: (token: string | null, id: string) =>
+    request<unknown>(`/seller/sheet-entries/${enc(id)}`, { token, method: "DELETE" }),
+  sellerEntryHistory: (token: string | null, id: string) =>
+    request<unknown>(`/seller/sheet-entries/${enc(id)}/history`, { token, authed: true }).then((r) => list(r).slice(0, 100).map(toAudit).filter((x): x is AuditEvent => x !== null)),
+  adminEntries: (token: string | null, status?: SheetEntry["status"], storeId?: string) =>
+    request<unknown>(`/admin/sheet-entries${qs({ status, store_id: storeId, page_size: 100 })}`, { token, authed: true }).then((r) => pageOf(r, toEntry)),
+  /** Confirms a vendor's row. `key` must equal the row's reference (a transaction code or other key). */
+  adminConfirmEntry: (token: string | null, id: string, key: string) =>
+    request<unknown>(`/admin/sheet-entries/${enc(id)}/confirm`, { token, method: "POST", body: { key: key.trim().slice(0, 64) } }).then((r) => must(toEntry(r))),
+  adminRejectEntry: (token: string | null, id: string, note: string) =>
+    request<unknown>(`/admin/sheet-entries/${enc(id)}/reject`, { token, method: "POST", body: { note: note.trim().slice(0, 300) } }).then((r) => must(toEntry(r))),
+  adminAudit: (token: string | null, f: { entity?: string; store_id?: string } = {}) =>
+    request<unknown>(`/admin/audit${qs({ ...f, page_size: 100 })}`, { token, authed: true }).then((r) => pageOf(r, toAudit)),
 
   // Admin
   adminStats: (token: string | null) => get<S["AdminStats"], AdminStats>(`/admin/stats`, { token, authed: true }, (s) => s, () => demo.adminStats),
@@ -929,14 +1309,17 @@ export const api = {
   /** Sends only the fields the API accepts (it rejects unknown ones such as currency or updated_at). */
   adminUpdateSettings: (token: string | null, body: Partial<Settings>) => {
     const patch = Object.fromEntries(
-      Object.entries(body).filter(([k, v]) => SETTINGS_KEYS.includes(k as keyof S["SiteSettingsUpdate"]) && v !== undefined),
+      Object.entries(body).filter(([k, v]) => SETTINGS_KEYS.includes(k) && v !== undefined),
     ) as S["SiteSettingsUpdate"];
     return get<S["SiteSettings"], Settings>(`/admin/settings`, { token, method: "PATCH", body: patch, authed: true }, toSettings, () => ({ ...logi.settings, ...(patch as object) }) as Settings);
   },
 };
 
-const SETTINGS_KEYS: (keyof S["SiteSettingsUpdate"])[] = [
+const SETTINGS_KEYS: string[] = [
   "maintenance_mode", "maintenance_message", "vendor_signups_open", "rider_signups_open",
   "standard_shipping_cents", "express_shipping_cents", "free_shipping_over_cents", "rider_fee_cents", "tax_rate",
   "contact_name", "contact_email", "contact_phone", "contact_whatsapp", "contact_note",
-];
+  "rider_commission_rate", "rider_pool_radius_km", "rider_batch_radius_km", "rider_pickup_radius_km", "rider_max_batch",
+  "payout_interval_days", "payment_code_ttl_hours", "mpesa_till", "mpesa_paybill", "payment_account_name",
+  "bank_name", "bank_account_name", "bank_account_number", "payment_instructions",
+] satisfies (keyof S["SiteSettingsUpdate"] | keyof RiderSettings | keyof PaySettings)[];

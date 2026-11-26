@@ -12,6 +12,9 @@
 // - A failed compile or link, or a lost context, reports "failed" so the caller can fall
 //   back to a static background instead of showing a black box.
 // - It still pauses when the tab is hidden or the canvas is off-screen, as generated.
+// - It won't run on a software renderer (the browser's performance caveat, or a CPU renderer
+//   by name), and it freezes on the current frame when a weak GPU can't keep up, so it never
+//   makes the page itself slow.
 
 import { useEffect, useRef } from "react";
 
@@ -294,6 +297,15 @@ export type ShaderBackgroundProps = {
 
 const pendingContextReleases = new WeakMap<HTMLCanvasElement, number>();
 
+// Chrome doesn't flag its own SwiftShader fallback as a "major performance caveat", so the
+// renderer name is checked too. CPU rendering of a full-screen shader blocks the whole page.
+const SOFTWARE = /swiftshader|llvmpipe|softpipe|software|basic render|mesa offscreen/i;
+function softwareRenderer(gl: WebGLRenderingContext) {
+  const info = gl.getExtension("WEBGL_debug_renderer_info");
+  const name = String(gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER) ?? "");
+  return SOFTWARE.test(name);
+}
+
 export function ShaderBackground({
   className,
   colors,
@@ -323,8 +335,15 @@ export function ShaderBackground({
     const pendingRelease = pendingContextReleases.get(canvas);
     if (pendingRelease !== undefined) window.clearTimeout(pendingRelease);
     pendingContextReleases.delete(canvas);
-    const gl = canvas.getContext("webgl", { antialias: false, alpha: false, depth: false, stencil: false, powerPreference: "low-power" });
-    if (!gl) {
+    const gl = canvas.getContext("webgl", {
+      antialias: false,
+      alpha: false,
+      depth: false,
+      stencil: false,
+      powerPreference: "low-power",
+      failIfMajorPerformanceCaveat: true,
+    });
+    if (!gl || softwareRenderer(gl)) {
       report("failed");
       return;
     }
@@ -376,7 +395,7 @@ export function ShaderBackground({
     gl.uniform4f(uni.transform, SHAPE.seed, SHAPE.rotate, SHAPE.drift, SHAPE.oklab);
     gl.uniform4f(uni.cursor, 0, SHAPE.cursorEffect, SHAPE.cursorStrength, SHAPE.cursorRadius);
 
-    const follows = cursor && !still;
+    let follows = cursor && !still;
     let targetX = 0;
     let targetY = 0;
     let targetPresence = 0;
@@ -394,9 +413,14 @@ export function ShaderBackground({
     let inView = true;
     let disposed = false;
     let reported = false;
+    // Slow-GPU guard: after a warm-up, keep a running average of the gap between drawn frames.
+    // If it settles well under the frame cap, stop animating and keep the frame on screen.
+    let drawn = 0;
+    let avgGap = 0;
+    let frozenAt: number | null = null;
     // Start at a fixed point in the animation so a still frame (reduced motion) is a nice one.
     const start = performance.now() - 12_000;
-    const timeAnimated = !still && Math.abs(timeScale) > 0.0001;
+    let timeAnimated = !still && Math.abs(timeScale) > 0.0001;
     const frameGap = 1000 / Math.max(1, maxFps);
 
     const resizeCanvas = () => {
@@ -422,6 +446,8 @@ export function ShaderBackground({
         raf = 0;
         lastNow = null;
       }
+      // A pause isn't a slow frame.
+      lastDraw = 0;
     };
 
     const updatePointerTarget = () => {
@@ -444,7 +470,7 @@ export function ShaderBackground({
       requestRender();
     };
     const onPointerMove = (event: PointerEvent) => {
-      if (event.pointerType !== "mouse") return;
+      if (event.pointerType !== "mouse" || !follows) return;
       pointerKnown = true;
       pointerClientX = event.clientX;
       pointerClientY = event.clientY;
@@ -493,11 +519,28 @@ export function ShaderBackground({
 
     const render = (now: number) => {
       raf = 0;
-      if (disposed || !visible || !inView) return;
+      if (disposed || !visible || !inView) {
+        lastDraw = 0;
+        return;
+      }
       // Hold to maxFps: skip this frame if it comes too soon after the last one drawn.
       if (lastDraw && now - lastDraw < frameGap - 1 && (timeAnimated || cursorPresence > 0.001)) {
         requestRender();
         return;
+      }
+      if (timeAnimated && lastDraw) {
+        drawn += 1;
+        const gap = Math.min(now - lastDraw, 500);
+        // Skip the first frames (page load janks them), then average quickly: a GPU that
+        // can't keep up should be found out in a couple of seconds, not a minute.
+        if (drawn > 5) avgGap = avgGap === 0 ? gap : avgGap * 0.8 + gap * 0.2;
+        if (drawn > 15 && avgGap > Math.max(90, frameGap * 3)) {
+          frozenAt = now - start;
+          timeAnimated = false;
+          follows = false;
+          targetPresence = 0;
+          cursorPresence = 0;
+        }
       }
       lastDraw = now;
       const dt = lastNow === null ? 0 : Math.min((now - lastNow) / 1000, 0.1);
@@ -507,7 +550,7 @@ export function ShaderBackground({
       mouseY += (targetY - mouseY) * follow;
       cursorPresence += (targetPresence - cursorPresence) * follow;
       resizeCanvas();
-      gl.uniform4f(uni.scene, canvas.width, canvas.height, ((still ? 12_000 : now - start) / 1000) * (still ? -0.67 : timeScale), palette.length);
+      gl.uniform4f(uni.scene, canvas.width, canvas.height, ((still ? 12_000 : (frozenAt ?? now - start)) / 1000) * (still ? -0.67 : timeScale), palette.length);
       gl.uniform4f(uni.space, SHAPE.offsetX, SHAPE.offsetY, mouseX, mouseY);
       gl.uniform4f(uni.cursor, follows ? cursorPresence : 0, SHAPE.cursorEffect, SHAPE.cursorStrength, SHAPE.cursorRadius);
       gl.drawArrays(gl.TRIANGLES, 0, 3);

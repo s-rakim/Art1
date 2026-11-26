@@ -4,19 +4,22 @@ import { Dialog } from "@base-ui/react/dialog";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { money } from "@/lib/format";
-import { cartSubtotal, useCart } from "@/store/cart";
+import { cartSubtotal, ticked, useCart } from "@/store/cart";
 import { Minus, Plus, X } from "./icons";
 import { ProductImage } from "./product-image";
 import { useSite } from "./site-context";
 
 export function CartDrawer() {
   const freeOver = useSite().free_shipping_over_cents;
-  const { lines, open, setOpen, setQty, remove } = useCart();
+  const { lines, unticked, open, setOpen, setQty, remove } = useCart();
   const path = usePathname();
   // The bag lives in a shared store, so a page change closes it from here.
   useEffect(() => setOpen(false), [path, setOpen]);
 
-  const subtotal = cartSubtotal(lines);
+  // Only ticked lines are bought, so the totals here follow the ticks on the bag page.
+  const buying = ticked(lines, unticked);
+  const subtotal = cartSubtotal(buying);
+  const all = buying.length === lines.length;
   const toFree = freeOver == null ? null : Math.max(0, freeOver - subtotal);
 
   return (
@@ -51,14 +54,14 @@ export function CartDrawer() {
               ) : null}
               <ul className="flex-1 divide-y divide-border overflow-y-auto px-5">
                 {lines.map((l) => (
-                  <li key={l.id} className="flex gap-3 py-4">
+                  <li key={l.id} className={`flex gap-3 py-4 ${unticked.includes(l.id) ? "opacity-60" : ""}`}>
                     <Link href={`/p/${l.slug}`} className="rounded-element h-24 w-20 shrink-0 overflow-hidden bg-background-hover">
                       <ProductImage src={l.image_url} art={l.art} alt={l.title} />
                     </Link>
                     <div className="flex min-w-0 flex-1 flex-col">
                       <p className="label truncate">{l.store_name}</p>
                       <Link href={`/p/${l.slug}`} className="line-clamp-2 text-[14px] hover:underline">{l.title}</Link>
-                      <p className="text-[12px] text-maxcontrast">{l.variant_label}</p>
+                      <p className="text-[12px] text-maxcontrast">{l.variant_label}{unticked.includes(l.id) && " · not buying this time"}</p>
                       <div className="mt-auto flex items-center justify-between pt-2">
                         <div className="rounded-element flex items-center border border-border">
                           <button className="rounded-full flex h-7 w-7 items-center justify-center hover:bg-background-hover" onClick={() => setQty(l.id, l.quantity - 1)} aria-label="Decrease quantity" disabled={l.quantity <= 1}><Minus size={14} /></button>
@@ -74,7 +77,7 @@ export function CartDrawer() {
               </ul>
               <div className="border-t border-border bg-main-background px-5 py-4">
                 <div className="mb-1 flex justify-between text-[14px]">
-                  <span>Subtotal</span>
+                  <span>{all ? "Subtotal" : `Subtotal, ${buying.length} of ${lines.length} ticked`}</span>
                   <span className="price">{money(subtotal)}</span>
                 </div>
                 <p className="mb-4 text-[12px] text-maxcontrast">Final prices, shipping and tax are confirmed at checkout.</p>

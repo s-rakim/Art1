@@ -346,6 +346,26 @@ export interface paths {
         patch: operations["update_cart_item_api_v1_cart_items__item_id__patch"];
         trace?: never;
     };
+    "/api/v1/cart/items/{item_id}/save-for-later": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Save For Later
+         * @description Move a cart line to the wishlist.
+         */
+        post: operations["save_for_later_api_v1_cart_items__item_id__save_for_later_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/checkout": {
         parameters: {
             query?: never;
@@ -876,7 +896,13 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Confirm Payment */
+        /**
+         * Confirm Payment
+         * @deprecated
+         * @description Stores no longer confirm payments. Shoppers pay The Bazaar's till,
+         *     and the rider at the door (or an admin) confirms it by the transaction
+         *     code. Kept so old clients get a clear answer: always 403.
+         */
         post: operations["confirm_payment_api_v1_seller_orders__store_order_id__confirm_payment_post"];
         delete?: never;
         options?: never;
@@ -1005,6 +1031,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/seller/sheets/{sheet}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Vendor Sheet
+         * @description Read-only sheets, built from the books themselves: ledger (every
+         *     movement of the store's balance), sales (items sold and paid), payments
+         *     (each order, its transaction codes and the store's share), inventory
+         *     (stock and units sold), entries (vendor sheet rows an admin confirmed) and
+         *     payouts. Filter by date with from and to. format=csv downloads the lot. Your store only.
+         */
+        get: operations["vendor_sheet_api_v1_seller_sheets__sheet__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/seller/sheet-entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** My Entries */
+        get: operations["my_entries_api_v1_seller_sheet_entries_get"];
+        put?: never;
+        /** Add Entry */
+        post: operations["add_entry_api_v1_seller_sheet_entries_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/seller/sheet-entries/{entry_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Entry */
+        delete: operations["delete_entry_api_v1_seller_sheet_entries__entry_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Edit Entry
+         * @description Editing a rejected entry sends it back to the admin as pending.
+         */
+        patch: operations["edit_entry_api_v1_seller_sheet_entries__entry_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/seller/sheet-entries/{entry_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Entry History */
+        get: operations["entry_history_api_v1_seller_sheet_entries__entry_id__history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/rider/applications": {
         parameters: {
             query?: never;
@@ -1117,8 +1223,151 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Act */
+        /**
+         * Act
+         * @description accept or decline an offer, then picked_up at the shop, and delivered
+         *     at the door with the shopper's 6 digit handover code once the payment
+         *     is confirmed (POST .../payment). failed needs a note.
+         */
         patch: operations["act_api_v1_rider_deliveries__delivery_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/rider/open-jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Open Jobs
+         * @description Jobs waiting for a rider near you, and offers made to you, oldest
+         *     order first (offers on top). While you're on a run, a job you can't add
+         *     to it comes back with batchable false and the reason, so the app can
+         *     grey it out. Needs you on shift with a recent location.
+         */
+        get: operations["open_jobs_api_v1_rider_open_jobs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/rider/open-jobs/{store_order_id}/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Claim
+         * @description Take a job from the board. It goes straight to accepted and joins your
+         *     run. If it was offered to you, this accepts the offer.
+         */
+        post: operations["claim_api_v1_rider_open_jobs__store_order_id__claim_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/rider/open-jobs/{store_order_id}/skip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Skip
+         * @description Not interested. The job leaves your board and won't be offered to you
+         *     again. An offer you skip is declined and passes to the next rider.
+         */
+        post: operations["skip_api_v1_rider_open_jobs__store_order_id__skip_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/rider/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Run
+         * @description The jobs on your current run in the order they were placed, and the
+         *     way to go: shops you still have to collect from, then drop-offs, oldest
+         *     order first. Stops stay on the run (delivered ones too) until you start
+         *     the next one.
+         */
+        get: operations["run_api_v1_rider_run_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/rider/deliveries/{delivery_id}/arrived": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Arrived
+         * @description You're at the drop-off. Admins get a payment check ping, and the
+         *     shopper is told to pay the till now, quoting their order number.
+         */
+        post: operations["arrived_api_v1_rider_deliveries__delivery_id__arrived_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/rider/deliveries/{delivery_id}/payment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Payment Lookup
+         * @description What's still owed at this door, and the payments that match q: a
+         *     transaction code (exact) or the payer's name (3 or more letters, up to 3
+         *     recent unused payments, codes masked). A used code shows used: true and
+         *     nothing else about it.
+         */
+        get: operations["payment_lookup_api_v1_rider_deliveries__delivery_id__payment_get"];
+        put?: never;
+        /**
+         * Payment Confirm
+         * @description Use a payment for this order: by its transaction code, or by the
+         *     receipt_id a name search returned. The payment is spent for good; using
+         *     it again anywhere fails with 409 code_used. Partial payments add up.
+         */
+        post: operations["payment_confirm_api_v1_rider_deliveries__delivery_id__payment_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/rider/earnings": {
@@ -1673,6 +1922,219 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/payments/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Payments
+         * @description Paste the till's or bank's messages, as many as you like. Each one is
+         *     read for the transaction code, amount, payer and time. With commit false
+         *     nothing is stored, so you can check the reading first. A code already in
+         *     the bank is never stored twice.
+         */
+        post: operations["import_payments_api_v1_admin_payments_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Payments */
+        get: operations["list_payments_api_v1_admin_payments_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payments/{receipt_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Payment */
+        patch: operations["update_payment_api_v1_admin_payments__receipt_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/admin/settlements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Settlements
+         * @description What each store is owed. Takings become owed once they've been held
+         *     for the payout interval; rent, commission, fees and delivery charges
+         *     are already taken off. Books balance when every delivered order has a
+         *     confirmed payment and the store has no sheet entries waiting.
+         */
+        get: operations["settlements_api_v1_admin_settlements_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/settlements/{store_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Settle
+         * @description Record that you've paid a store. Defaults to everything owed.
+         */
+        post: operations["settle_api_v1_admin_settlements__store_id__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/sheets/{sheet}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Admin Sheet
+         * @description Read-only sheets, built from the books themselves: ledger (every
+         *     movement of the store's balance), sales (items sold and paid), payments
+         *     (each order, its transaction codes and the store's share), inventory
+         *     (stock and units sold), entries (vendor sheet rows an admin confirmed) and
+         *     payouts. Filter by date with from and to. format=csv downloads the lot. Every store, or one with store_id.
+         */
+        get: operations["admin_sheet_api_v1_admin_sheets__sheet__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/sheet-entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** All Entries */
+        get: operations["all_entries_api_v1_admin_sheet_entries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/sheet-entries/{entry_id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm Entry */
+        post: operations["confirm_entry_api_v1_admin_sheet_entries__entry_id__confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/sheet-entries/{entry_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject Entry */
+        post: operations["reject_entry_api_v1_admin_sheet_entries__entry_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Audit */
+        get: operations["audit_api_v1_admin_audit_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/payments/sms/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sms Feed
+         * @description For an SMS forwarding app on the phone that receives the till's
+         *     messages: POST {"text": "..."} here. The token is PAYMENT_WEBHOOK_TOKEN.
+         */
+        post: operations["sms_feed_api_v1_payments_sms__token__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/status": {
         parameters: {
             query?: never;
@@ -2054,6 +2516,39 @@ export interface components {
             /** Note */
             note?: string | null;
         };
+        /** AuditRow */
+        AuditRow: {
+            /** Id */
+            id: number;
+            /** Entity */
+            entity: string;
+            /**
+             * Entity Id
+             * Format: uuid
+             */
+            entity_id: string;
+            /** Store Id */
+            store_id: string | null;
+            /** Action */
+            action: string;
+            /** Actor Id */
+            actor_id: string | null;
+            /** Actor Name */
+            actor_name: string | null;
+            /** Before */
+            before: {
+                [key: string]: unknown;
+            } | null;
+            /** After */
+            after: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+        };
         /** AvailableRider */
         AvailableRider: {
             /**
@@ -2288,6 +2783,8 @@ export interface components {
         CheckoutIn: {
             /** Items */
             items?: components["schemas"]["CheckoutLine"][] | null;
+            /** Cart Item Ids */
+            cart_item_ids?: string[] | null;
             /** Address Id */
             address_id?: string | null;
             shipping_address?: components["schemas"]["AddressIn"] | null;
@@ -2337,6 +2834,25 @@ export interface components {
             payment_url?: string | null;
             /** Client Secret */
             client_secret?: string | null;
+        };
+        /** Column */
+        Column: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "text" | "date" | "money" | "number";
+        };
+        /** ConfirmIn */
+        ConfirmIn: {
+            /** Key */
+            key: string;
+            /** Note */
+            note?: string | null;
         };
         /** Coupon */
         Coupon: {
@@ -2467,6 +2983,91 @@ export interface components {
              */
             created_at: string;
         };
+        /** Entry */
+        Entry: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Store Id
+             * Format: uuid
+             */
+            store_id: string;
+            /** Store Name */
+            store_name?: string | null;
+            /**
+             * Entry Date
+             * Format: date
+             */
+            entry_date: string;
+            /** Kind */
+            kind: string;
+            /** Description */
+            description: string;
+            /** Quantity */
+            quantity: number | null;
+            /** Amount Cents */
+            amount_cents: number | null;
+            /** Reference */
+            reference: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "confirmed" | "rejected";
+            /** Admin Note */
+            admin_note: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Confirmed At */
+            confirmed_at: string | null;
+        };
+        /** EntryIn */
+        EntryIn: {
+            /**
+             * Entry Date
+             * Format: date
+             */
+            entry_date: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "sale" | "expense" | "stock_in" | "stock_out" | "payment" | "other";
+            /** Description */
+            description: string;
+            /** Quantity */
+            quantity?: number | null;
+            /** Amount Cents */
+            amount_cents?: number | null;
+            /** Reference */
+            reference: string;
+        };
+        /** EntryUpdate */
+        EntryUpdate: {
+            /** Entry Date */
+            entry_date?: string | null;
+            /** Kind */
+            kind?: ("sale" | "expense" | "stock_in" | "stock_out" | "payment" | "other") | null;
+            /** Description */
+            description?: string | null;
+            /** Quantity */
+            quantity?: number | null;
+            /** Amount Cents */
+            amount_cents?: number | null;
+            /** Reference */
+            reference?: string | null;
+        };
         /** Facet */
         Facet: {
             /** Value */
@@ -2509,6 +3110,59 @@ export interface components {
         ImageOrderIn: {
             /** Image Ids */
             image_ids: string[];
+        };
+        /** ImportIn */
+        ImportIn: {
+            /** Text */
+            text: string;
+            /**
+             * Commit
+             * @default false
+             */
+            commit: boolean;
+        };
+        /** ImportOut */
+        ImportOut: {
+            /** Rows */
+            rows: components["schemas"]["ImportedRow"][];
+            /** Stored */
+            stored: number;
+            /**
+             * Failed
+             * @description Snippets of messages that didn't look like a payment.
+             */
+            failed: string[];
+        };
+        /** ImportedRow */
+        ImportedRow: {
+            /** Id */
+            id: string | null;
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "mpesa" | "bank";
+            /** Code */
+            code: string;
+            /** Payer Name */
+            payer_name: string | null;
+            /** Payer Phone */
+            payer_phone: string | null;
+            /** Amount Cents */
+            amount_cents: number;
+            /** Currency */
+            currency: string;
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+            /** Account Ref */
+            account_ref: string | null;
+            /** Matched Order Number */
+            matched_order_number: string | null;
+            /** Duplicate */
+            duplicate: boolean;
         };
         /** Income */
         Income: {
@@ -2795,6 +3449,70 @@ export interface components {
             /** Status */
             status: string;
         };
+        /** OpenJob */
+        OpenJob: {
+            /**
+             * Id
+             * Format: uuid
+             * @description The store order id. Claim and skip use it.
+             */
+            id: string;
+            /**
+             * Delivery Id
+             * @description Set when this job is offered to you.
+             */
+            delivery_id?: string | null;
+            /** Offered */
+            offered: boolean;
+            /** Offer Expires At */
+            offer_expires_at: string | null;
+            /** Order Number */
+            order_number: string;
+            /**
+             * Placed At
+             * Format: date-time
+             */
+            placed_at: string;
+            store: components["schemas"]["RiderStore"];
+            pickup: components["schemas"]["Point"];
+            /** @description Rounded to about a kilometre until you accept. */
+            dropoff: components["schemas"]["Point"] | null;
+            /** Area */
+            area: string | null;
+            /** Earning Cents */
+            earning_cents: number;
+            /** Amount Due Cents */
+            amount_due_cents: number;
+            /** Currency */
+            currency: string;
+            /** Items */
+            items: number;
+            /**
+             * Distance Km
+             * @description From you to the shop.
+             */
+            distance_km: number | null;
+            /**
+             * Trip Km
+             * @description From the shop to the drop-off.
+             */
+            trip_km: number | null;
+            /** Batchable */
+            batchable: boolean;
+            /** Blocked Reason */
+            blocked_reason: ("batch_full" | "pickup_far" | "on_run_far") | null;
+        };
+        /** OpenJobs */
+        OpenJobs: {
+            /** Items */
+            items: components["schemas"]["OpenJob"][];
+            /**
+             * Ride Status
+             * @enum {string}
+             */
+            ride_status: "offline" | "idle" | "delivering";
+            rules: components["schemas"]["RiderRules"];
+        };
         /** Order */
         Order: {
             /**
@@ -2931,10 +3649,32 @@ export interface components {
             /** Page Size */
             page_size: number;
         };
+        /** Page[AuditRow] */
+        Page_AuditRow_: {
+            /** Items */
+            items: components["schemas"]["AuditRow"][];
+            /** Total */
+            total: number;
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+        };
         /** Page[Earning] */
         Page_Earning_: {
             /** Items */
             items: components["schemas"]["Earning"][];
+            /** Total */
+            total: number;
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+        };
+        /** Page[Entry] */
+        Page_Entry_: {
+            /** Items */
+            items: components["schemas"]["Entry"][];
             /** Total */
             total: number;
             /** Page */
@@ -2979,6 +3719,17 @@ export interface components {
         Page_OrderSummary_: {
             /** Items */
             items: components["schemas"]["OrderSummary"][];
+            /** Total */
+            total: number;
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+        };
+        /** Page[PaymentReceipt] */
+        Page_PaymentReceipt_: {
+            /** Items */
+            items: components["schemas"]["PaymentReceipt"][];
             /** Total */
             total: number;
             /** Page */
@@ -3084,6 +3835,141 @@ export interface components {
             page: number;
             /** Page Size */
             page_size: number;
+        };
+        /** PaymentCheck */
+        PaymentCheck: {
+            /** Due Cents */
+            due_cents: number;
+            /** Paid Cents */
+            paid_cents: number;
+            /** Payment Confirmed */
+            payment_confirmed: boolean;
+            /** Currency */
+            currency: string;
+            /**
+             * Matches
+             * @default []
+             */
+            matches: components["schemas"]["PaymentMatch"][];
+        };
+        /**
+         * PaymentDetails
+         * @description Where shoppers pay. Shown at checkout and when the rider arrives.
+         */
+        PaymentDetails: {
+            /** Mpesa Till */
+            mpesa_till: string | null;
+            /** Mpesa Paybill */
+            mpesa_paybill: string | null;
+            /** Account Name */
+            account_name: string | null;
+            /** Bank Name */
+            bank_name: string | null;
+            /** Bank Account Name */
+            bank_account_name: string | null;
+            /** Bank Account Number */
+            bank_account_number: string | null;
+            /** Instructions */
+            instructions: string | null;
+        };
+        /** PaymentIn */
+        PaymentIn: {
+            /** Code */
+            code?: string | null;
+            /** Receipt Id */
+            receipt_id?: string | null;
+        };
+        /** PaymentMatch */
+        PaymentMatch: {
+            /**
+             * Receipt Id
+             * Format: uuid
+             */
+            receipt_id: string;
+            /**
+             * Code
+             * @description Masked to the last 3 characters when found by name.
+             */
+            code: string;
+            /** Payer Name */
+            payer_name: string | null;
+            /** Amount Cents */
+            amount_cents: number | null;
+            /** Currency */
+            currency: string | null;
+            /** Received At */
+            received_at: string | null;
+            /** Used */
+            used: boolean;
+            /** Enough */
+            enough: boolean;
+        };
+        /** PaymentReceipt */
+        PaymentReceipt: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Provider */
+            provider: string;
+            /** Source */
+            source: string;
+            /** Code */
+            code: string;
+            /** Amount Cents */
+            amount_cents: number;
+            /** Currency */
+            currency: string;
+            /** Payer Name */
+            payer_name: string | null;
+            /** Payer Phone */
+            payer_phone: string | null;
+            /** Account Ref */
+            account_ref: string | null;
+            /**
+             * Received At
+             * Format: date-time
+             */
+            received_at: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "unconfirmed" | "confirmed" | "expired" | "void";
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Order Id */
+            order_id: string | null;
+            /** Order Number */
+            order_number: string | null;
+            /** Confirmed At */
+            confirmed_at: string | null;
+            /** Confirmed By Name */
+            confirmed_by_name: string | null;
+            /** Confirmed Role */
+            confirmed_role: string | null;
+            /** Note */
+            note: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** PaymentUpdate */
+        PaymentUpdate: {
+            /** Order Id */
+            order_id?: string | null;
+            /** Order Number */
+            order_number?: string | null;
+            /** Status */
+            status?: "void" | null;
+            /** Note */
+            note?: string | null;
         };
         /** Payout */
         Payout: {
@@ -3531,6 +4417,11 @@ export interface components {
              */
             price_on_request: boolean;
         };
+        /** RejectIn */
+        RejectIn: {
+            /** Note */
+            note: string;
+        };
         /** RentInvoice */
         RentInvoice: {
             /**
@@ -3621,7 +4512,12 @@ export interface components {
             status: string;
             /** Order Number */
             order_number: string;
-            store: components["schemas"]["StoreRef"];
+            /**
+             * Placed At
+             * Format: date-time
+             */
+            placed_at: string;
+            store: components["schemas"]["RiderStore"];
             pickup: components["schemas"]["Point"] | null;
             dropoff: components["schemas"]["Point"] | null;
             /** Dropoff Address */
@@ -3632,14 +4528,24 @@ export interface components {
             customer_name: string | null;
             /** Customer Phone */
             customer_phone: string | null;
+            /** Customer Note */
+            customer_note: string | null;
+            /** Amount Due Cents */
+            amount_due_cents: number;
             /** Cash To Collect Cents */
             cash_to_collect_cents: number;
+            /** Payment Confirmed */
+            payment_confirmed: boolean;
+            /** Earning Cents */
+            earning_cents: number;
             /** Fee Cents */
             fee_cents: number;
             /** Currency */
             currency: string;
             /** Items */
             items: number;
+            /** Run Id */
+            run_id: string | null;
             /**
              * Assigned At
              * Format: date-time
@@ -3649,6 +4555,8 @@ export interface components {
             accepted_at: string | null;
             /** Picked Up At */
             picked_up_at: string | null;
+            /** Arrived At */
+            arrived_at: string | null;
             /** Delivered At */
             delivered_at: string | null;
         };
@@ -3706,6 +4614,12 @@ export interface components {
             unpaid_earnings_cents: number;
             /** Currency */
             currency: string;
+            /**
+             * Ride Status
+             * @enum {string}
+             */
+            ride_status: "offline" | "idle" | "delivering";
+            rules: components["schemas"]["RiderRules"];
         };
         /** RiderPayoutOut */
         RiderPayoutOut: {
@@ -3736,6 +4650,45 @@ export interface components {
             phone_masked: string | null;
             /** Vehicle */
             vehicle: string;
+        };
+        /**
+         * RiderRules
+         * @description The admin's rules for riders, so the app can explain what's locked.
+         */
+        RiderRules: {
+            /** Pool Radius Km */
+            pool_radius_km: number;
+            /** Batch Radius Km */
+            batch_radius_km: number;
+            /** Pickup Radius Km */
+            pickup_radius_km: number;
+            /** Max Batch */
+            max_batch: number;
+            /** Commission Rate */
+            commission_rate: number;
+            /** Rider Fee Cents */
+            rider_fee_cents: number;
+        };
+        /** RiderRun */
+        RiderRun: {
+            /** Run Id */
+            run_id: string | null;
+            /** Stops */
+            stops: components["schemas"]["RiderDelivery"][];
+            /** Route */
+            route: components["schemas"]["Waypoint"][];
+        };
+        /** RiderStore */
+        RiderStore: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Slug */
+            slug: string;
+            /** Name */
+            name: string;
         };
         /** SellerMe */
         SellerMe: {
@@ -3938,6 +4891,89 @@ export interface components {
             /** Weight Grams */
             weight_grams: number | null;
         };
+        /** SettleIn */
+        SettleIn: {
+            /** Amount Cents */
+            amount_cents?: number | null;
+            /** Reference */
+            reference: string;
+            /** Note */
+            note?: string | null;
+            /**
+             * Force
+             * @default false
+             */
+            force: boolean;
+        };
+        /** Settlement */
+        Settlement: {
+            /**
+             * Store Id
+             * Format: uuid
+             */
+            store_id: string;
+            /** Store Name */
+            store_name: string;
+            /** Store Slug */
+            store_slug: string;
+            /** Currency */
+            currency: string;
+            /**
+             * Owed Cents
+             * @description Takings past the holding period, after rent, commission and delivery.
+             */
+            owed_cents: number;
+            /**
+             * Held Cents
+             * @description Takings still inside the payout interval.
+             */
+            held_cents: number;
+            /** Sales Cents */
+            sales_cents: number;
+            /** Commission Cents */
+            commission_cents: number;
+            /** Fees Cents */
+            fees_cents: number;
+            /** Delivery Cents */
+            delivery_cents: number;
+            /** Rent Cents */
+            rent_cents: number;
+            /** Paid Out Cents */
+            paid_out_cents: number;
+            /**
+             * Net Cents
+             * @description What a settlement now would pay: owed_cents if positive.
+             */
+            net_cents: number;
+            /** Books Balanced */
+            books_balanced: boolean;
+            /** Blockers */
+            blockers: string[];
+            /** Last Payout At */
+            last_payout_at: string | null;
+            /**
+             * Next Payout At
+             * Format: date-time
+             */
+            next_payout_at: string;
+        };
+        /** SheetOut */
+        SheetOut: {
+            /** Sheet */
+            sheet: string;
+            /** Columns */
+            columns: components["schemas"]["Column"][];
+            /** Rows */
+            rows: {
+                [key: string]: unknown;
+            }[];
+            /** Total */
+            total: number;
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+        };
         /** ShiftIn */
         ShiftIn: {
             /** Online */
@@ -3992,16 +5028,45 @@ export interface components {
             free_shipping_over_cents: number | null;
             /** Rider Fee Cents */
             rider_fee_cents: number;
+            /** Rider Commission Rate */
+            rider_commission_rate: number;
             /** Tax Rate */
             tax_rate: number;
             /** Maintenance Mode */
             maintenance_mode: boolean;
             /** Maintenance Message */
             maintenance_message: string | null;
+            payment: components["schemas"]["PaymentDetails"];
             /** Vendor Signups Open */
             vendor_signups_open: boolean;
             /** Rider Signups Open */
             rider_signups_open: boolean;
+            /** Rider Pool Radius Km */
+            rider_pool_radius_km: number;
+            /** Rider Batch Radius Km */
+            rider_batch_radius_km: number;
+            /** Rider Pickup Radius Km */
+            rider_pickup_radius_km: number;
+            /** Rider Max Batch */
+            rider_max_batch: number;
+            /** Payout Interval Days */
+            payout_interval_days: number;
+            /** Payment Code Ttl Hours */
+            payment_code_ttl_hours: number;
+            /** Mpesa Till */
+            mpesa_till: string | null;
+            /** Mpesa Paybill */
+            mpesa_paybill: string | null;
+            /** Payment Account Name */
+            payment_account_name: string | null;
+            /** Bank Name */
+            bank_name: string | null;
+            /** Bank Account Name */
+            bank_account_name: string | null;
+            /** Bank Account Number */
+            bank_account_number: string | null;
+            /** Payment Instructions */
+            payment_instructions: string | null;
             /**
              * Updated At
              * Format: date-time
@@ -4038,6 +5103,34 @@ export interface components {
             contact_whatsapp?: string | null;
             /** Contact Note */
             contact_note?: string | null;
+            /** Rider Commission Rate */
+            rider_commission_rate?: number | null;
+            /** Rider Pool Radius Km */
+            rider_pool_radius_km?: number | null;
+            /** Rider Batch Radius Km */
+            rider_batch_radius_km?: number | null;
+            /** Rider Pickup Radius Km */
+            rider_pickup_radius_km?: number | null;
+            /** Rider Max Batch */
+            rider_max_batch?: number | null;
+            /** Payout Interval Days */
+            payout_interval_days?: number | null;
+            /** Payment Code Ttl Hours */
+            payment_code_ttl_hours?: number | null;
+            /** Mpesa Till */
+            mpesa_till?: string | null;
+            /** Mpesa Paybill */
+            mpesa_paybill?: string | null;
+            /** Payment Account Name */
+            payment_account_name?: string | null;
+            /** Bank Name */
+            bank_name?: string | null;
+            /** Bank Account Name */
+            bank_account_name?: string | null;
+            /** Bank Account Number */
+            bank_account_number?: string | null;
+            /** Payment Instructions */
+            payment_instructions?: string | null;
         };
         /** SiteStatus */
         SiteStatus: {
@@ -4061,12 +5154,15 @@ export interface components {
             free_shipping_over_cents: number | null;
             /** Rider Fee Cents */
             rider_fee_cents: number;
+            /** Rider Commission Rate */
+            rider_commission_rate: number;
             /** Tax Rate */
             tax_rate: number;
             /** Maintenance Mode */
             maintenance_mode: boolean;
             /** Maintenance Message */
             maintenance_message: string | null;
+            payment: components["schemas"]["PaymentDetails"];
         };
         /** SlotUpdate */
         SlotUpdate: {
@@ -4076,6 +5172,15 @@ export interface components {
             capacity?: number | null;
             /** Is Active */
             is_active?: boolean | null;
+        };
+        /** SmsIn */
+        SmsIn: {
+            /** Text */
+            text?: string | null;
+            /** Message */
+            message?: string | null;
+            /** Body */
+            body?: string | null;
         };
         /**
          * StockChange
@@ -4589,6 +5694,22 @@ export interface components {
             duration_s: number | null;
             /** Caption */
             caption: string | null;
+        };
+        /** Waypoint */
+        Waypoint: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "rider" | "pickup" | "dropoff";
+            /** Lat */
+            lat: number;
+            /** Lng */
+            lng: number;
+            /** Label */
+            label: string | null;
+            /** Delivery Ids */
+            delivery_ids: string[];
         };
         /** WishlistIn */
         WishlistIn: {
@@ -5388,6 +6509,37 @@ export interface operations {
                 "application/json": components["schemas"]["CartItemUpdate"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Cart"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_for_later_api_v1_cart_items__item_id__save_for_later_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -6860,6 +8012,207 @@ export interface operations {
             };
         };
     };
+    vendor_sheet_api_v1_seller_sheets__sheet__get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+                format?: "json" | "csv";
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path: {
+                sheet: "ledger" | "sales" | "payments" | "inventory" | "entries" | "payouts";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SheetOut"];
+                    "text/csv": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    my_entries_api_v1_seller_sheet_entries_get: {
+        parameters: {
+            query?: {
+                status?: ("pending" | "confirmed" | "rejected") | null;
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_Entry_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_entry_api_v1_seller_sheet_entries_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EntryIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Entry"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_entry_api_v1_seller_sheet_entries__entry_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Message"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_entry_api_v1_seller_sheet_entries__entry_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EntryUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Entry"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    entry_history_api_v1_seller_sheet_entries__entry_id__history_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditRow"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     apply_api_v1_rider_applications_post: {
         parameters: {
             query?: never;
@@ -7065,6 +8418,207 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RiderDelivery"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    open_jobs_api_v1_rider_open_jobs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpenJobs"];
+                };
+            };
+        };
+    };
+    claim_api_v1_rider_open_jobs__store_order_id__claim_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                store_order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RiderDelivery"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    skip_api_v1_rider_open_jobs__store_order_id__skip_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                store_order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Message"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_api_v1_rider_run_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RiderRun"];
+                };
+            };
+        };
+    };
+    arrived_api_v1_rider_deliveries__delivery_id__arrived_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                delivery_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RiderDelivery"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    payment_lookup_api_v1_rider_deliveries__delivery_id__payment_get: {
+        parameters: {
+            query?: {
+                q?: string | null;
+            };
+            header?: never;
+            path: {
+                delivery_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentCheck"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    payment_confirm_api_v1_rider_deliveries__delivery_id__payment_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                delivery_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaymentIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentCheck"];
                 };
             };
             /** @description Validation Error */
@@ -8169,6 +9723,376 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BillingRunOut"];
+                };
+            };
+        };
+    };
+    import_payments_api_v1_admin_payments_import_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_payments_api_v1_admin_payments_get: {
+        parameters: {
+            query?: {
+                status?: ("unconfirmed" | "confirmed" | "expired" | "void") | null;
+                q?: string | null;
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_PaymentReceipt_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_payment_api_v1_admin_payments__receipt_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                receipt_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaymentUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentReceipt"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    settlements_api_v1_admin_settlements_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Settlement"][];
+                };
+            };
+        };
+    };
+    settle_api_v1_admin_settlements__store_id__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                store_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SettleIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Message"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_sheet_api_v1_admin_sheets__sheet__get: {
+        parameters: {
+            query?: {
+                store_id?: string | null;
+                from?: string | null;
+                to?: string | null;
+                format?: "json" | "csv";
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path: {
+                sheet: "ledger" | "sales" | "payments" | "inventory" | "entries" | "payouts";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SheetOut"];
+                    "text/csv": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    all_entries_api_v1_admin_sheet_entries_get: {
+        parameters: {
+            query?: {
+                status?: ("pending" | "confirmed" | "rejected") | null;
+                store_id?: string | null;
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_Entry_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_entry_api_v1_admin_sheet_entries__entry_id__confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Entry"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_entry_api_v1_admin_sheet_entries__entry_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RejectIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Entry"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    audit_api_v1_admin_audit_get: {
+        parameters: {
+            query?: {
+                entity?: ("sheet_entries" | "payment_receipts") | null;
+                entity_id?: string | null;
+                store_id?: string | null;
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_AuditRow_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sms_feed_api_v1_payments_sms__token__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SmsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Message"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

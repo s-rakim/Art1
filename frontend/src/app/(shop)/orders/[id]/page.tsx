@@ -5,6 +5,7 @@ import { Check } from "@/components/icons";
 import { ProductImage } from "@/components/product-image";
 import { StatusTag } from "@/components/status-tag";
 import { OrderTracking } from "@/components/order-tracking";
+import { PayTo } from "@/components/pay-to";
 import { Breadcrumbs, DemoNotice } from "@/components/ui";
 import { api } from "@/lib/api";
 import { money, shortDate } from "@/lib/format";
@@ -16,10 +17,10 @@ export const metadata: Metadata = { title: "Order details", robots: { index: fal
 
 const flow = ["pending_payment", "paid", "shipped", "fulfilled"];
 const words: Record<string, string> = {
-  pending_payment: "Order placed", paid: "Payment confirmed", shipped: "On its way",
+  pending_payment: "Order placed", paid: "Paid", shipped: "On its way",
   fulfilled: "Delivered", canceled: "Cancelled", refunded: "Refunded",
 };
-const pay: Record<string, string> = { cod: "Cash on delivery", bank_transfer: "Bank transfer", manual: "Cash or bank transfer, paid to the store", stripe: "Card", test: "Card (test)" };
+const pay: Record<string, string> = { cod: "Pay on arrival by M-Pesa or bank", bank_transfer: "Bank transfer to the market", manual: "M-Pesa or bank, paid to the market", stripe: "Card", test: "Card (test)" };
 
 export default async function OrderPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ placed?: string }> }) {
   const { id } = await params;
@@ -31,8 +32,15 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
   const placed = (await searchParams).placed === "1";
   const reached = new Map(order.events.map((e) => [e.status, e.at]));
   const ended = order.status === "canceled" || order.status === "refunded";
-  const steps = ended ? [...flow.slice(0, reached.has("paid") ? 2 : 1), order.status] : flow;
-  const live = ["paid", "partially_fulfilled"].includes(order.status);
+  // Steps in the order they happened. Pay on arrival is paid after it's on its way, a bank
+  // transfer before, so the reached steps sort by time and the rest keep the usual order.
+  const when = (s: string) => reached.get(s) || "9999";
+  const steps = ended
+    ? [...flow.slice(0, reached.has("paid") ? 2 : 1), order.status]
+    : [...flow].sort((a, b) => (reached.has(a) && reached.has(b) ? when(a).localeCompare(when(b)) : reached.has(a) ? -1 : reached.has(b) ? 1 : flow.indexOf(a) - flow.indexOf(b)));
+  // Pay-on-arrival orders stay unpaid until the door, and that's exactly when the customer
+  // needs the map and the handover code, so tracking shows for every open order.
+  const live = !["canceled", "refunded", "fulfilled"].includes(order.status);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-5 md:px-6">
@@ -68,7 +76,7 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
       </ol>
 
       {order.status === "partially_fulfilled" && (
-        <p className="mt-4 text-[14px] text-maxcontrast">Part of this order has arrived. The rest is still with its store or on the road.</p>
+        <p className="mt-4 text-[14px] text-maxcontrast">This order comes from more than one shop, so its parcels move separately. Each one has its own tab below.</p>
       )}
       {live && <OrderTracking orderId={order.id} />}
 
@@ -98,9 +106,10 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
           {order.payment_provider && (
             <div>
               <p className="label mb-1">Payment</p>
-              <p>{pay[order.payment_provider] ?? order.payment_provider}{order.status === "pending_payment" ? ", not yet received" : ""}</p>
+              <p>{pay[order.payment_provider] ?? order.payment_provider}{order.status === "pending_payment" ? ". Not received yet." : ""}</p>
             </div>
           )}
+          {order.status === "pending_payment" && <PayTo reference={order.number} />}
           <dl className="panel space-y-1.5 p-4">
             <div className="flex justify-between"><dt>Subtotal</dt><dd className="price">{money(order.subtotal_cents, order.currency)}</dd></div>
             {!!order.discount_cents && <div className="flex justify-between"><dt>Discount</dt><dd className="price">−{money(order.discount_cents, order.currency)}</dd></div>}

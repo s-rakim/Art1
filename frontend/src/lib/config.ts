@@ -20,6 +20,11 @@ export function apiBase() {
 export const MAP_STYLE = process.env.NEXT_PUBLIC_MAP_STYLE || "https://tiles.openfreemap.org/styles/positron";
 export const MAP_STYLE_DARK = process.env.NEXT_PUBLIC_MAP_STYLE_DARK || (process.env.NEXT_PUBLIC_MAP_STYLE ? MAP_STYLE : "https://tiles.openfreemap.org/styles/dark");
 /** Raster fallback, used when the vector style can't load. */
+/**
+ * An OSRM-compatible router for the rider's route line, e.g. a self-hosted osrm-backend. Empty
+ * means the map joins the stops with straight lines in the right order instead of following roads.
+ */
+export const ROUTING_URL = (process.env.NEXT_PUBLIC_ROUTING_URL || "").replace(/\/$/, "");
 export const MAP_TILES = process.env.NEXT_PUBLIC_MAP_TILES || "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 export const MAP_ATTRIBUTION = process.env.NEXT_PUBLIC_MAP_ATTRIBUTION || "© OpenStreetMap contributors";
 

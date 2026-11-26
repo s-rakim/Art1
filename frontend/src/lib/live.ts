@@ -127,7 +127,9 @@ export type AppEvent =
   | { type: "job"; delivery_id: string; status: string }
   | { type: "stock"; product_id: string; variant_id: string; stock: number }
   | { type: "application"; kind: "rider" | "vendor"; id: string; status: string }
-  | { type: "catalog"; product_id: string; slug: string | null };
+  | { type: "catalog"; product_id: string; slug: string | null }
+  /** The riders' job board: an order joined the pool ("open") or a rider took it ("taken"). */
+  | { type: "jobs"; store_order_id: string; change: "open" | "taken" };
 export type AppEventType = AppEvent["type"];
 
 const str = (v: unknown, max = 64): v is string => typeof v === "string" && v.length > 0 && v.length <= max;
@@ -153,6 +155,8 @@ function parseApp(raw: unknown): AppEvent | null {
       return (m.kind === "rider" || m.kind === "vendor") && str(m.id) && str(m.status, 40) ? { type: "application", kind: m.kind, id: m.id, status: m.status } : null;
     case "catalog":
       return str(m.product_id) ? { type: "catalog", product_id: m.product_id, slug: optStr(m.slug, 200) } : null;
+    case "jobs":
+      return str(m.store_order_id) && (m.change === "open" || m.change === "taken") ? { type: "jobs", store_order_id: m.store_order_id, change: m.change } : null;
     default:
       return null;
   }

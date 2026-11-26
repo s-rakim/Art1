@@ -20,6 +20,11 @@ function origin(u: string) {
   }
 }
 
+/** Space-separated sources, each once. */
+function sources(...list: Array<string | false | null | undefined>) {
+  return [...new Set(list.filter(Boolean).flatMap((x) => (x as string).split(" ")))].join(" ");
+}
+
 function buildCsp(nonce: string) {
   const dev = process.env.NODE_ENV === "development";
   const sb = origin(supabaseUrl);
@@ -28,12 +33,12 @@ function buildCsp(nonce: string) {
   const styleOrigins = [MAP_STYLE, MAP_STYLE_DARK].map(origin).filter(Boolean).join(" ");
   const api = origin(apiUrl);
   // The API's tracking websocket lives on the same host, over ws:// or wss://.
-  const connect = ["'self'", api, api && api.replace(/^http/, "ws"), sb, sb && sb.replace(/^http/, "ws"), tileOrigin, styleOrigins].filter(Boolean).join(" ");
-  const img = ["'self'", "data:", "blob:", sb, tileOrigin, styleOrigins, process.env.NEXT_PUBLIC_IMAGE_HOST ? `https://${process.env.NEXT_PUBLIC_IMAGE_HOST}` : ""]
-    .filter(Boolean)
-    .join(" ");
+  const router = origin(process.env.NEXT_PUBLIC_ROUTING_URL || "");
+  const imageHost = process.env.NEXT_PUBLIC_IMAGE_HOST ? `https://${process.env.NEXT_PUBLIC_IMAGE_HOST}` : "";
+  const connect = sources("'self'", api, api && api.replace(/^http/, "ws"), sb, sb && sb.replace(/^http/, "ws"), tileOrigin, styleOrigins, router);
+  const img = sources("'self'", "data:", "blob:", sb, tileOrigin, styleOrigins, imageHost);
   // Product videos come from the same storage host as photos; blob: is the editor's local preview.
-  const media = ["'self'", "blob:", sb, process.env.NEXT_PUBLIC_IMAGE_HOST ? `https://${process.env.NEXT_PUBLIC_IMAGE_HOST}` : ""].filter(Boolean).join(" ");
+  const media = sources("'self'", "blob:", sb, imageHost);
   return [
     `default-src 'self'`,
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`,

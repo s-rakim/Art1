@@ -78,6 +78,7 @@ export function OrderTracking({ orderId }: { orderId: string }) {
   // Moving the pin: a draft spot on the map until the customer saves it.
   const [moving, setMoving] = useState<LatLng | null>(null);
   const [savingPin, setSavingPin] = useState(false);
+  const [riderNote, setRiderNote] = useState("");
   const [pinMsg, setPinMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const { pins, lines } = useMemo(() => (current ? view(current, moving) : { pins: [], lines: [] }), [current, moving]);
   const canMove = !!current?.dropoff && !["delivered", "failed", "canceled"].includes(current.status);
@@ -87,9 +88,11 @@ export function OrderTracking({ orderId }: { orderId: string }) {
     setSavingPin(true);
     setPinMsg(null);
     try {
-      setT(await api.moveDropoff(token, orderId, { lat: moving.lat, lng: moving.lng }));
+      const note = riderNote.trim();
+      setT(await api.moveDropoff(token, orderId, { lat: moving.lat, lng: moving.lng, ...(note ? { note } : {}) }));
       setMoving(null);
-      setPinMsg({ ok: true, text: "Pin moved. Your rider sees the new spot straight away." });
+      setRiderNote("");
+      setPinMsg({ ok: true, text: note ? "Pin and note saved. Your rider sees them straight away." : "Pin moved. Your rider sees the new spot straight away." });
     } catch (e) {
       setPinMsg({ ok: false, text: e instanceof ApiError ? e.message : "Couldn't move the pin. Try again." });
     } finally {
@@ -164,6 +167,10 @@ export function OrderTracking({ orderId }: { orderId: string }) {
               {moving ? (
                 <>
                   <p className="mb-2 text-maxcontrast">Drag the pin, or tap the map, to where the rider should stop. A gate or a side door works best.</p>
+                  <label className="mb-3 block max-w-md">
+                    <span className="label">Note for the rider (optional)</span>
+                    <input maxLength={500} autoComplete="off" className="field mt-1" value={riderNote} onChange={(e) => setRiderNote(e.target.value)} placeholder="Blue gate, call when you're outside" />
+                  </label>
                   <div className="flex gap-2">
                     <button type="button" disabled={savingPin} onClick={savePin} className="btn btn-primary btn-sm">{savingPin ? "Saving…" : "Save new spot"}</button>
                     <button type="button" disabled={savingPin} onClick={() => setMoving(null)} className="btn btn-tertiary btn-sm">Cancel</button>
@@ -171,7 +178,7 @@ export function OrderTracking({ orderId }: { orderId: string }) {
                 </>
               ) : (
                 <button type="button" onClick={() => { setPinMsg(null); setMoving(current.dropoff ? { lat: current.dropoff.lat, lng: current.dropoff.lng } : null); }} className="btn btn-secondary btn-sm">
-                  Move the drop-off pin
+                  Move the pin or leave a note
                 </button>
               )}
               {pinMsg && <p role="status" className={`mt-2 text-[13px] ${pinMsg.ok ? "text-text-success" : "text-text-error"}`}>{pinMsg.text}</p>}

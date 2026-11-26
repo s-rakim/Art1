@@ -193,11 +193,17 @@ export function ExportButton({ onClick, disabled, label = "Export CSV" }: { onCl
 export function saveCsv(filename: string, rows: Array<Array<string | number | null | undefined>>) {
   const cell = (v: string | number | null | undefined) => {
     let s = v == null ? "" : String(v);
-    if (typeof v === "string" && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+    // A plain number like "-29.00" stays a number; anything else starting like a formula is defused.
+    if (typeof v === "string" && /^[=+\-@\t\r]/.test(s) && !/^-?\d+(\.\d+)?$/.test(s)) s = `'${s}`;
     return `"${s.replaceAll('"', '""')}"`;
   };
   const csv = "﻿" + rows.map((r) => r.map(cell).join(",")).join("\r\n");
-  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  saveBlob(filename, new Blob([csv], { type: "text/csv;charset=utf-8" }));
+}
+
+/** Hands the browser a file to save, under a name stripped down to safe characters. */
+export function saveBlob(filename: string, blob: Blob) {
+  const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
   a.download = filename.replace(/[^A-Za-z0-9._-]/g, "-");

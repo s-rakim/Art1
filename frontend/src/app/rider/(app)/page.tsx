@@ -1,70 +1,86 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ErrorLine } from "@/components/dash";
 import { DeliveryMap, type MapLine, type MapPin } from "@/components/delivery-map";
-import { Pin } from "@/components/icons";
+import { Bike, Cash, CheckCircle, Pin, Truck, Wallet } from "@/components/icons";
+import { fitsWith, JobCard, StopCard, why } from "@/components/rider-run";
+import { useSite } from "@/components/site-context";
+import { Badge, GlassStage, Metric, Panel } from "@/components/ui/glass-dashboard";
 import { api, ApiError } from "@/lib/api";
-import { money } from "@/lib/format";
-import type { Delivery, LatLng } from "@/lib/types";
+import { ROUTING_URL } from "@/lib/config";
+import { money, pct } from "@/lib/format";
+import { roadPath } from "@/lib/geo";
 import { useBrowserFact } from "@/lib/hooks";
-import { useApi } from "@/lib/use-api";
 import { useLiveReload } from "@/lib/live";
+import type { LatLng, OpenJob, RideStatus } from "@/lib/types";
+import { useApi } from "@/lib/use-api";
 
 // The API asks for a position every 10 to 15 seconds while on shift.
 const SEND_EVERY_MS = 12000;
-type Action = "accept" | "decline" | "picked_up" | "delivered" | "failed";
+const ON_RUN = new Set(["accepted", "picked_up", "arrived"]);
+const count = (v: number) => String(Math.round(v));
+const today = (iso: string) => new Date(iso).toDateString() === new Date().toDateString();
 
-const nextAction: Record<string, { action: Action; label: string } | undefined> = {
-  assigned: { action: "accept", label: "Accept job" },
-  accepted: { action: "picked_up", label: "Picked up from store" },
+const STATUS: Record<RideStatus, { label: string; badge: "good" | "wait" | "plain"; line: string }> = {
+  offline: { label: "Off shift", badge: "plain", line: "Start your shift to see jobs near you and share your location." },
+  idle: { label: "Free", badge: "good", line: "Pick a yellow pin or a job below to see where it goes, then accept it." },
+  delivering: { label: "Delivering", badge: "wait", line: "Your stops are in red, in the order the customers ordered. Jobs that fit your run stay open." },
 };
 
-function routeUrl(from: LatLng | null, d: Delivery) {
-  const to = d.status === "picked_up" ? d.dropoff : d.pickup;
-  if (to && from) return `https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=${from.lat}%2C${from.lng}%3B${to.lat}%2C${to.lng}`;
-  if (to) return `https://www.openstreetmap.org/?mlat=${to.lat}&mlon=${to.lng}#map=17/${to.lat}/${to.lng}`;
-  if (d.status === "picked_up" && d.dropoff_address) return `https://www.openstreetmap.org/search?query=${encodeURIComponent(d.dropoff_address)}`;
-  return null;
-}
+// Oldest order first, so customers who waited longest are served first; offers to this rider lead.
+const byQueue = (a: OpenJob, b: OpenJob) =>
+  Number(b.offered) - Number(a.offered) || Number(b.batchable) - Number(a.batchable) || a.placed_at.localeCompare(b.placed_at);
 
 export default function RiderHome() {
+  const site = useSite();
   const me = useApi((t) => api.riderMe(t));
-  const jobs = useApi((t) => api.riderDeliveries(t));
-  // The server is the record of whether this rider is on shift.
+  const board = useApi((t) => api.riderOpenJobs(t));
+  const run = useApi((t) => api.riderRun(t));
+  const history = useApi((t) => api.riderDeliveries(t, "history"));
+  const token = me.token;
+
   const onShift = me.data?.on_shift ?? false;
   const canLocate = useBrowserFact(() => "geolocation" in navigator, true);
   const [switching, setSwitching] = useState(false);
   const [pos, setPos] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
   const [geoError, setGeoError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
-  const [codes, setCodes] = useState<Record<string, string>>({});
-  const [failing, setFailing] = useState<string | null>(null);
-  const [note, setNote] = useState("");
+  const [picked, setPicked] = useState<string | null>(null);
+  const [busyJob, setBusyJob] = useState<string | null>(null);
   const lastSent = useRef(0);
-  const watch = useRef<number | null>(null);
+
+  const { reload: reloadBoard, setData: setBoard } = board;
+  const { reload: reloadRun } = run;
+  const refresh = useCallback(() => {
+    reloadBoard();
+    reloadRun();
+  }, [reloadBoard, reloadRun]);
+  const finished = () => {
+    refresh();
+    me.reload();
+    history.reload();
+  };
+
+  // Jobs joining or leaving the pool, offers, and changes from shops arrive live; polling covers a dropped socket.
+  const live = useLiveReload(["jobs", "job", "order"], refresh, 20000);
 
   async function toggleShift() {
-    const next = !onShift;
     setSwitching(true);
     setMsg(null);
     try {
-      me.setData(await api.riderShift(jobs.token, next));
+      me.setData(await api.riderShift(token, !onShift));
+      refresh();
     } catch (e) {
-      setMsg(e instanceof ApiError ? e.message : "Couldn't change your shift. Check your signal.");
+      setMsg(why(e, "Couldn't change your shift. Check your signal."));
     } finally {
       setSwitching(false);
     }
   }
 
-  // Location is only read and shared while the rider is on shift.
+  // Location is read and shared only while the rider is on shift.
   useEffect(() => {
-    if (!onShift || !canLocate) {
-      if (watch.current !== null) navigator.geolocation.clearWatch(watch.current);
-      watch.current = null;
-      return;
-    }
-    watch.current = navigator.geolocation.watchPosition(
+    if (!onShift || !canLocate) return;
+    const id = navigator.geolocation.watchPosition(
       (p) => {
         const next = { lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy };
         setPos(next);
@@ -74,193 +90,266 @@ export default function RiderHome() {
           lastSent.current = now;
           const heading = p.coords.heading !== null && Number.isFinite(p.coords.heading) ? p.coords.heading : null;
           const speed = p.coords.speed !== null && Number.isFinite(p.coords.speed) && p.coords.speed >= 0 ? p.coords.speed : null;
-          api.riderLocation(jobs.token, { lat: next.lat, lng: next.lng, accuracy_m: Math.round(next.accuracy), heading, speed_mps: speed }).catch(() => {});
+          api.riderLocation(token, { lat: next.lat, lng: next.lng, accuracy_m: Math.round(next.accuracy), heading, speed_mps: speed }).catch(() => {});
         }
       },
-      (err) => setGeoError(err.code === err.PERMISSION_DENIED ? "Location permission is off. Turn it on so stores and customers can see you coming." : "Can't get a GPS fix right now."),
+      (err) => setGeoError(err.code === err.PERMISSION_DENIED ? "Location permission is off. Turn it on so shops and customers can see you coming." : "Can't get a GPS fix right now."),
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 },
     );
-    return () => {
-      if (watch.current !== null) navigator.geolocation.clearWatch(watch.current);
-    };
-  }, [onShift, canLocate, jobs.token]);
+    return () => navigator.geolocation.clearWatch(id);
+  }, [onShift, canLocate, token]);
 
-  // New jobs and changes from the shop or customer arrive live; polling covers a dropped socket.
-  useLiveReload(["job", "order"], jobs.reload, 20000);
+  const stops = useMemo(() => (run.data?.stops ?? []).filter((d) => ON_RUN.has(d.status)), [run.data]);
+  const jobs = useMemo(() => {
+    const mine = new Set(stops.map((s) => s.id));
+    return (board.data?.items ?? []).filter((j) => !j.delivery_id || !mine.has(j.delivery_id)).sort(byQueue);
+  }, [board.data, stops]);
+  const done = useMemo(() => (history.data?.items ?? []).filter((d) => d.status === "delivered" && today(d.delivered_at ?? d.created_at)), [history.data]);
+  const rules = board.data?.rules ?? me.data?.rules ?? null;
+  const status: RideStatus = stops.length ? "delivering" : onShift ? "idle" : "offline";
+  const pick = jobs.find((j) => j.id === picked) ?? null;
 
-  async function act(d: Delivery, action: Action, extra: { code?: string; note?: string } = {}) {
-    setBusy(d.id);
-    setMsg(null);
-    try {
-      const updated = await api.riderAction(jobs.token, d.id, action, extra);
-      jobs.setData((x) =>
-        x ? { ...x, items: action === "decline" ? x.items.filter((i) => i.id !== d.id) : x.items.map((i) => (i.id === d.id ? { ...i, ...updated } : i)) } : x,
-      );
-      if (action === "delivered") {
-        setCodes(({ [d.id]: _, ...rest }) => rest);
-        me.reload();
-      }
-      if (action === "failed") {
-        setFailing(null);
-        setNote("");
-      }
-    } catch (e) {
-      setMsg(e instanceof ApiError ? e.message : "That didn't save. Check your signal and try again.");
-    } finally {
-      setBusy(null);
-    }
-  }
+  const lastKnown = me.data?.position;
+  const here = useMemo<LatLng | null>(
+    () => (pos ? { lat: pos.lat, lng: pos.lng } : lastKnown ? { lat: lastKnown.lat, lng: lastKnown.lng } : null),
+    [pos, lastKnown],
+  );
 
-  const items = jobs.data?.items ?? [];
-  const active = items.filter((d) => ["assigned", "accepted", "picked_up"].includes(d.status));
-  const doneToday = items.filter((d) => d.status === "delivered" && new Date(d.created_at).toDateString() === new Date().toDateString());
-  const current = active.find((d) => d.status === "picked_up" || d.status === "accepted") ?? active[0];
-  const here = pos ?? (me.data?.position ? { ...me.data.position, accuracy: 0 } : null);
+  // The run's route from the API: shops still to collect, then drop-offs oldest order first.
+  // The rider's end of it follows the live GPS fix instead of the last position the API saw.
+  const legs = useMemo(() => {
+    const route = run.data?.route ?? [];
+    const stopsOnly = route.filter((w) => w.kind !== "rider").map(({ lat, lng }) => ({ lat, lng }));
+    const start = here ?? route.find((w) => w.kind === "rider") ?? null;
+    return stopsOnly.length && start ? [{ lat: start.lat, lng: start.lng }, ...stopsOnly] : stopsOnly;
+  }, [run.data, here]);
+
+  // With a routing server, follow the roads. The rider's end is rounded to about a kilometre so
+  // the route is fetched again only after real movement, not on every GPS tick.
+  const roadKey = legs.length >= 2 ? legs.map((p, i) => `${p.lat.toFixed(i ? 4 : 2)},${p.lng.toFixed(i ? 4 : 2)}`).join(";") : "";
+  const [road, setRoad] = useState<{ key: string; path: LatLng[] } | null>(null);
+  useEffect(() => {
+    if (!roadKey || !ROUTING_URL) return;
+    const points = roadKey.split(";").map((s) => {
+      const [lat, lng] = s.split(",").map(Number);
+      return { lat, lng };
+    });
+    const stop = new AbortController();
+    roadPath(points, stop.signal).then((path) => path && setRoad({ key: roadKey, path }));
+    return () => stop.abort();
+  }, [roadKey]);
 
   const { pins, lines } = useMemo(() => {
     const pins: MapPin[] = [];
-    const lines: MapLine[] = [];
-    if (current?.pickup) pins.push({ id: "p", kind: "pickup", label: current.pickup.label ?? current.store_name, lat: current.pickup.lat, lng: current.pickup.lng });
-    if (current?.dropoff) pins.push({ id: "d", kind: "dropoff", label: current.dropoff.label ?? "Drop-off", lat: current.dropoff.lat, lng: current.dropoff.lng });
-    if (here) {
-      pins.push({ id: "me", kind: "rider", label: "You", lat: here.lat, lng: here.lng });
-      const to = current ? (current.status === "picked_up" ? current.dropoff : current.pickup) : null;
-      if (to) lines.push({ id: "leg", from: here, to });
+    const shops = new Set<string>();
+    const shop = (key: string, p: LatLng | null, label: string) => {
+      if (!p || shops.has(key)) return;
+      shops.add(key);
+      pins.push({ id: `shop:${key}`, kind: "pickup", label, lat: p.lat, lng: p.lng });
+    };
+    for (const d of done) if (d.dropoff) pins.push({ id: `done:${d.id}`, kind: "dropoff", tone: "done", label: d.order_number, lat: d.dropoff.lat, lng: d.dropoff.lng });
+    for (const j of jobs) {
+      if (!j.dropoff) continue;
+      const isPick = j.id === pick?.id;
+      // Out of reach: the API says it can't join the run, or it can't ride along with the job picked.
+      const dim = !j.batchable || (!!pick && !isPick && !!rules && !fitsWith(pick, j, rules));
+      pins.push({ id: `job:${j.id}`, kind: "dropoff", tone: isPick ? "live" : "open", dim, label: `${j.order_number}, near ${j.area ?? j.store.name}`, lat: j.dropoff.lat, lng: j.dropoff.lng });
     }
+    if (pick) shop(pick.store.id || pick.store.name, pick.pickup, pick.store.name);
+    for (const s of stops) {
+      if (s.status === "accepted") shop(s.store_id ?? s.store_name, s.pickup, s.store_name);
+      if (s.dropoff) pins.push({ id: `stop:${s.id}`, kind: "dropoff", tone: "live", label: `${s.order_number}${s.customer_name ? `, ${s.customer_name}` : ""}`, lat: s.dropoff.lat, lng: s.dropoff.lng });
+    }
+    if (here) pins.push({ id: "me", kind: "rider", label: "You", lat: here.lat, lng: here.lng, heading: null });
+
+    const path = road && road.key === roadKey ? [...(here ? [here] : []), ...road.path] : legs;
+    const lines: MapLine[] = path.length >= 2 ? [{ id: "run", from: path[0], to: path[path.length - 1], path }] : [];
     return { pins, lines };
-  }, [current, here?.lat, here?.lng]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [done, jobs, pick, rules, stops, here, road, roadKey, legs]);
+
+  function onPin(id: string) {
+    const [kind, key] = [id.slice(0, id.indexOf(":")), id.slice(id.indexOf(":") + 1)];
+    if (kind === "job") setPicked((cur) => (cur === key ? null : key));
+    const el = document.getElementById(kind === "job" ? `job-${key}` : kind === "stop" ? `stop-${key}` : "");
+    el?.scrollIntoView({ block: "nearest", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  }
+
+  async function claim(j: OpenJob) {
+    setBusyJob(j.id);
+    setMsg(null);
+    try {
+      await api.riderClaim(token, j.id);
+      setPicked(null);
+      refresh();
+      me.reload();
+    } catch (e) {
+      setMsg(why(e, "Couldn't take that job. Check your signal and try again."));
+      if (e instanceof ApiError && e.code === "taken") setBoard((b) => b && { ...b, items: b.items.filter((x) => x.id !== j.id) });
+      else reloadBoard();
+    } finally {
+      setBusyJob(null);
+    }
+  }
+
+  async function skip(j: OpenJob) {
+    setBusyJob(j.id);
+    setMsg(null);
+    try {
+      await api.riderSkip(token, j.id);
+      setBoard((b) => b && { ...b, items: b.items.filter((x) => x.id !== j.id) });
+      if (picked === j.id) setPicked(null);
+    } catch (e) {
+      setMsg(why(e, "Couldn't skip that job. Check your signal and try again."));
+    } finally {
+      setBusyJob(null);
+    }
+  }
+
+  const ready = board.data !== null && run.data !== null;
+  const r = me.data;
+  const followed = pick ? `job:${pick.id}` : stops.length && here ? "me" : undefined;
+  const todayEarned = done.reduce((a, d) => a + (d.earning_cents ?? 0), 0);
+
+  const jobList = !board.data ? (
+    <p className="gd-empty" role="status">Loading jobs…</p>
+  ) : !jobs.length ? (
+    <p className="gd-empty">
+      {onShift ? "No jobs near you right now. New ones appear here and on the map by themselves." : "Start your shift to see jobs from shops near you."}
+    </p>
+  ) : (
+    <ul aria-label="Open jobs">
+      {jobs.map((j) => (
+        <JobCard
+          key={j.id}
+          j={j}
+          rules={rules}
+          picked={j.id === pick?.id}
+          fits={!!pick && j.id !== pick.id && j.batchable && !!rules && fitsWith(pick, j, rules)}
+          onRun={stops.length > 0}
+          onShift={onShift}
+          busy={busyJob === j.id}
+          onPick={() => setPicked((cur) => (cur === j.id ? null : j.id))}
+          onClaim={() => claim(j)}
+          onSkip={() => skip(j)}
+        />
+      ))}
+    </ul>
+  );
 
   return (
-    <>
-      <div className="mb-5 flex items-center justify-between gap-4">
-        <div>
-          <p className="label">{me.data ? `${me.data.full_name} · ${me.data.vehicle.replace(/_/g, " ")}` : "Rider"}</p>
-          <h1 className="heading flex items-center gap-2 text-[22px]"><span className={`h-2.5 w-2.5 rounded-full ${onShift ? "bg-element-success" : "bg-border-maxcontrast"}`} aria-hidden />{onShift ? "On shift" : "Off shift"}</h1>
-        </div>
-        <button onClick={toggleShift} disabled={switching || !me.data} aria-pressed={onShift} className={`btn btn-lg ${onShift ? "btn-secondary" : "btn-primary"}`}>
-          {switching ? "…" : onShift ? "End shift" : "Start shift"}
-        </button>
+    <GlassStage
+      kicker={r ? `${r.full_name} · ${r.vehicle.replace(/_/g, " ")}` : "Rider"}
+      title="Your deliveries"
+      description={STATUS[status].line}
+      live={live}
+      actions={
+        <>
+          <Badge state={STATUS[status].badge}>{STATUS[status].label}</Badge>
+          <button
+            type="button"
+            onClick={toggleShift}
+            disabled={switching || !r || (onShift && stops.length > 0)}
+            aria-pressed={onShift}
+            title={onShift && stops.length ? "Finish or hand back your stops before ending the shift" : undefined}
+            className={`gd-btn ${onShift ? "" : "gd-btn-primary"}`}
+          >
+            {switching ? "…" : onShift ? "End shift" : "Start shift"}
+          </button>
+        </>
+      }
+    >
+      <div className="gd-panel p-1.5">
+        {ready ? (
+          <DeliveryMap pins={pins} lines={lines} follow={followed} onPinClick={onPin} className="h-[300px] sm:h-[400px]" />
+        ) : (
+          <div className="h-[300px] animate-pulse rounded-container bg-background-hover sm:h-[400px]" role="status" aria-label="Loading the map" />
+        )}
       </div>
 
       {onShift && (
-        <p className="note note-success mb-4 text-[14px]">
+        <p className="note note-success text-[14px]">
           <Pin size={18} />
-          <span>Sharing your location with the market, and with the store and customer on your job, while you&apos;re on shift.{pos && <span className="ml-1 text-maxcontrast tabular-nums">±{Math.round(pos.accuracy)}m</span>}</span>
+          <span>
+            Sharing your location with the market, and with the shop and customer on each of your jobs, while you&apos;re on shift.
+            {pos && <span className="ml-1 tabular-nums text-maxcontrast">±{Math.round(pos.accuracy)} m</span>}
+          </span>
         </p>
       )}
-      <ErrorLine error={(onShift && !canLocate ? "This browser can't share location." : geoError) ?? msg ?? jobs.error} />
+      <ErrorLine error={(onShift && !canLocate ? "This browser can't share location." : geoError) ?? msg ?? me.error ?? board.error ?? run.error} />
 
-      {pins.length > 0 && <DeliveryMap pins={pins} lines={lines} follow={here ? "me" : undefined} className="mb-6 h-[300px]" />}
-
-      <div className="mb-3 grid grid-cols-3 gap-2 text-center">
-        <div className="card p-3"><p className="label">Active</p><p className="price text-[22px]">{active.length}</p></div>
-        <div className="card p-3"><p className="label">Done today</p><p className="price text-[22px]">{doneToday.length}</p></div>
-        <div className="card p-3">
-          <p className="label">Owed to you</p>
-          <p className="price text-[22px]">{money(me.data?.unpaid_earnings_cents ?? doneToday.reduce((a, d) => a + (d.fee_cents ?? 0), 0))}</p>
-        </div>
+      <div className="gd-metrics">
+        <Metric i={0} tone="accent" label="Deliveries done" icon={<CheckCircle size={16} />} value={r ? r.deliveries_completed : null} format={count} note={`${done.length} today`} />
+        <Metric
+          i={1}
+          label="Earned"
+          icon={<Cash size={16} />}
+          value={r?.earnings_cents ?? null}
+          format={money}
+          note={rules ? `${pct(rules.commission_rate)} commission, set by the market` : `${money(todayEarned)} today`}
+        />
+        <Metric i={2} label="Owed to you" icon={<Wallet size={16} />} value={r?.unpaid_earnings_cents ?? null} format={money} note="paid out by the market" />
+        <Metric
+          i={3}
+          tone={status === "delivering" ? "attention" : undefined}
+          label="On your run"
+          icon={<Truck size={16} />}
+          value={run.data ? stops.length : null}
+          format={count}
+          note={rules ? `up to ${rules.max_batch} at once` : undefined}
+        />
       </div>
 
-      <ul className="space-y-3">
-        {active.map((d) => {
-          const next = nextAction[d.status];
-          const route = routeUrl(here, d);
-          const code = codes[d.id] ?? "";
-          return (
-            <li key={d.id} className="card">
-              <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
-                <span className="text-[14px] font-semibold tabular-nums">{d.order_number}{d.items ? ` · ${d.items} item${d.items > 1 ? "s" : ""}` : ""}</span>
-                {d.fee_cents != null && <span className="price text-text-success">{money(d.fee_cents)}</span>}
-              </div>
-              {!!d.cash_to_collect_cents && (
-                <p className="note note-warning mx-3 mt-3 text-[14px] font-semibold"><span>Collect {money(d.cash_to_collect_cents)} in cash from the customer</span></p>
-              )}
-              <ol className="space-y-2 p-4 text-[14px]">
-                <li className="flex gap-3">
-                  <span className="rounded-full flex h-6 w-6 shrink-0 items-center justify-center bg-primary-element tabular-nums text-[12px] text-primary-element-text">P</span>
-                  <span><b>{d.store_name}</b>{d.pickup?.label && <><br />{d.pickup.label}</>}</span>
-                </li>
-                <li className="flex gap-3">
-                  <span className="rounded-full flex h-6 w-6 shrink-0 items-center justify-center bg-success tabular-nums text-[12px] text-success-text">D</span>
-                  {d.status === "assigned" ? (
-                    <span className="text-maxcontrast">Address shown after you accept{d.dropoff?.label ? ` (${d.dropoff.label})` : ""}</span>
-                  ) : (
-                    <span>
-                      {d.customer_name && <b>{d.customer_name}<br /></b>}
-                      {d.dropoff_address ?? d.dropoff?.label ?? "Address on the way"}
-                      {d.customer_phone && (
-                        <>
-                          <br />
-                          {/^[0-9 +().-]{6,32}$/.test(d.customer_phone) ? <a className="link-u" href={`tel:${d.customer_phone.replace(/[^0-9+]/g, "")}`}>{d.customer_phone}</a> : d.customer_phone}
-                        </>
-                      )}
-                    </span>
-                  )}
-                </li>
-              </ol>
+      <div className="gd-split">
+        <Panel
+          i={4}
+          title={stops.length ? "Your run" : "Open jobs"}
+          subtitle={
+            stops.length
+              ? "In the order the customers ordered. Address and phone show once you accept."
+              : rules
+                ? `Within ${rules.pool_radius_km} km of you. Exact address and phone show once you accept.`
+                : "Exact address and phone show once you accept."
+          }
+        >
+          {stops.length > 0 ? (
+            <ol aria-label="Stops on your run">
+              {stops.map((d, i) => (
+                <StopCard key={d.id} d={d} n={i + 1} token={token} here={here} onShift={onShift} pay={site.payment} onSaved={refresh} onDone={finished} />
+              ))}
+            </ol>
+          ) : (
+            jobList
+          )}
+        </Panel>
 
-              {d.status === "picked_up" && (
-                <form
-                  className="flex items-end gap-2 border-t border-border p-3"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (/^\d{6}$/.test(code)) act(d, "delivered", { code });
-                  }}
-                >
-                  <label className="flex-1">
-                    <span className="label">Customer&apos;s handover code</span>
-                    <input
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
-                      maxLength={6}
-                      className="field mt-1 tabular-nums text-[20px]"
-                      value={code}
-                      onChange={(e) => setCodes((c) => ({ ...c, [d.id]: e.target.value.replace(/\D/g, "").slice(0, 6) }))}
-                    />
-                  </label>
-                  <button disabled={busy === d.id || code.length !== 6 || !onShift} className="btn btn-primary btn-lg">Delivered</button>
-                </form>
-              )}
-
-              {failing === d.id ? (
-                <form
-                  className="space-y-2 border-t border-border p-3"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (note.trim()) act(d, "failed", { note: note.trim() });
-                  }}
-                >
-                  <label className="block"><span className="label">What went wrong?</span>
-                    <input required maxLength={300} className="field mt-1" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Nobody home, wrong address, refused…" />
-                  </label>
-                  <div className="flex gap-2">
-                    <button type="button" className="btn btn-tertiary flex-1" onClick={() => setFailing(null)}>Back</button>
-                    <button disabled={busy === d.id || !note.trim()} className="btn btn-error flex-1">Report and return to store</button>
-                  </div>
-                </form>
-              ) : (
-                <div className="flex gap-2 border-t border-border p-3">
-                  {d.status === "assigned" && <button disabled={busy === d.id} onClick={() => act(d, "decline")} className="btn btn-tertiary flex-1">Decline</button>}
-                  {next && (
-                    <button disabled={busy === d.id || !onShift} onClick={() => act(d, next.action)} className="btn btn-primary btn-lg flex-[2]">
-                      {onShift ? next.label : "Start shift to continue"}
-                    </button>
-                  )}
-                  {(d.status === "accepted" || d.status === "picked_up") && (
-                    <button onClick={() => { setFailing(d.id); setNote(""); }} className="btn btn-tertiary btn-lg">Can&apos;t deliver</button>
-                  )}
-                  {route && d.status !== "assigned" && <a className="btn btn-secondary btn-lg" target="_blank" rel="noopener noreferrer" href={route}>Route</a>}
-                </div>
-              )}
-            </li>
-          );
-        })}
-        {jobs.data && active.length === 0 && (
-          <li className="rounded-element border border-dashed border-border p-8 text-center text-maxcontrast">
-            {onShift ? "No jobs right now. New ones show up here automatically." : "Start your shift to get jobs from nearby stores."}
-          </li>
-        )}
-      </ul>
-    </>
+        <div className="space-y-3">
+          {stops.length > 0 && (
+            <Panel
+              i={5}
+              title="Jobs that fit your run"
+              subtitle={rules ? `Drop-offs within ${rules.batch_radius_km} km of your run, from shops within ${rules.pickup_radius_km} km. The rest are locked until you finish.` : undefined}
+            >
+              {jobList}
+            </Panel>
+          )}
+          <Panel i={6} title="Delivered today" subtitle={done.length ? `${money(todayEarned)} earned today` : undefined}>
+            {done.length ? (
+              <ul className="space-y-1.5 text-[14px]">
+                {done.map((d) => (
+                  <li key={d.id} className="flex items-center gap-2">
+                    <span className="job-dot" data-tone="done" aria-hidden />
+                    <span className="font-semibold tabular-nums">{d.order_number}</span>
+                    <span className="min-w-0 truncate text-maxcontrast">{d.store_name}</span>
+                    {d.earning_cents != null && <span className="price ml-auto">{money(d.earning_cents)}</span>}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="gd-empty"><Bike size={16} className="mr-1 inline" />Your green pins show up here as you deliver.</p>
+            )}
+          </Panel>
+        </div>
+      </div>
+    </GlassStage>
   );
 }

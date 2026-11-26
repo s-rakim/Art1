@@ -14,7 +14,7 @@ type Details = { full_name: string; phone: string; city: string; vehicle: Vehicl
 type Done = "sent" | "confirm" | "saved" | "pending" | "hired" | "rejected" | "paused";
 
 const DONE: Record<Done, { title: string; body: string; ok: boolean }> = {
-  sent: { ok: true, title: "Application sent", body: `The ${STORE_NAME} team reviews rider applications every weekday, usually with a short call and a document check. You'll be able to log in as soon as you're hired.` },
+  sent: { ok: true, title: "Application sent", body: "We go through rider applications every weekday, usually with a short call and a look at your documents. You can log in as soon as you're hired." },
   confirm: { ok: true, title: "Check your email", body: "We've sent you a link to confirm your email address. Opening it sends your application to the market team. If you already shop with us, log in first and then open this page again to apply with that account." },
   saved: { ok: true, title: "Nearly there", body: "Your account is set up but the application didn't reach the team just now. Log in once and we'll send it for you." },
   pending: { ok: true, title: "Your application is with the team", body: "Nothing more to do for now. You'll be able to use the rider app as soon as the market team hires you." },
