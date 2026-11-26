@@ -1,0 +1,14 @@
+{% extends "bazaar/base.html" %}
+{% block title %}Orders{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1 class="heading">Orders</h1><p>{{ total }} order{{ total|pluralize }}{% if status %} · {{ status }}{% endif %}</p></div>
+<div class="chips">
+  <a class="chip chip-link" href="{% url 'vendor:orders' %}" {% if not status %}aria-current="true"{% endif %}>All</a>
+  <a class="chip chip-link" href="?status=pending" {% if status == "pending" %}aria-current="true"{% endif %}>New</a>
+  <a class="chip chip-link" href="?status=processing" {% if status == "processing" %}aria-current="true"{% endif %}>Packing</a>
+  <a class="chip chip-link" href="?status=shipped" {% if status == "shipped" %}aria-current="true"{% endif %}>On the way</a>
+  <a class="chip chip-link" href="?status=delivered" {% if status == "delivered" %}aria-current="true"{% endif %}>Delivered</a>
+</div></div>
+{% if orders %}<div class="order-grid">{% for o in orders %}{% include "bazaar/vendor/_order_card.html" with o=o back="orders" %}{% endfor %}</div>
+{% else %}<div class="empty"><strong>No orders here</strong><p>Orders show up as soon as a buyer checks out.</p></div>{% endif %}
+{% endblock %}

@@ -1,0 +1,42 @@
+{% extends "bazaar/base.html" %}
+{% load bazaar %}
+{% block title %}Stall payouts{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1 class="heading">Stall payouts</h1>
+  <p>What The Bazaar owes each stall after commission, delivery and stall rent. Pay out once the books balance and the payout date comes round.</p></div>
+  <a class="btn" href="{% url 'books:admin_sheets' %}">{% icon "receipt" %}The books</a></div>
+{% if rows %}
+<div class="stack-sm">
+{% for s in rows %}
+<article class="card panel-pad stack-sm" aria-labelledby="st-{{ s.store_id }}">
+  <div class="row-between"><strong id="st-{{ s.store_id }}">{{ s.store_name }}</strong>
+    <span class="chip {% if s.books_balanced %}chip-success{% else %}chip-warning{% endif %}">{% if s.books_balanced %}Books balance{% else %}Not balanced{% endif %}</span></div>
+  <div class="tiles">
+    <div class="tile"><span class="label">Owed now</span><span class="value">{{ s.owed_cents|money:s.currency }}</span></div>
+    <div class="tile"><span class="label">Still held</span><span class="value">{{ s.held_cents|money:s.currency }}</span></div>
+    <div class="tile"><span class="label">Sales</span><span class="value">{{ s.sales_cents|money:s.currency }}</span></div>
+    <div class="tile"><span class="label">Commission and fees</span><span class="value">{{ s.commission_cents|add:s.fees_cents|money:s.currency }}</span></div>
+    <div class="tile"><span class="label">Delivery</span><span class="value">{{ s.delivery_cents|money:s.currency }}</span></div>
+    <div class="tile"><span class="label">Stall rent</span><span class="value">{{ s.rent_cents|money:s.currency }}</span></div>
+    <div class="tile"><span class="label">Paid out so far</span><span class="value">{{ s.paid_out_cents|money:s.currency }}</span></div>
+  </div>
+  <p class="small muted">Next payout {{ s.next_payout_at|when }}{% if s.last_payout_at %} · last {{ s.last_payout_at|when }}{% endif %}</p>
+  {% if s.blockers %}<ul class="small note note-warning">{% for b in s.blockers %}<li>{{ b|capfirst }}</li>{% endfor %}</ul>{% endif %}
+  <details><summary>Record a payout</summary>
+    <form class="stack-sm section-gap" method="post" action="{% url 'console:settle' s.store_id %}">{% csrf_token %}
+      <div class="grid-3">
+        <div class="field-wrap"><label class="label" for="amt-{{ s.store_id }}">Amount</label><input class="field num" id="amt-{{ s.store_id }}" name="amount" inputmode="decimal" placeholder="{{ s.owed_cents|major }}"><p class="hint">Empty pays everything owed.</p></div>
+        <div class="field-wrap"><label class="label" for="ref-{{ s.store_id }}">M-Pesa or bank reference</label><input class="field" id="ref-{{ s.store_id }}" name="reference" required></div>
+        <div class="field-wrap"><label class="label" for="nt-{{ s.store_id }}">Note</label><input class="field" id="nt-{{ s.store_id }}" name="note"></div>
+      </div>
+      {% if not s.books_balanced %}<label class="choice"><input type="checkbox" name="force" value="1"><span>Pay anyway (needs a note)</span></label>{% endif %}
+      <div><button class="btn btn-primary" data-confirm="Record this payout to {{ s.store_name }}?">Record payout</button></div>
+    </form>
+  </details>
+</article>
+{% endfor %}
+</div>
+{% else %}
+<div class="empty">{% icon "cash" 48 %}<strong>No stalls to pay yet</strong></div>
+{% endif %}
+{% endblock %}

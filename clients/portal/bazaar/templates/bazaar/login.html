@@ -1,0 +1,27 @@
+{% extends "bazaar/guest.html" %}
+{% load static %}
+{% block title %}Sign in{% endblock %}
+{% block content %}
+<div class="stack">
+  <img class="guest-logo" src="{% static 'img/logo.png' %}" alt="{{ store_name }}" width="190" height="110">
+  <div>
+    <h1 class="heading page-title">Sign in to {{ store_name }}</h1>
+    <p class="muted">One account for shopping, your stall, deliveries and admin.</p>
+  </div>
+  {% if error %}<div class="note note-error" role="alert" id="login-error">{{ error }}</div>{% endif %}
+  <form class="form" method="post" novalidate>
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ next }}">
+    <div class="field-wrap">
+      <label class="label" for="email">Email</label>
+      <input class="field" id="email" name="email" type="email" autocomplete="email" required value="{{ email|default:'' }}" {% if error %}aria-describedby="login-error" aria-invalid="true"{% endif %} autofocus>
+    </div>
+    <div class="field-wrap">
+      <label class="label" for="password">Password</label>
+      <input class="field" id="password" name="password" type="password" autocomplete="current-password" required>
+    </div>
+    <button class="btn btn-primary btn-lg btn-wide" type="submit">Sign in</button>
+  </form>
+  <p class="small muted">New here? <a class="link" href="{% url 'auth:signup' %}">Create an account</a> · Want to ride for us? <a class="link" href="{% url 'auth:signup_rider' %}">Apply as a rider</a></p>
+</div>
+{% endblock %}

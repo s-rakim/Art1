@@ -1,0 +1,117 @@
+@page "/inventory"
+@attribute [Authorize(Policy = "seller")]
+@rendermode InteractiveServer
+@inject ApiAccess Access
+
+<PageTitle>Stock import</PageTitle>
+<div class="page-head">
+    <div><h1 class="heading">Stock import</h1><p>Bring stock counts in from a spreadsheet, a point-of-sale export or your ERP. Nothing changes until you press Apply.</p></div>
+    <a class="btn" href="export/inventory.csv" download data-enhance-nav="false"><Icon Name="download" />Download current stock</a>
+</div>
+
+<section class="card panel-pad stack-sm" aria-labelledby="file-title">
+    <h2 class="heading section-title" id="file-title">1. Choose a file</h2>
+    <p class="small muted measure">A CSV with a header row. It needs a <span class="mono">sku</span> column, and either <span class="mono">stock</span> (set the count) or <span class="mono">adjust</span> (add or remove, like <span class="mono">-2</span>). Commas, semicolons and tabs all work. Up to @InventorySync.MaxRows rows.</p>
+    <label class="dropzone">
+        <Icon Name="upload" Size="36" />
+        <span><strong>Choose a CSV file</strong></span>
+        <span class="small">@(fileName ?? "Nothing chosen yet")</span>
+        <InputFile OnChange="Load" accept=".csv,.txt,text/csv,text/plain" />
+    </label>
+    @if (busy) { <p class="small muted" role="status">Reading the file and checking it against your stock…</p> }
+    @if (error is not null) { <p class="note note-error" role="alert"><Icon Name="alert" /><span>@error</span></p> }
+</section>
+
+@if (plan is not null)
+{
+    <section class="stack-sm section-gap" aria-labelledby="plan-title">
+        <div class="row-between">
+            <h2 class="heading section-title" id="plan-title">2. Check the changes</h2>
+            <div class="row small">
+                <span class="chip chip-info">@plan.ChangeCount to change</span>
+                <span class="chip">@plan.Lines.Count(l => l.State == LineState.Same) already right</span>
+                @if (plan.ProblemCount > 0) { <span class="chip chip-warning">@plan.ProblemCount skipped</span> }
+            </div>
+        </div>
+        <div class="table-wrap"><table class="table">
+            <thead><tr><th>Row</th><th>SKU</th><th>Product</th><th class="right">Now</th><th class="right">New</th><th class="right">Change</th><th>Note</th></tr></thead>
+            <tbody>
+            @foreach (var l in plan.Lines.OrderBy(l => l.State).ThenBy(l => l.Row).Take(500))
+            {
+                <tr>
+                    <td class="num small">@l.Row</td><td class="mono small">@l.Sku</td>
+                    <td>@l.Product<span class="small muted">@(l.Option is null ? "" : " · " + l.Option)</span></td>
+                    <td class="right num">@l.Current</td><td class="right num">@l.Target</td>
+                    <td class="right num">@(l.State == LineState.Change ? (l.Delta > 0 ? "+" : "") + l.Delta : "")</td>
+                    <td>@switch (l.State)
+                        {
+                            case LineState.Change: <span class="chip chip-info">Will update</span> break;
+                            case LineState.Same: <span class="chip">No change</span> break;
+                            default: <span class="chip chip-warning">@l.Problem</span> break;
+                        }</td>
+                </tr>
+            }
+            </tbody>
+        </table></div>
+        @if (plan.Lines.Count > 500) { <p class="small muted">Showing the first 500 rows.</p> }
+        <div class="row">
+            <button class="btn btn-primary" disabled="@(busy || plan.ChangeCount == 0)" @onclick="Apply">Apply @plan.ChangeCount change@(plan.ChangeCount == 1 ? "" : "s")</button>
+            <button class="btn btn-tertiary" @onclick="Reset">Start again</button>
+        </div>
+    </section>
+}
+
+@if (done is not null)
+{
+    <p class="note note-success section-gap" role="status"><Icon Name="check" /><span>@done</span></p>
+}
+
+@code {
+    private string? fileName, error, done;
+    private bool busy;
+    private SyncPlan? plan;
+
+    private async Task Load(InputFileChangeEventArgs e)
+    {
+        error = done = null; plan = null; busy = true;
+        fileName = e.File.Name;
+        try
+        {
+            if (e.File.Size > 5_000_000) throw new FormatException("That file is over 5 MB. Split it up and import the parts.");
+            using var reader = new StreamReader(e.File.OpenReadStream(5_000_000));
+            var rows = InventorySync.Parse(await reader.ReadToEndAsync());
+            if (rows.Count == 0) throw new FormatException("The file has a header but no rows.");
+            var api = await Access.ClientAsync();
+            plan = InventorySync.Plan(rows, await InventorySync.LoadAllAsync(api, CancellationToken.None));
+        }
+        catch (FormatException ex) { error = ex.Message; }
+        catch (Exception ex) { error = ApiAccess.Explain(ex); }
+        finally { busy = false; }
+    }
+
+    private async Task Apply()
+    {
+        if (plan is null) return;
+        busy = true; error = null;
+        int applied = 0;
+        try
+        {
+            var api = await Access.ClientAsync();
+            foreach (var batch in InventorySync.Batches(plan, $"Import: {Truncate(fileName)}"))
+            {
+                var res = await api.SellerUpdateInventoryAsync(batch);
+                applied += res.Items.Count;
+            }
+            done = $"Updated {applied} stock count{(applied == 1 ? "" : "s")}. The shop shows the new numbers now.";
+            plan = null;
+        }
+        catch (Exception ex)
+        {
+            error = $"Stopped after {applied} update{(applied == 1 ? "" : "s")}: {ApiAccess.Explain(ex)} Download your stock again before retrying.";
+        }
+        finally { busy = false; }
+    }
+
+    private void Reset() { plan = null; fileName = error = done = null; }
+    private static string Truncate(string? s) => s is null ? "file" : s.Length > 60 ? s[..60] : s;
+}

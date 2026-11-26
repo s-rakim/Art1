@@ -1,0 +1,11 @@
+{% load bazaar %}
+<div class="grid-3">
+  <div class="field-wrap"><label class="label" for="entry_date">Date</label><input class="field" type="date" id="entry_date" name="entry_date" value="{{ v.entry_date }}" required>{% if errors.entry_date %}<p class="error">{{ errors.entry_date }}</p>{% endif %}</div>
+  <div class="field-wrap"><label class="label" for="kind">Kind</label><select class="field" id="kind" name="kind">{% for k, label in kinds %}<option value="{{ k }}" {% if v.kind == k %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+  {% include "bazaar/_field.html" with name="reference" label="Transaction code or reference" value=v.reference error=errors.reference hint="The market office confirms the entry with this." %}
+</div>
+{% include "bazaar/_field.html" with name="description" label="What happened" value=v.description error=errors.description %}
+<div class="grid-2">
+  {% include "bazaar/_field.html" with name="quantity" label="Quantity (optional)" type="number" value=v.quantity error=errors.quantity %}
+  {% include "bazaar/_field.html" with name="amount" label="Amount (optional)" value=v.amount error=errors.amount hint="Like 1250.00" %}
+</div>

@@ -1,0 +1,41 @@
+{% extends "bazaar/base.html" %}
+{% load bazaar %}
+{% block title %}Your stall{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1 class="heading">{% greeting me %}</h1><p>{{ seller.store.name }} · <span class="chip {{ seller.store.status|status_tone }}">{{ seller.store.status|humanize }}</span> · {{ seller.plan.name }} plan</p></div>
+  <a class="btn btn-primary" href="{% url 'vendor:product_new' %}">{% icon "plus" %}New product</a>
+</div>
+{% if seller.store.status != "active" %}<p class="note note-warning">{% icon "alert" %}<span>Your stall is {{ seller.store.status|humanize|lower }}. {% if seller.store.review_note %}{{ seller.store.review_note }}{% else %}Products go live once an admin approves it.{% endif %}</span></p>{% endif %}
+{% if not seller.store.pickup_lat %}<p class="note note-info">{% icon "information" %}<span>Set your pickup point in the main shop's store settings, so riders can find you and orders go to the closest rider.</span></p>{% endif %}
+
+<div class="tiles">
+  <div class="card tile tile-lead"><span class="label">Sales, last 30 days</span><span class="value">{{ stats.sales_cents_30d|money:stats.currency }}</span></div>
+  <div class="card tile"><span class="label">Orders</span><span class="value">{{ stats.orders_30d }}</span></div>
+  <div class="card tile"><span class="label">To pack</span><span class="value">{{ stats.to_ship }}</span></div>
+  <div class="card tile"><span class="label">Available balance</span><span class="value">{{ stats.balance.available_cents|money:stats.currency }}</span></div>
+  <div class="card tile"><span class="label">Live products</span><span class="value">{{ stats.active_products }}{% if seller.product_limit %}<span class="small muted"> / {{ seller.product_limit }}</span>{% endif %}</span></div>
+</div>
+
+<div class="dash-cols">
+  <section>
+    <h2 class="heading section-title">New orders</h2>
+    {% if to_do %}
+    <div class="stack-sm">
+      {% for o in to_do %}{% include "bazaar/vendor/_order_card.html" with o=o back="dashboard" %}{% endfor %}
+    </div>
+    <a class="link small" href="{% url 'vendor:orders' %}">All orders</a>
+    {% else %}
+    <div class="empty">{% icon "receipt" 48 %}<strong>Nothing waiting</strong><p>New orders land here first.</p></div>
+    {% endif %}
+  </section>
+  <section>
+    <h2 class="heading section-title">Best sellers</h2>
+    {% if stats.top_products %}
+    <div class="table-wrap"><table class="table"><thead><tr><th>Product</th><th class="right">Units</th><th class="right">Sales</th></tr></thead><tbody>
+      {% for p in stats.top_products %}<tr><td>{{ p.title }}</td><td class="right num">{{ p.units }}</td><td class="right num">{{ p.sales_cents|money:stats.currency }}</td></tr>{% endfor %}
+    </tbody></table></div>
+    {% else %}<p class="muted">No sales in the last 30 days.</p>{% endif %}
+  </section>
+</div>
+{% endblock %}

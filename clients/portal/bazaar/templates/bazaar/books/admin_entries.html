@@ -1,0 +1,40 @@
+{% extends "bazaar/base.html" %}
+{% load bazaar %}
+{% block title %}Vendor entries{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1 class="heading">Vendor entries</h1>
+  <p>What stalls wrote in their own sheets. Confirm one by typing its transaction code or reference; it then shows in that stall's read-only books.</p></div>
+  <a class="btn" href="{% url 'books:admin_sheets' %}">{% icon "receipt" %}The books</a></div>
+<form class="filter-row row" method="get">
+  <select class="field" name="status" aria-label="Status">
+    <option value="pending" {% if status == "pending" %}selected{% endif %}>Waiting</option>
+    <option value="confirmed" {% if status == "confirmed" %}selected{% endif %}>Confirmed</option>
+    <option value="rejected" {% if status == "rejected" %}selected{% endif %}>Sent back</option></select>
+  <select class="field" name="store_id" aria-label="Stall"><option value="">All stalls</option>{% for s in stores %}<option value="{{ s.id }}" {% if s.id == store_id %}selected{% endif %}>{{ s.name }}</option>{% endfor %}</select>
+  <button class="btn">Show</button>
+</form>
+{% if entries %}
+<div class="stack-sm section-gap">
+{% for e in entries %}
+<article class="card panel-pad stack-sm">
+  <div class="row-between"><strong>{{ e.store_name }} · {{ e.description }}</strong><span class="small muted">{{ e.entry_date }} · {{ e.kind|humanize }}</span></div>
+  <div class="row small">{% if e.quantity is not None %}<span>Qty {{ e.quantity }}</span>{% endif %}{% if e.amount_cents is not None %}<span>{{ e.amount_cents|money }}</span>{% endif %}<span class="muted">Ref given</span></div>
+  {% if e.status == "pending" %}
+  <div class="row">
+    <form class="row" method="post" action="{% url 'books:admin_entry_action' e.id %}">{% csrf_token %}<input type="hidden" name="action" value="confirm">
+      <label class="sr-only" for="key-{{ e.id }}">Code or reference</label>
+      <input class="field" id="key-{{ e.id }}" name="key" autocomplete="off" placeholder="Type the code to confirm" required>
+      <button class="btn btn-primary">Confirm</button></form>
+    <form class="row" method="post" action="{% url 'books:admin_entry_action' e.id %}">{% csrf_token %}<input type="hidden" name="action" value="reject">
+      <label class="sr-only" for="note-{{ e.id }}">Why it's sent back</label>
+      <input class="field" id="note-{{ e.id }}" name="note" placeholder="Why it's sent back" required>
+      <button class="btn btn-tertiary">Send back</button></form>
+  </div>
+  {% else %}<p class="small">{{ e.status|humanize }}{% if e.admin_note %} · {{ e.admin_note }}{% endif %}{% if e.confirmed_at %} · {{ e.confirmed_at|when }}{% endif %}</p>{% endif %}
+</article>
+{% endfor %}
+</div>
+{% else %}
+<div class="empty">{% icon "check" 48 %}<strong>Nothing waiting</strong><p>New vendor entries show up here.</p></div>
+{% endif %}
+{% endblock %}

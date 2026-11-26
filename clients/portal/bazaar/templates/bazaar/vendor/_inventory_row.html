@@ -1,0 +1,17 @@
+{% load bazaar %}<tr id="inv-{{ r.variant_id }}">
+  <td>{{ r.product_title }}</td>
+  <td>{{ r.title }}</td>
+  <td class="mono small">{{ r.sku }}</td>
+  <td class="right num">{{ r.price_cents|money }}</td>
+  <td class="right num">{{ r.reserved }}</td>
+  <td class="right">
+    <form class="row row-end" method="post" action="{% url 'vendor:inventory_set' r.variant_id %}" hx-post="{% url 'vendor:inventory_set' r.variant_id %}" hx-target="#inv-{{ r.variant_id }}" hx-swap="outerHTML">
+      {% csrf_token %}
+      <input type="hidden" name="product_title" value="{{ r.product_title }}"><input type="hidden" name="title" value="{{ r.title }}"><input type="hidden" name="sku" value="{{ r.sku }}"><input type="hidden" name="price_cents" value="{{ r.price_cents }}"><input type="hidden" name="reserved" value="{{ r.reserved }}">
+      {% if r.low_stock %}<span class="chip chip-warning">Low</span>{% endif %}
+      <label class="sr-only" for="s-{{ r.variant_id }}">Stock for {{ r.product_title }} {{ r.title }}</label>
+      <input class="field stock-input" id="s-{{ r.variant_id }}" name="stock" type="number" min="0" max="1000000" value="{{ r.stock }}" inputmode="numeric">
+      <button class="btn btn-sm" type="submit">Save</button>
+    </form>
+  </td>
+</tr>{% if oob_messages %}{% include "bazaar/_messages.html" %}{% endif %}

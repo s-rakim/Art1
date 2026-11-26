@@ -1,0 +1,23 @@
+{% load bazaar %}
+<p class="small muted results-count" aria-live="polite">{% if browse_error %}{{ browse_error }}{% else %}{{ total }} product{{ total|pluralize }}{% if params.q %} for “{{ params.q }}”{% endif %}{% endif %}</p>
+{% if products %}
+<div class="products">
+  {% for p in products %}
+  <a class="product-card" href="{% url 'shop:product' p.slug %}">
+    {% if p.image_url %}<img class="thumb" src="{{ p.image_url }}" alt="" loading="lazy">{% else %}<div class="thumb thumb-empty">No photo yet</div>{% endif %}
+    <span class="title">{{ p.title }}</span>
+    <span class="price">{{ p.price_cents|money:p.currency }}</span>
+    <span class="small muted">{{ p.store.name }}{% if p.review_count %} · {% icon "star" 12 %} {{ p.rating|floatformat:1 }}{% endif %}</span>
+  </a>
+  {% endfor %}
+</div>
+{% if pages > 1 %}
+<nav class="pager" aria-label="Pages">
+  {% if has_prev %}<a class="btn" href="?q={{ params.q|urlencode }}&category={{ params.category|urlencode }}&sort={{ params.sort }}&page={{ page|add:'-1' }}">Previous</a>{% endif %}
+  <span class="btn btn-tertiary" aria-current="page">Page {{ page }} of {{ pages }}</span>
+  {% if has_next %}<a class="btn" href="?q={{ params.q|urlencode }}&category={{ params.category|urlencode }}&sort={{ params.sort }}&page={{ page|add:'1' }}">Next</a>{% endif %}
+</nav>
+{% endif %}
+{% elif not browse_error %}
+<div class="empty">{% icon "magnify" 48 %}<strong>Nothing matches that yet</strong><p>Try fewer words, or browse all stalls.</p><a class="btn" href="{% url 'shop:home' %}">Clear search</a></div>
+{% endif %}

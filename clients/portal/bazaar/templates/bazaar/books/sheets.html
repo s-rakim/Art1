@@ -1,0 +1,36 @@
+{% extends "bazaar/base.html" %}
+{% load bazaar %}
+{% block title %}Books{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1 class="heading">{% if admin %}The books{% else %}Your books{% endif %}</h1>
+  <p>{% if admin %}Every stall's money and stock, read only. Filter by stall to see what that vendor sees.{% else %}Read only. Built from your orders, the payments The Bazaar received for you, payouts and the entries the market office confirmed.{% endif %}</p></div>
+  {% if not admin %}<a class="btn" href="{% url 'books:entries' %}">{% icon "plus" %}Your own entries</a>{% endif %}</div>
+
+<nav class="sheet-tabs" aria-label="Sheets">
+  {% for key, label in sheets %}<a class="chip chip-link" href="?sheet={{ key }}{% if filters.from %}&from={{ filters.from }}{% endif %}{% if filters.to %}&to={{ filters.to }}{% endif %}{% if store_id %}&store_id={{ store_id }}{% endif %}" {% if key == sheet %}aria-current="true"{% endif %}>{{ label }}</a>{% endfor %}
+</nav>
+
+<form class="filter-row row section-gap" method="get">
+  <input type="hidden" name="sheet" value="{{ sheet }}">
+  {% if admin %}
+  <label class="sr-only" for="store">Stall</label>
+  <select class="field" id="store" name="store_id"><option value="">All stalls</option>{% for s in stores %}<option value="{{ s.id }}" {% if s.id == store_id %}selected{% endif %}>{{ s.name }}</option>{% endfor %}</select>
+  {% endif %}
+  <label class="small" for="from">From</label><input class="field" type="date" id="from" name="from" value="{{ filters.from }}">
+  <label class="small" for="to">To</label><input class="field" type="date" id="to" name="to" value="{{ filters.to }}">
+  <button class="btn">Show</button>
+  <button class="btn btn-tertiary" name="format" value="csv">{% icon "download" %}Download CSV</button>
+</form>
+
+{% if data.rows %}
+<div class="table-wrap">
+<table class="table sheet-table">
+  <thead><tr>{% for c in data.columns %}<th scope="col" {% if c.type == "money" or c.type == "number" %}class="num"{% endif %}>{{ c.label }}</th>{% endfor %}</tr></thead>
+  <tbody>{% for r in data.rows %}<tr>{% for c in data.columns %}<td {% if c.type == "money" or c.type == "number" %}class="num"{% endif %}>{% sheet_cell r c %}</td>{% endfor %}</tr>{% endfor %}</tbody>
+</table>
+</div>
+<p class="small muted">{{ data.total }} row{{ data.total|pluralize }}{% if data.total > data.page_size %}, showing {{ data.page_size }}. Download the CSV for all of them.{% endif %}</p>
+{% else %}
+<div class="empty">{% icon "receipt" 48 %}<strong>Nothing here yet</strong><p>Rows appear as orders, payments and confirmed entries come in.</p></div>
+{% endif %}
+{% endblock %}

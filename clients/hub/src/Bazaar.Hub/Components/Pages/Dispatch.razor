@@ -1,0 +1,13 @@
+@page "/dispatch"
+@attribute [Authorize(Policy = "staff")]
+@inject IOptions<HubOptions> Options
+
+<PageTitle>Dispatch board</PageTitle>
+<HeadContent><link rel="stylesheet" href="brand/vendor/leaflet-1.9.4/leaflet.css" /></HeadContent>
+<div class="page-head"><div><h1 class="heading">Dispatch board</h1><p>Riders on shift and deliveries on the road. Updates every five seconds.</p></div></div>
+<div class="map map-tall" data-src="dispatch.json" data-poll="5" data-center="@Options.Value.MapCenter" data-tiles="@Options.Value.MapTiles" data-attribution="© OpenStreetMap contributors" role="region" aria-label="Live map of riders and deliveries"></div>
+<div class="row-between map-foot"><p class="small muted" id="map-status" aria-live="polite">Loading the map…</p>
+<div class="legend"><span><span class="pin pin-store"></span>Stall</span><span><span class="pin pin-rider"></span>Rider</span><span><span class="pin pin-home"></span>Drop-off</span></div></div>
+<div class="table-wrap"><table class="table" id="map-rows"><thead><tr><th>Order</th><th>Stall</th><th>Rider</th><th>Status</th></tr></thead><tbody><tr><td colspan="4" class="muted">Loading…</td></tr></tbody></table></div>
+<script src="brand/vendor/leaflet-1.9.4/leaflet.js" defer></script>
+<script src="brand/map.js" defer></script>

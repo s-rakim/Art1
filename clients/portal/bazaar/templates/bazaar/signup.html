@@ -1,0 +1,30 @@
+{% extends "bazaar/guest.html" %}
+{% block title %}{% if as_rider %}Ride with us{% else %}Create an account{% endif %}{% endblock %}
+{% block content %}
+<div class="stack">
+  <div>
+    <h1 class="heading page-title">{% if as_rider %}Deliver for {{ store_name }}{% else %}Create your account{% endif %}</h1>
+    <p class="muted">{% if as_rider %}Tell us about yourself. An admin reviews every rider before they can take jobs.{% else %}Shop from every stall with one account.{% endif %}</p>
+  </div>
+  {% if error %}<div class="note note-error" role="alert">{{ error }}</div>{% endif %}
+  <form class="form" method="post" novalidate>
+    {% csrf_token %}
+    {% include "bazaar/_field.html" with name="full_name" label="Your name" value=values.full_name required=1 auto="name" error=errors.full_name %}
+    {% include "bazaar/_field.html" with name="email" label="Email" type="email" value=values.email required=1 auto="email" error=errors.email %}
+    {% include "bazaar/_field.html" with name="password" label="Password" type="password" required=1 auto="new-password" hint="At least 8 characters." error=errors.password %}
+    {% if as_rider %}
+      <div class="grid-2">
+        {% include "bazaar/_field.html" with name="phone" label="Phone" type="tel" value=values.phone required=1 auto="tel" error=errors.phone %}
+        {% include "bazaar/_field.html" with name="city" label="City" value=values.city required=1 auto="address-level2" error=errors.city %}
+      </div>
+      <div class="field-wrap">
+        <label class="label" for="vehicle">Vehicle</label>
+        <select class="field" id="vehicle" name="vehicle">{% for v, l in vehicles %}<option value="{{ v }}"{% if values.vehicle == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+      </div>
+      {% include "bazaar/_field.html" with name="licence_number" label="Licence number (if you drive)" value=values.licence_number error=errors.licence_number %}
+    {% endif %}
+    <button class="btn btn-primary btn-lg btn-wide" type="submit">{% if as_rider %}Send application{% else %}Create account{% endif %}</button>
+  </form>
+  <p class="small muted">Already have an account? <a class="link" href="{% url 'auth:login' %}">Sign in</a></p>
+</div>
+{% endblock %}

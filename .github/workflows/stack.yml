@@ -21,9 +21,11 @@ jobs:
       - uses: actions/checkout@v4
       - name: Compose file
         run: |
-          # The example leaves the anon key blank and compose refuses a
-          # blank one, which is what should happen on a real server.
-          sed 's/^SUPABASE_ANON_KEY=$/SUPABASE_ANON_KEY=ci/' .env.example > .env
+          # The example leaves the anon key and portal secret blank and
+          # compose refuses blank ones, which is what should happen on a
+          # real server.
+          sed -e 's/^SUPABASE_ANON_KEY=$/SUPABASE_ANON_KEY=ci/' \
+              -e 's/^PORTAL_SECRET_KEY=$/PORTAL_SECRET_KEY=ci/' .env.example > .env
           docker compose config --quiet
           docker compose --profile localdb config --quiet
       - name: Caddyfile

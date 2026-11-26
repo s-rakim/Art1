@@ -1,0 +1,30 @@
+{% extends "bazaar/base.html" %}
+{% load bazaar %}
+{% block title %}Shop{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1 class="heading">{% if me %}{% greeting me %}{% else %}Welcome to {{ store_name }}{% endif %}</h1>
+    <p>Every stall in the market, in one place.</p>
+  </div>
+</div>
+
+<form class="stack-sm" id="browse" hx-get="{% url 'shop:home' %}" hx-target="#results" hx-push-url="true" hx-trigger="input changed delay:300ms from:#q, change from:#sort, submit">
+  <div class="row">
+    <label class="sr-only" for="q">Search</label>
+    <input class="field grow" id="q" type="search" name="q" value="{{ params.q }}" placeholder="Search products, brands or stalls" autocomplete="off">
+    <label class="sr-only" for="sort">Sort by</label>
+    <select class="field sort-select" id="sort" name="sort">{% for v, l in sorts %}<option value="{{ v }}"{% if params.sort == v %} selected{% endif %}>{{ l }}</option>{% endfor %}</select>
+    <noscript><button class="btn" type="submit">Search</button></noscript>
+  </div>
+  {% if categories %}
+  <div class="chips" role="group" aria-label="Categories">
+    <a class="chip chip-link" href="{% url 'shop:home' %}" {% if not params.category %}aria-current="true"{% endif %}>All</a>
+    {% for c in categories %}<a class="chip chip-link" href="?category={{ c.slug|urlencode }}" {% if params.category == c.slug %}aria-current="true"{% endif %}>{{ c.name }}</a>{% endfor %}
+  </div>
+  <input type="hidden" name="category" value="{{ params.category }}">
+  {% endif %}
+</form>
+
+<div id="results" class="results">{% include "bazaar/shop/_results.html" %}</div>
+{% endblock %}

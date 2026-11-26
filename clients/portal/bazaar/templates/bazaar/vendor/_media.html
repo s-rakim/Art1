@@ -1,0 +1,55 @@
+{% load bazaar %}
+{% if product.images %}
+<ol class="media-grid" aria-label="Photos in shop order">
+  {% for img in product.images %}
+  <li class="media-tile">
+    <img src="{{ img.url }}" alt="{{ img.alt|default:'' }}" loading="lazy">
+    {% if forloop.first %}<span class="chip chip-primary">Cover</span>{% endif %}
+    <form class="row" method="post" action="{% url 'vendor:image_action' product.id img.id %}" hx-post="{% url 'vendor:image_action' product.id img.id %}" hx-target="#media">
+      {% csrf_token %}
+      <button class="btn btn-sm btn-tertiary btn-icon" name="action" value="left" {% if forloop.first %}disabled{% endif %} aria-label="Move photo {{ forloop.counter }} earlier">{% icon "arrow-left" 18 %}</button>
+      <button class="btn btn-sm btn-tertiary btn-icon" name="action" value="right" {% if forloop.last %}disabled{% endif %} aria-label="Move photo {{ forloop.counter }} later">{% icon "arrow-right" 18 %}</button>
+      {% if not forloop.first %}<button class="btn btn-sm btn-tertiary" name="action" value="first">Make cover</button>{% endif %}
+      <button class="btn btn-sm btn-tertiary btn-icon" name="action" value="delete" data-confirm="Delete this photo? It's removed from the shop straight away." aria-label="Delete photo {{ forloop.counter }}">{% icon "delete" 18 %}</button>
+    </form>
+    <form class="row" method="post" action="{% url 'vendor:image_action' product.id img.id %}" hx-post="{% url 'vendor:image_action' product.id img.id %}" hx-target="#media">
+      {% csrf_token %}<input type="hidden" name="action" value="alt">
+      <label class="sr-only" for="alt-{{ img.id }}">Describe photo {{ forloop.counter }}</label>
+      <input class="field grow" id="alt-{{ img.id }}" name="alt" value="{{ img.alt|default:'' }}" placeholder="Describe the photo" maxlength="200">
+      <button class="btn btn-sm" type="submit">Save</button>
+    </form>
+  </li>
+  {% endfor %}
+</ol>
+{% endif %}
+
+<form method="post" enctype="multipart/form-data" action="{% url 'vendor:images_add' product.id %}" hx-post="{% url 'vendor:images_add' product.id %}" hx-encoding="multipart/form-data" hx-target="#media" class="stack-sm">
+  {% csrf_token %}
+  <label class="dropzone" data-dropzone>
+    {% icon "image-plus" 40 %}
+    <span><strong>Add photos</strong>: drop them here or click to choose</span>
+    <span class="small">JPEG, PNG, WebP or AVIF, up to {{ max_image_mb }} MB each, 10 at a time</span>
+    <input type="file" name="images" accept="image/jpeg,image/png,image/webp,image/avif,image/gif" multiple>
+    <span class="previews" data-previews></span>
+    <span class="small" data-summary aria-live="polite"></span>
+  </label>
+  <progress class="progress" max="100" value="0" hidden></progress>
+  <div><button class="btn btn-primary" type="submit">Upload photos</button> <span class="htmx-indicator small muted">Uploading…</span></div>
+</form>
+
+<div class="card panel-pad stack-sm">
+  <strong>{% icon "video" 18 %} Product video</strong>
+  {% if product.video %}
+  <video class="product-video" controls preload="metadata" playsinline {% if product.video.poster_url %}poster="{{ product.video.poster_url }}"{% endif %}><source src="{{ product.video.url }}" type="{{ product.video.content_type }}"></video>
+  <form method="post" action="{% url 'vendor:video' product.id %}" hx-post="{% url 'vendor:video' product.id %}" hx-target="#media" data-confirm="Remove the product video?">{% csrf_token %}<input type="hidden" name="action" value="delete"><button class="btn btn-sm btn-error">Remove video</button></form>
+  {% endif %}
+  <form method="post" enctype="multipart/form-data" action="{% url 'vendor:video' product.id %}" hx-post="{% url 'vendor:video' product.id %}" hx-encoding="multipart/form-data" hx-target="#media" class="stack-sm">
+    {% csrf_token %}
+    <div class="field-wrap"><label class="label" for="vid">{% if product.video %}Replace with another video{% else %}Upload a video{% endif %}</label><input class="field file" id="vid" type="file" name="video" accept="video/mp4,video/webm,video/quicktime" required><span class="field-hint">MP4, WebM or MOV, up to {{ max_video_mb }} MB.</span></div>
+    <div class="field-wrap"><label class="label" for="poster">Cover image (optional)</label><input class="field file" id="poster" type="file" name="poster" accept="image/jpeg,image/png,image/webp"></div>
+    <div class="field-wrap"><label class="label" for="caption">Caption (optional)</label><input class="field" id="caption" name="caption" maxlength="200" value="{{ product.video.caption|default:'' }}"></div>
+    <progress class="progress" max="100" value="0" hidden></progress>
+    <div><button class="btn" type="submit">Upload video</button> <span class="htmx-indicator small muted">Uploading…</span></div>
+  </form>
+</div>
+{% include "bazaar/_messages.html" %}

@@ -4,7 +4,8 @@
 #   docker compose up -d --build
 #
 # One domain: Caddy sends /api/* (and the /api/v1/ws/live websocket) to the
-# API and everything else to the web app, so the browser never makes a
+# API, /portal to the Django portal, /hub to the C# hub and everything else
+# to the web app, so the browser never makes a
 # cross-origin call. Only Caddy publishes ports; everything else talks over
 # the private compose network.
 #
@@ -126,12 +127,70 @@ services:
       resources:
         limits: { memory: 512m }
 
+  # The Django portal at /portal: server-rendered pages for shoppers,
+  # stalls, riders and admins, for trying ideas fast. It only talks to the
+  # API. Sign-in tokens live in its Redis session, never in the browser.
+  portal:
+    <<: *hardening
+    image: ${IMAGE_PREFIX:-bazaar}-portal:${IMAGE_TAG:-local}
+    build:
+      context: ./clients/portal
+      additional_contexts:
+        frontend: ./frontend
+        brandkit: ./clients/brand
+    # No env_file on purpose: the portal never sees the database URL, the
+    # JWT secret or the service role key.
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN}
+      STORE_NAME: ${STORE_NAME:-The Bazaar}
+      PORTAL_SECRET_KEY: ${PORTAL_SECRET_KEY:?set PORTAL_SECRET_KEY in .env}
+      PORTAL_REDIS_URL: redis://redis:6379/2
+      API_URL_INTERNAL: http://api:8000/api/v1
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+      MAP_CENTER: ${MAP_CENTER:-5.6037,-0.1870}
+      IMAGE_HOST: ${IMAGE_HOST:-}
+      MAX_IMAGE_BYTES: ${MAX_IMAGE_BYTES:-8000000}
+      MAX_VIDEO_BYTES: ${MAX_VIDEO_BYTES:-50000000}
+      PORTAL_TIME_ZONE: ${TIME_ZONE:-UTC}
+    # Video uploads pass through /tmp on their way to the API.
+    tmpfs: ["/tmp:size=160m,uid=10001,gid=10001"]
+    depends_on: [api, redis]
+    deploy:
+      resources:
+        limits: { memory: 384m }
+
+  # The C# integrations hub at /hub: stock spreadsheets in and out, order
+  # exports, the payment message reader and the dispatch board. Stalls and
+  # admins only.
+  hub:
+    <<: *hardening
+    image: ${IMAGE_PREFIX:-bazaar}-hub:${IMAGE_TAG:-local}
+    build:
+      context: ./clients/hub
+      additional_contexts:
+        frontend: ./frontend
+        brandkit: ./clients/brand
+    environment:
+      AllowedHosts: "${SITE_DOMAIN};hub;localhost"
+      Hub__ApiUrl: http://api:8000/
+      Hub__SupabaseUrl: ${SUPABASE_URL}
+      Hub__SupabaseAnonKey: ${SUPABASE_ANON_KEY}
+      Hub__StoreName: ${STORE_NAME:-The Bazaar}
+      Hub__MapCenter: ${MAP_CENTER:-5.6037,-0.1870}
+    volumes: ["hub_keys:/keys"]
+    depends_on: [api]
+    deploy:
+      resources:
+        limits: { memory: 256m }
+
   redis:
     <<: *hardening
     image: redis:7.4-alpine
-    # Rate limit counters only: nothing worth persisting. protected-mode is
+    # Rate limit counters and portal sessions: nothing worth keeping across
+    # a restart (people sign in again). protected-mode is
     # off because redis has no published port; only the API can reach it.
-    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "64mb",
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "128mb",
               "--maxmemory-policy", "allkeys-lru", "--protected-mode", "no"]
     user: "999:999"
 
@@ -149,7 +208,7 @@ services:
     security_opt: ["no-new-privileges:true"]
     cap_drop: ["ALL"]
     cap_add: ["NET_BIND_SERVICE"]
-    depends_on: [api, web]
+    depends_on: [api, web, portal, hub]
 
   # Only with --profile localdb: Postgres on this box instead of Supabase's.
   # Sign-in and uploads still need a Supabase project (see DEPLOY.md).
@@ -171,6 +230,7 @@ services:
     shm_size: 256m
 
 volumes:
+  hub_keys:
   caddy_data:
   caddy_config:
   pgdata:

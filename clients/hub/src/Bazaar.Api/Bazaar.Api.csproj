@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Bazaar.Api</RootNamespace>
+    <Description>Typed client for The Bazaar API, generated from backend/openapi.json, plus Supabase sign-in.</Description>
+    <!-- The generated file is big and not ours to lint. -->
+    <NoWarn>$(NoWarn);CS8618;CS8601;CS8603;CS8604;CS8625;CS0108;CS0114;CS1591;CS8765;CS8600;CS8602</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="nswag.json" />
+  </ItemGroup>
+
+</Project>

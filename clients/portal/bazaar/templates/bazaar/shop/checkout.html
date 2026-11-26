@@ -1,0 +1,60 @@
+{% extends "bazaar/base.html" %}
+{% load bazaar %}
+{% block title %}Checkout{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1 class="heading">Checkout</h1><p>Every payment goes to The Bazaar, never to a stall directly. Card payments aren't switched on yet.</p></div></div>
+<form class="checkout-layout" method="post" novalidate>
+  {% csrf_token %}
+  {% if later %}{% for i in chosen %}<input type="hidden" name="pick" value="{{ i.id }}">{% endfor %}{% endif %}
+  <div class="stack">
+    <fieldset class="stack-sm">
+      <legend>Deliver to</legend>
+      {% for a in addresses %}
+      <label class="choice"><input type="radio" name="address_id" value="{{ a.id }}" {% if a.is_default and not values.full_name or values.address_id == a.id %}checked{% endif %}>
+        <span><strong>{{ a.full_name }}</strong><br><span class="small muted">{{ a.line1 }}{% if a.line2 %}, {{ a.line2 }}{% endif %}, {{ a.city }}, {{ a.country }}{% if a.phone %} · {{ a.phone }}{% endif %}</span></span></label>
+      {% endfor %}
+      {% if addresses %}<label class="choice"><input type="radio" name="address_id" value="" {% if values.full_name %}checked{% endif %}><span>A new address</span></label>{% endif %}
+      <div class="stack-sm new-address">
+        <div class="grid-2">
+          {% include "bazaar/_field.html" with name="full_name" label="Full name" value=values.full_name auto="name" error=errors.full_name %}
+          {% include "bazaar/_field.html" with name="phone" label="Phone" type="tel" value=values.phone auto="tel" error=errors.phone hint="The rider calls this number." %}
+        </div>
+        {% include "bazaar/_field.html" with name="line1" label="Street and number" value=values.line1 auto="address-line1" error=errors.line1 %}
+        {% include "bazaar/_field.html" with name="line2" label="Landmark, flat or floor (optional)" value=values.line2 auto="address-line2" %}
+        <div class="grid-3">
+          {% include "bazaar/_field.html" with name="city" label="City" value=values.city auto="address-level2" error=errors.city %}
+          {% include "bazaar/_field.html" with name="region" label="Region (optional)" value=values.region auto="address-level1" %}
+          {% include "bazaar/_field.html" with name="country" label="Country code" value=values.country|default:"GH" auto="country" error=errors.country hint="Two letters, like GH." %}
+        </div>
+        <div class="row" data-locate>
+          <input type="hidden" name="lat" value="{{ values.lat }}"><input type="hidden" name="lng" value="{{ values.lng }}">
+          <button class="btn btn-sm" type="button" data-locate-button>{% icon "map" 18 %}Pin where I am</button>
+          <span class="small muted" data-locate-status aria-live="polite">{% if values.lat %}Location pinned.{% else %}Helps the rider find you. Only used for this delivery.{% endif %}</span>
+        </div>
+      </div>
+    </fieldset>
+    <fieldset class="stack-sm">
+      <legend>Delivery speed</legend>
+      <label class="choice"><input type="radio" name="shipping_method" value="standard" {% if values.shipping_method != "express" %}checked{% endif %}><span>Standard</span></label>
+      <label class="choice"><input type="radio" name="shipping_method" value="express" {% if values.shipping_method == "express" %}checked{% endif %}><span>Express</span></label>
+      <p class="small muted">The delivery charge for each is set by the shop and shown on your order.</p>
+    </fieldset>
+    <fieldset class="stack-sm">
+      <legend>Payment</legend>
+      <label class="choice"><input type="radio" name="payment_method" value="cod" {% if values.payment_method != "bank_transfer" %}checked{% endif %}><span><strong>Pay when it arrives</strong><br><span class="small muted">M-Pesa or bank into The Bazaar's till, with your order number as the reference. The rider confirms it at the door.</span></span></label>
+      <label class="choice"><input type="radio" name="payment_method" value="bank_transfer" {% if values.payment_method == "bank_transfer" %}checked{% endif %}><span><strong>Pay now by bank transfer</strong><br><span class="small muted">To The Bazaar's account. Your order is packed once it lands.</span></span></label>
+      {% include "bazaar/shop/_pay_box.html" %}
+    </fieldset>
+    {% include "bazaar/_field.html" with name="coupon_code" label="Coupon (optional)" value=values.coupon_code %}
+  </div>
+  <aside class="card panel-pad stack-sm summary" aria-label="Order summary">
+    <h2 class="heading section-title">Summary</h2>
+    {% for i in chosen %}<div class="row-between small"><span>{{ i.quantity }} × {{ i.title }}</span><span class="num">{{ i.line_total_cents|money:cart.currency }}</span></div>{% endfor %}
+    <hr class="rule">
+    <div class="row-between"><span>Subtotal</span><span class="num">{{ subtotal|money:cart.currency }}</span></div>
+    {% if later %}<p class="small muted">{{ later|length }} other item{{ later|length|pluralize }} stay{{ later|length|pluralize:"s," }} in your bag for later. <a class="link" href="{% url 'shop:cart' %}">Change</a></p>{% endif %}
+    <p class="small muted">Tax and the final delivery charge are worked out when you place the order.</p>
+    <button class="btn btn-primary btn-lg btn-wide" type="submit">Place order</button>
+  </aside>
+</form>
+{% endblock %}

@@ -1,0 +1,11 @@
+<article class="card panel-pad stack-sm applicant">
+  <div class="row-between"><strong>{{ a.full_name }}</strong><span class="small muted">{{ a.created_at|date:"d M" }}</span></div>
+  <div class="small">{{ a.vehicle|title }} · {{ a.city }} · <a class="link" href="tel:{{ a.phone }}">{{ a.phone }}</a>{% if a.email %} · {{ a.email }}{% endif %}{% if a.licence_number %} · Licence {{ a.licence_number }}{% endif %}</div>
+  <form class="row" method="post" action="{% url 'console:rider_action' a.id %}">
+    {% csrf_token %}
+    <label class="sr-only" for="note-{{ a.id }}">Note to {{ a.full_name }}</label>
+    <input class="field grow" id="note-{{ a.id }}" name="note" placeholder="Note to the rider (optional)" maxlength="500">
+    <button class="btn btn-primary btn-sm" name="action" value="hire">Hire</button>
+    <button class="btn btn-sm btn-tertiary" name="action" value="reject" data-confirm="Turn down {{ a.full_name }}'s application?">Turn down</button>
+  </form>
+</article>

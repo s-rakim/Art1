@@ -1,0 +1,29 @@
+{% extends "bazaar/base.html" %}
+{% load bazaar %}
+{% block title %}Riders{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1 class="heading">Riders and hiring</h1><p>Riders sign up from the rider link. They can't take jobs until you hire them here.</p></div>
+  <a class="btn" href="{% url 'console:live' %}">{% icon "map" %}Live map</a></div>
+<h2 class="heading section-title">Waiting for a decision ({{ applicants|length }})</h2>
+{% if applicants %}<div class="order-grid">{% for a in applicants %}{% include "bazaar/console/_applicant.html" %}{% endfor %}</div>
+{% else %}<p class="muted">No applications waiting.</p>{% endif %}
+
+<div class="row-between section-gap"><h2 class="heading section-title">Team</h2>
+  <div class="chips"><a class="chip chip-link" href="?" {% if not status %}aria-current="true"{% endif %}>Everyone</a><a class="chip chip-link" href="?status=active" {% if status == "active" %}aria-current="true"{% endif %}>Active</a><a class="chip chip-link" href="?status=suspended" {% if status == "suspended" %}aria-current="true"{% endif %}>Suspended</a></div></div>
+{% if riders %}
+<div class="table-wrap"><table class="table">
+  <thead><tr><th>Rider</th><th>Contact</th><th>Status</th><th class="right">Jobs</th><th>Last seen</th><th><span class="sr-only">Actions</span></th></tr></thead>
+  <tbody>{% for r in riders %}
+  <tr><td><strong>{{ r.full_name }}</strong><div class="small muted">{{ r.vehicle|title }} · {{ r.city }}</div></td>
+    <td class="small"><a class="link" href="tel:{{ r.phone }}">{{ r.phone }}</a>{% if r.email %}<br>{{ r.email }}{% endif %}</td>
+    <td><span class="chip {{ r.status|status_tone }}">{{ r.status|humanize }}</span> {% if r.is_online %}<span class="dot dot-on" title="On shift"></span><span class="sr-only">On shift</span>{% endif %}</td>
+    <td class="right num">{{ r.completed_deliveries }}{% if r.active_deliveries %} <span class="chip chip-info">{{ r.active_deliveries }} now</span>{% endif %}</td>
+    <td class="small">{{ r.last_seen_at|when }}</td>
+    <td><form class="row row-end" method="post" action="{% url 'console:rider_action' r.id %}">{% csrf_token %}
+      {% if r.status == "active" %}<button class="btn btn-sm" name="action" value="settle" data-confirm="Mark all of {{ r.full_name }}'s unpaid earnings as paid out?">Settle pay</button><button class="btn btn-sm btn-tertiary" name="action" value="suspend" data-confirm="Suspend {{ r.full_name }}? They'll stop getting jobs.">Suspend</button>
+      {% elif r.status == "suspended" %}<button class="btn btn-sm" name="action" value="reinstate">Reinstate</button>{% endif %}
+    </form></td></tr>
+  {% endfor %}</tbody>
+</table></div>
+{% else %}<div class="empty"><strong>No riders yet</strong><p>Share the rider sign-up link to start hiring.</p></div>{% endif %}
+{% endblock %}

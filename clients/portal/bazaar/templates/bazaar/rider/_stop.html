@@ -1,0 +1,46 @@
+{% load bazaar %}
+<article class="card job" id="stop-{{ j.id }}" aria-labelledby="stop-title-{{ j.id }}">
+  <div class="row-between"><strong id="stop-title-{{ j.id }}"><span class="stop-n" aria-hidden="true">{{ n }}</span>Order {{ j.order_number }} · {{ j.store.name }}</strong>
+    <span class="chip {{ j.status|status_tone }}">{% if j.status == "assigned" %}Offered to you{% else %}{{ j.status|humanize }}{% endif %}</span></div>
+  <div class="grid-2 small">
+    <div><span class="label">Pick up</span><br>{{ j.pickup.label|default:j.store.name }}{% if j.pickup %} · <a class="link" href="https://www.openstreetmap.org/directions?route=%3B{{ j.pickup.lat }}%2C{{ j.pickup.lng }}" target="_blank" rel="noopener noreferrer">Directions</a>{% endif %}</div>
+    <div><span class="label">Buyer</span><br>{{ j.customer_name|default:"Shown once you accept" }}{% if j.customer_phone %} · <a class="link" href="tel:{{ j.customer_phone }}">{{ j.customer_phone }}</a>{% endif %}
+      {% if j.dropoff_address.line1 %}<br>{{ j.dropoff_address.line1 }}{% if j.dropoff_address.line2 %}, {{ j.dropoff_address.line2 }}{% endif %}{% endif %}
+      {% if j.dropoff %} · <a class="link" href="https://www.openstreetmap.org/directions?route=%3B{{ j.dropoff.lat }}%2C{{ j.dropoff.lng }}" target="_blank" rel="noopener noreferrer">Directions</a>{% endif %}</div>
+  </div>
+  {% if j.customer_note %}<p class="small note-client"><span class="label">Note from the buyer</span><br>{{ j.customer_note }}</p>{% endif %}
+  <div class="row small"><span>{{ j.items }} item{{ j.items|pluralize }}</span>
+    {% if j.amount_due_cents %}<span class="chip {% if j.payment_confirmed %}chip-success{% else %}chip-warning{% endif %}">{% if j.payment_confirmed %}Paid {{ j.amount_due_cents|money:j.currency }}{% else %}Buyer pays {{ j.amount_due_cents|money:j.currency }} to the till{% endif %}</span>{% endif %}
+    <span class="muted">You earn {{ j.earning_cents|money:j.currency }}</span></div>
+  <div class="row">
+  {% if j.status == "assigned" %}
+    <form method="post" action="{% url 'rider:job' j.id %}">{% csrf_token %}<button class="btn btn-primary" name="action" value="accept">Accept</button></form>
+    <form method="post" action="{% url 'rider:job' j.id %}">{% csrf_token %}<button class="btn btn-tertiary" name="action" value="decline">Pass</button></form>
+  {% elif j.status == "accepted" %}
+    <form method="post" action="{% url 'rider:job' j.id %}">{% csrf_token %}<button class="btn btn-primary" name="action" value="picked_up">I've picked it up</button></form>
+  {% elif j.status == "picked_up" %}
+    <form method="post" action="{% url 'rider:job' j.id %}">{% csrf_token %}<button class="btn btn-primary" name="action" value="arrived">I'm at the door</button></form>
+  {% endif %}
+  {% if j.status == "picked_up" or j.status == "arrived" %}
+    <form method="post" action="{% url 'rider:job' j.id %}" data-confirm="Mark this delivery as failed? The shop is told straight away.">{% csrf_token %}<input type="hidden" name="action" value="failed"><button class="btn btn-tertiary">Couldn't deliver</button></form>
+  {% endif %}
+  </div>
+  {% if j.status == "arrived" %}
+  <div class="stack-sm">
+    {% if not j.payment_confirmed %}
+    <form class="row" hx-get="{% url 'rider:payment_lookup' j.id %}" hx-target="#pay-{{ j.id }}" action="{% url 'rider:payment_lookup' j.id %}" method="get">
+      <label class="sr-only" for="q-{{ j.id }}">Buyer's name or transaction code</label>
+      <input class="field grow" id="q-{{ j.id }}" name="q" minlength="3" maxlength="60" autocomplete="off" placeholder="Buyer's name or M-Pesa code" required>
+      <button class="btn">Check payment</button>
+    </form>
+    <div id="pay-{{ j.id }}" class="pay-result" aria-live="polite"></div>
+    {% endif %}
+    <form class="row" method="post" action="{% url 'rider:job' j.id %}">{% csrf_token %}<input type="hidden" name="action" value="delivered">
+      <label class="sr-only" for="code-{{ j.id }}">Buyer's 6-digit handover code</label>
+      <input class="field code-input" id="code-{{ j.id }}" name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" placeholder="000000" required {% if not j.payment_confirmed %}disabled{% endif %}>
+      <button class="btn btn-primary" {% if not j.payment_confirmed %}disabled aria-describedby="needpay-{{ j.id }}"{% endif %}>Delivery done</button>
+      {% if not j.payment_confirmed %}<span class="small muted" id="needpay-{{ j.id }}">Confirm the payment first.</span>{% endif %}
+    </form>
+  </div>
+  {% endif %}
+</article>
